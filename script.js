@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupYouTubeAPI();
 
   // Preload default YouTube video
-  const defaultVideoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  const defaultVideoUrl = 'https://www.youtube.com/watch?v=pjf1uhUrc4M';
   document.getElementById('youtubeUrl').value = defaultVideoUrl;
   loadYouTubeVideo(defaultVideoUrl);
 
