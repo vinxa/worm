@@ -1,0 +1,10 @@
+[
+  { "time": 5, "event": "start" },
+  { "time": 10, "event": "goal" },
+  { "time": 20, "event": "foul" },
+  { "time": 30, "event": "goal" },
+  { "time": 45, "event": "halftime" },
+  { "time": 60, "event": "goal" },
+  { "time": 75, "event": "substitution" },
+  { "time": 90, "event": "end" }
+]

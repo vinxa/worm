@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Score Analyzer</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>Game Score Analyzer</h1>
+
+  <input type="file" id="dataFile" accept=".json" />
+  <input type="text" id="youtubeUrl" placeholder="Paste YouTube URL here" />
+  <button id="loadButton">Load Game</button>
+
+  <div class="video-container">
+    <iframe id="youtubePlayer" width="560" height="315" frameborder="0" allowfullscreen></iframe>
+  </div>
+
+  <canvas id="scoreChart"></canvas>
+
+  <div class="controls">
+    <button id="playButton">▶ Play</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
