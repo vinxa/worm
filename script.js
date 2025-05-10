@@ -82,4 +82,13 @@ document.getElementById('loadButton').addEventListener('click', () => {
 
 document.getElementById('playButton').addEventListener('click', playFromStart);
 
-document.addEventListener('DOMContentLoaded', setupYouTubeAPI);
+document.addEventListener('DOMContentLoaded', () => {
+  setupYouTubeAPI();
+
+  // Load chart immediately with demo data
+  const enrichedData = demoEventData.map((e, i) => ({
+    ...e,
+    score: i // example scoring
+  }));
+  loadChart(enrichedData);
+});
