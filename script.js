@@ -1,6 +1,18 @@
+// script.js
 let chart;
 let youtubePlayer;
-let eventData = [];
+
+// Preloaded demo event data
+const demoEventData = [
+  { time: 5, event: "start" },
+  { time: 10, event: "goal" },
+  { time: 20, event: "foul" },
+  { time: 30, event: "goal" },
+  { time: 45, event: "halftime" },
+  { time: 60, event: "goal" },
+  { time: 75, event: "substitution" },
+  { time: 90, event: "end" }
+];
 
 function loadYouTubeVideo(url) {
   const videoId = url.split('v=')[1]?.split('&')[0];
@@ -60,24 +72,14 @@ function playFromStart() {
 }
 
 document.getElementById('loadButton').addEventListener('click', () => {
-  const file = document.getElementById('dataFile').files[0];
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      eventData = JSON.parse(e.target.result);
-      const enrichedData = eventData.map((e, i) => ({
-        ...e,
-        score: i  // placeholder score increment
-      }));
-      loadChart(enrichedData);
-    } catch (err) {
-      alert('Invalid JSON file');
-    }
-  };
-  if (file) reader.readAsText(file);
-
   const url = document.getElementById('youtubeUrl').value;
   loadYouTubeVideo(url);
+
+  const enrichedData = demoEventData.map((e, i) => ({
+    ...e,
+    score: i // example: increase score with each event
+  }));
+  loadChart(enrichedData);
 });
 
 document.getElementById('playButton').addEventListener('click', playFromStart);
