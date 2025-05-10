@@ -2,17 +2,14 @@
 let chart;
 let youtubePlayer;
 
-// Preloaded demo event data
-const demoEventData = [
-  { time: 5, event: "start" },
-  { time: 10, event: "goal" },
-  { time: 20, event: "foul" },
-  { time: 30, event: "goal" },
-  { time: 45, event: "halftime" },
-  { time: 60, event: "goal" },
-  { time: 75, event: "substitution" },
-  { time: 90, event: "end" }
-];
+async function fetchDemoData() {
+  const response = await fetch('data/sample-game.json');
+  const data = await response.json();
+  return data.map((e, i) => ({
+    ...e,
+    score: i // example scoring
+  }));
+}
 
 function loadYouTubeVideo(url) {
   const videoId = url.split('v=')[1]?.split('&')[0];
@@ -71,26 +68,24 @@ function playFromStart() {
   }), '*');
 }
 
-document.getElementById('loadButton').addEventListener('click', () => {
+document.getElementById('loadButton').addEventListener('click', async () => {
   const url = document.getElementById('youtubeUrl').value;
   loadYouTubeVideo(url);
 
-  const enrichedData = demoEventData.map((e, i) => ({
-    ...e,
-    score: i // example: increase score with each event
-  }));
-  loadChart(enrichedData);
+  const data = await fetchDemoData();
+  loadChart(data);
 });
 
 document.getElementById('playButton').addEventListener('click', playFromStart);
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   setupYouTubeAPI();
 
-  // Load chart immediately with demo data
-  const enrichedData = demoEventData.map((e, i) => ({
-    ...e,
-    score: i // example scoring
-  }));
-  loadChart(enrichedData);
+  // Preload default YouTube video
+  const defaultVideoUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  document.getElementById('youtubeUrl').value = defaultVideoUrl;
+  loadYouTubeVideo(defaultVideoUrl);
+
+  const data = await fetchDemoData();
+  loadChart(data);
 });
