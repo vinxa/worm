@@ -1,28 +1,66 @@
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Game Score Analyzer</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://code.highcharts.com/highcharts.js"></script>
-</head>
-<body>
-  <h1>Game Score Analyzer</h1>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WORM - Game Analyser</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="back-button">&#x2190; WORM</div>
+      <div class="title">GAME X - 01/01/2025 - TEAM 1 v TEAM 2 v TEAM 3</div>
+      <div class="youtube-controls">
+        <input
+          id="youtubeUrl"
+          type="text"
+          placeholder="Add a YouTube video to sync"
+        />
+        <button id="loadButton">▶</button>
+      </div>
+    </header>
 
-  <input type="file" id="dataFile" accept=".json" />
-  <input type="text" id="youtubeUrl" placeholder="Paste YouTube URL here" />
-  <button id="loadButton">Load Game</button>
+    <main class="app-layout">
+      <section class="stats-panel">
+        <div class="panel-header">
+          <span>KEY STATS</span>
+          <button class="close-button">X</button>
+        </div>
+        <div class="stats-content">
+          <h2>Playername</h2>
+          <ul>
+            <li>TAGS <span>47</span> <span>A</span></li>
+            <li>TAG RATIO <span>120%</span> <span>A+</span></li>
+            <li>GOALS <span>2</span> <span>A+</span></li>
+            <li>DENIES <span>2</span> <span>B</span></li>
+            <li>ACTIVE TIME <span>76%</span> <span>B</span></li>
+          </ul>
+        </div>
+      </section>
 
-  <div class="video-container">
-    <iframe id="youtubePlayer" width="560" height="315" frameborder="0" allowfullscreen></iframe>
-  </div>
+      <section class="map-panel">
+        <div class="panel-header">MAP</div>
+        <div class="map-placeholder">[Map Placeholder]</div>
+      </section>
 
-  <div id="scoreChart"></div>
+      <section class="timeline-panel">
+        <div class="panel-header">TIMELINE</div>
+        <div id="scoreChart"></div>
+        <div class="chart-controls">
+          <button>&#x25C0;</button>
+          <button id="playButton">&#x2302;</button>
+          <button>&#x25B6;</button>
+        </div>
+      </section>
+    </main>
 
-  <div class="controls">
-    <button id="playButton">▶ Play</button>
-  </div>
-
-  <script src="script.js"></script>
-</body>
+    <iframe
+      id="youtubePlayer"
+      frameborder="0"
+      allow="autoplay; encrypted-media"
+      allowfullscreen
+    ></iframe>
+    <script src="script.js"></script>
+  </body>
 </html>
