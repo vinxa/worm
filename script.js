@@ -14,26 +14,23 @@ function loadChart(data) {
   const times = data.map(e => e.time);
   const values = data.map(e => e.score);
 
-  const ctx = document.getElementById('scoreChart').getContext('2d');
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: times,
-      datasets: [{
-        label: 'Score',
-        data: values,
-        borderColor: 'blue',
-        fill: false
-      }]
-    },
-    options: {
-      responsive: true,
-      onClick: (e) => {
-        const point = chart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true)[0];
-        if (point) {
-          const time = data[point.index].time;
-          seekYouTubeTo(time);
+  chart = Highcharts.chart('scoreChart', {
+    title: { text: 'Score Over Time' },
+    xAxis: { title: { text: 'Time (s)' }, categories: times },
+    yAxis: { title: { text: 'Score' } },
+    series: [{
+      name: 'Score',
+      data: values
+    }],
+    plotOptions: {
+      series: {
+        cursor: 'pointer',
+        point: {
+          events: {
+            click: function () {
+              seekYouTubeTo(data[this.index].time);
+            }
+          }
         }
       }
     }

@@ -7,8 +7,9 @@ body {
   margin-top: 1rem;
   margin-bottom: 2rem;
 }
-canvas {
+#scoreChart {
   max-width: 100%;
+  height: 400px;
   background: white;
   border: 1px solid #ccc;
   margin-bottom: 1rem;
