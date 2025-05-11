@@ -1,66 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WORM - Game Analyser</title>
-    <link rel="stylesheet" href="style.css" />
-    <script src="https://code.highcharts.com/highcharts.js"></script>
-  </head>
-  <body>
-    <header class="app-header">
-      <div class="back-button">&#x2190; WORM</div>
-      <div class="title">GAME X - 01/01/2025 - TEAM 1 v TEAM 2 v TEAM 3</div>
-      <div class="youtube-controls">
-        <input
-          id="youtubeUrl"
-          type="text"
-          placeholder="Add a YouTube video to sync"
-        />
-        <button id="loadButton">▶</button>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Analyzer</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://code.highcharts.com/highcharts.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <button class="nav-button left">&lt;</button>
+      <span class="app-name">WORM</span>
+    </div>
+    <div class="header-center title">GAME X - 01/01/2025 - TEAM 1 v TEAM 2 v TEAM 3</div>
+    <div class="header-right">
+      <span class="add-youtube">Add a YouTube video to sync</span>
+      <button class="nav-button right">&gt;</button>
+    </div>
+  </header>
+
+  <div class="top-section">
+    <section class="results-section">
+      <h2>RESULTS</h2>
+      <div class="players-grid">
+        <!-- 15 player boxes -->
+        <div class="player-summary" data-player-id="player1">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player2">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player3">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player4">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player5">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player6">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player7">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player8">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player9">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player10">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player11">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player12">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player13">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player14">PLAYER STATS</div>
+        <div class="player-summary" data-player-id="player15">PLAYER STATS</div>
       </div>
-    </header>
+      <ul class="team-scores">
+        <li>Team 1 <span>99,999</span></li>
+        <li>Team 2 <span>99,998</span></li>
+        <li>Team 3 <span>99,997</span></li>
+      </ul>
+    </section>
 
-    <main class="app-layout">
-      <section class="stats-panel">
-        <div class="panel-header">
-          <span>KEY STATS</span>
-          <button class="close-button">X</button>
-        </div>
-        <div class="stats-content">
-          <h2>Playername</h2>
-          <ul>
-            <li>TAGS <span>47</span> <span>A</span></li>
-            <li>TAG RATIO <span>120%</span> <span>A+</span></li>
-            <li>GOALS <span>2</span> <span>A+</span></li>
-            <li>DENIES <span>2</span> <span>B</span></li>
-            <li>ACTIVE TIME <span>76%</span> <span>B</span></li>
-          </ul>
-        </div>
-      </section>
+    <section class="map-section">
+      <h2>MAP</h2>
+      <div class="map-placeholder">[Map Placeholder]</div>
+    </section>
 
-      <section class="map-panel">
-        <div class="panel-header">MAP</div>
-        <div class="map-placeholder">[Map Placeholder]</div>
-      </section>
+    <!-- Detail overlay remains unchanged -->
+    <div id="detail-overlay" class="overlay hidden">
+      <div class="detail-panel">
+        <button id="close-detail" class="close-button">X</button>
+        <h2>KEY STATS</h2>
+        <h3 id="detail-name">Playername</h3>
+        <ul>
+          <li>TAGS <span id="detail-tags">47</span> <span id="detail-tags-grade">A</span></li>
+          <li>TAG RATIO <span id="detail-ratio">120%</span> <span id="detail-ratio-grade">A+</span></li>
+          <li>GOALS <span id="detail-goals">2</span> <span id="detail-goals-grade">A+</span></li>
+          <li>DENIES <span id="detail-denies">2</span> <span id="detail-denies-grade">B</span></li>
+          <li>ACTIVE TIME <span id="detail-active">76%</span> <span id="detail-active-grade">B</span></li>
+        </ul>
+        <div class="detail-map"></div>
+      </div>
+    </div>
+  </div>
 
-      <section class="timeline-panel">
-        <div class="panel-header">TIMELINE</div>
-        <div id="scoreChart"></div>
-        <div class="chart-controls">
-          <button>&#x25C0;</button>
-          <button id="playButton">&#x2302;</button>
-          <button>&#x25B6;</button>
-        </div>
-      </section>
-    </main>
+  <section class="timeline-section">
+    <h2>TIMELINE</h2>
+    <div id="scoreChart"></div>
+    <div class="chart-controls">
+      <button id="back-btn">&lt;</button>
+      <button id="playButton">▶</button>
+      <button id="forward-btn">&gt;</button>
+    </div>
+  </section>
 
-    <iframe
-      id="youtubePlayer"
-      frameborder="0"
-      allow="autoplay; encrypted-media"
-      allowfullscreen
-    ></iframe>
-    <script src="script.js"></script>
-  </body>
+  <script src="script.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
 </html>

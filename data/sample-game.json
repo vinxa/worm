@@ -1,10 +1,37 @@
-[
-  { "time": 5, "event": "start" },
-  { "time": 10, "event": "goal" },
-  { "time": 20, "event": "foul" },
-  { "time": 30, "event": "goal" },
-  { "time": 45, "event": "halftime" },
-  { "time": 60, "event": "goal" },
-  { "time": 75, "event": "substitution" },
-  { "time": 90, "event": "end" }
-]
+{
+  "timeline": [
+    { "time": 0, "packid": 0, "playername": "player1", "score": 0 },
+    { "time": 10, "packid": 0, "playername": "player1", "score": 2 },
+    { "time": 20, "packid": 0, "playername": "player1", "score": 3 },
+    { "time": 30, "packid": 0, "playername": "player1", "score": 5 },
+    { "time": 45, "packid": 0, "playername": "player1", "score": 5 },
+    { "time": 60, "packid": 0, "playername": "player1", "score": 7 },
+    { "time": 75, "packid": 0, "playername": "player1", "score": 9 },
+    { "time": 90, "packid": 0, "playername": "player1", "score": 11 }
+  ],
+  "deathPeriods": {
+    "#player1": [
+      { "start": 12, "end": 20 },
+      { "start": 50, "end": 58 }
+    ],
+    "#player2": [
+      { "start": 35, "end": 43 }
+    ]
+  },
+  "baseShots": {
+    "#player1": [
+        {"base": "red", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
+    ],
+    "#player2": [
+        {"base": "blue", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
+    ],
+    "#player3": [
+        {"base": "green", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
+    ]
+  },
+  "endScores": {
+    "#player1": 11,
+    "#player2": 10,
+    "#player3": 9
+  }
+}
