@@ -71,4 +71,74 @@ function setupDetailOverlay() {
 
   // Close button
   closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
+
+// 1) Load the YouTube IFrame API
+const ytTag = document.createElement('script');
+ytTag.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(ytTag);
+
+// 2) YouTube API ready callback (optional flag or setup)
+let YTReady = false;
+function onYouTubeIframeAPIReady() {
+  YTReady = true;
+  console.log('YouTube IFrame API is ready');
+}
+
+// — Existing code below —
+
+// Draggable Video Modal elements
+const modal = document.getElementById('videoModal');
+const modalHeader = modal.querySelector('.modal-header');
+const modalPlayer = document.getElementById('modalPlayer');
+const ytCloseBtn   = document.getElementById('modalClose');
+
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
+
+// Show & load video into modal on ▶ button click
+document.getElementById('loadButton').addEventListener('click', () => {
+  const url = document.getElementById('youtubeUrl').value;
+  const videoId = parseYouTubeId(url);
+  if (!videoId) return;
+
+  // Wait for API to be ready if you need programmatic control later
+  modalPlayer.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${location.origin}`;
+  modal.style.display = 'block';
+});
+
+// Close button hides modal (and stops video)
+ytCloseBtn.addEventListener('click', () => {
+  modal.style.display = 'none';
+  modalPlayer.src = '';  // unload to stop playback
+});
+
+// Drag start
+modalHeader.addEventListener('mousedown', e => {
+  isDragging = true;
+  const rect = modal.getBoundingClientRect();
+  dragOffset.x = e.clientX - rect.left;
+  dragOffset.y = e.clientY - rect.top;
+  document.body.style.userSelect = 'none';
+});
+
+// Dragging
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  modal.style.left = `${e.clientX - dragOffset.x}px`;
+  modal.style.top  = `${e.clientY - dragOffset.y}px`;
+});
+
+// Drag end
+window.addEventListener('mouseup', () => {
+  isDragging = false;
+  document.body.style.userSelect = '';
+});
+
+// Helper to extract ID
+function parseYouTubeId(url) {
+  const match = url.match(/(?:v=|\.be\/)([\w-]{11})/);
+  return match ? match[1] : null;
+}
+
+
 }
