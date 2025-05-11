@@ -72,6 +72,9 @@ function setupDetailOverlay() {
   // Close button
   closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
 
+
+}
+
 // 1) Load the YouTube IFrame API
 const ytTag = document.createElement('script');
 ytTag.src = 'https://www.youtube.com/iframe_api';
@@ -138,7 +141,4 @@ window.addEventListener('mouseup', () => {
 function parseYouTubeId(url) {
   const match = url.match(/(?:v=|\.be\/)([\w-]{11})/);
   return match ? match[1] : null;
-}
-
-
 }
