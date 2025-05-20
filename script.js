@@ -291,7 +291,7 @@ function initLiveChart(data) {
 
 /**
  * Play back the game in real time, resuming from `startSec`.
- * Always schedules one tick per second up to duration—regardless of events.
+ * Fires every 0.5s, updates both the chart and the team‐score UI.
  *
  * @param {Highcharts.Chart} chart
  * @param {Object}           data       your gameData
@@ -300,122 +300,96 @@ function initLiveChart(data) {
  * @param {number}           startSec   second to begin playback from
  */
 function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
-  // 1) figure out how long the game is
+  // 1) Compute duration
   const maxEventTime = data.events.length
     ? Math.max(...data.events.map((e) => e.time))
     : 0;
   const duration = data.gameDuration != null ? data.gameDuration : maxEventTime;
 
-  // 2) bucket events by second for quick lookup
-  /*   const eventsByTime = {};
-  data.events.forEach(ev => {
-    if (!eventsByTime[ev.time]) eventsByTime[ev.time] = [];
-    eventsByTime[ev.time].push(ev);
-  }); */
-
-  // 2 sort events by exact time
+  // 2) Sort events by exact time
   const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
   let eventIdx = 0;
 
-  // 3) initialize team totals *up to* startSec
-  const lastTeamScores = {};
-  data.teams.forEach((t) => (lastTeamScores[t.id] = 0));
-  /*   data.events.forEach(ev => {
-    if (ev.time < startSec) {
-      const teamId = ev.teamDelta != null
-        ? ev.entity
-        : data.players[ev.entity].team;
-      lastTeamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
-    }
-  }); */
-
-  data.teams.forEach((t) => (lastTeamScores[t.id] = 0));
+  // 3) Initialize global teamScores up to startSec
+  //    (assumes teamScores = {} declared at top and populated in loadGameData)
+  data.teams.forEach((t) => {
+    teamScores[t.id] = 0;
+  });
   while (
     eventIdx < sortedEvents.length &&
     sortedEvents[eventIdx].time < startSec
   ) {
     const ev = sortedEvents[eventIdx++];
-    const teamId =
-      ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-    lastTeamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+    const teamId = ev.teamDelta != null
+      ? ev.entity
+      : data.players[ev.entity].team;
+    teamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
   }
 
-  // 4) reset live series to match startSec
+  // 4) Reset the live‐series to match startSec
   updateLiveSeries(startSec);
+  // And update the UI for the new teamScores
+  updateTeamScoresUI();
+  updatePlayerTiles(startSec);
 
-  /*   // 5) schedule one update per second, from startSec → duration
-  for (let t = startSec; t <= duration; t++) {
-    const delay = ((t - startSec) * 1000) / rate;
-    const id = setTimeout(() => {
-      if (!isPlaying) return;
-
-      // apply any scoring events at exactly second t
-      (eventsByTime[t] || []).forEach(ev => {
-        const teamId = ev.teamDelta != null
-          ? ev.entity
-          : data.players[ev.entity].team;
-        lastTeamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
-      });
-
-      // plot each team’s point at time t
-      const offset = data.teams.length;
-      data.teams.forEach((team, idx) => {
-        chart.series[offset + idx].addPoint(
-          [t, lastTeamScores[team.id]],
-          idx === data.teams.length - 1,
-          false
-        );
-      }); */
-
-  // 5) Schedule a tick every 0.5 s from startSec → duration
-  const stepSize = 0.5; // seconds
-  const stepMillis = stepSize * 1000; // 100 ms
+  // 5) Schedule ticks every 0.5s from startSec → duration
+  const stepSize   = 0.5;               // seconds
+  const stepMillis = stepSize * 1000;   // ms
   const totalSteps = Math.ceil((duration - startSec) / stepSize);
+
   for (let i = 0; i <= totalSteps; i++) {
-    const t = startSec + i * stepSize;
+    const t     = startSec + i * stepSize;
     const delay = (i * stepMillis) / rate;
+
     const id = setTimeout(() => {
       if (!isPlaying) return;
 
-      // a) apply any events whose time ≤ t
+      // a) Apply any events with ev.time ≤ t
       while (
         eventIdx < sortedEvents.length &&
         sortedEvents[eventIdx].time <= t
       ) {
-        const ev = sortedEvents[eventIdx++];
-        const teamId =
-          ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-        lastTeamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+        const ev     = sortedEvents[eventIdx++];
+        const teamId = ev.teamDelta != null
+          ? ev.entity
+          : data.players[ev.entity].team;
+        teamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
       }
 
-      // b) draw a point for each team at time = t
-      const offset = data.teams.length; // ghost series first
+      // b) Draw a point for each team in the "live" series
+      const offset = data.teams.length; // ghost series are first
       data.teams.forEach((team, idx) => {
         chart.series[offset + idx].addPoint(
-          [t, lastTeamScores[team.id]],
-          idx === data.teams.length - 1, // only redraw on last series
+          [t, teamScores[team.id]],
+          idx === data.teams.length - 1, // redraw only on the last series
           false
         );
       });
 
-      // update tiles, team UI, and move cursor
-      updatePlayerTiles(t);
+      // c) Update team-scores list and player tiles
       updateTeamScoresUI();
-const x = chart.xAxis[0].toPixels(t, false);
-const dx = x - chart.plotLeft;
+      updatePlayerTiles(t);
 
-chart.customCursorGroup.animate(
-  {translateX: dx},
-  {duration: stepMillis, easing: 'linear' }
-);
+      // d) Move the cursor group smoothly
+      const x  = chart.xAxis[0].toPixels(t, false);
+      const dx = x - chart.plotLeft;
+      chart.customCursorGroup.animate(
+        { translateX: dx },
+        { duration: stepMillis, easing: 'linear' }
+      );
+      // update its label text
+      chart.customCursorGroup.element
+        .querySelector('text')
+        .firstChild.data = formatTime(t);
 
-chart.customCursorGroup.element.querySelector('text').firstChild.data = formatTime(t);
+      // e) Final redraw
       chart.redraw();
     }, delay);
 
     timeouts.push(id);
   }
 }
+
 
 // 7) Dynamically generate your 15 player‐summary tiles
 function generatePlayerTiles() {
