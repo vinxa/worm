@@ -112,9 +112,15 @@ async function loadGameData() {
         replayTimeouts = [];
         // start replay, passing our array to fill with timeout IDs
         playReplay(chart, gameData, 1, replayTimeouts, currentTime);
+            if (player && typeof player.playVideo === 'function') {
+      player.playVideo();
+    }
       } else {
         isPlaying = false;
         btn.textContent = "▶"; // back to play icon
+            if (player && typeof player.pauseVideo === 'function') {
+      player.pauseVideo();
+    }
         // cancel pending events
         replayTimeouts.forEach((id) => clearTimeout(id));
       }
