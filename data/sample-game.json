@@ -1,37 +1,41 @@
 {
-  "timeline": [
-    { "time": 0, "packid": 0, "playername": "player1", "score": 0 },
-    { "time": 10, "packid": 0, "playername": "player1", "score": 2 },
-    { "time": 20, "packid": 0, "playername": "player1", "score": 3 },
-    { "time": 30, "packid": 0, "playername": "player1", "score": 5 },
-    { "time": 45, "packid": 0, "playername": "player1", "score": 5 },
-    { "time": 60, "packid": 0, "playername": "player1", "score": 7 },
-    { "time": 75, "packid": 0, "playername": "player1", "score": 9 },
-    { "time": 90, "packid": 0, "playername": "player1", "score": 11 }
+  "gameDuration": 720,
+  "teams": [
+    { "id": "red",   "name": "Red Team",   "color": "#FF0000" },
+    { "id": "blue",  "name": "Blue Team",  "color": "#4060FF" },
+    { "id": "green","name": "Green Team","color": "#008140" }
   ],
-  "deathPeriods": {
-    "#player1": [
-      { "start": 12, "end": 20 },
-      { "start": 50, "end": 58 }
-    ],
-    "#player2": [
-      { "start": 35, "end": 43 }
-    ]
-  },
-  "baseShots": {
-    "#player1": [
-        {"base": "red", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
-    ],
-    "#player2": [
-        {"base": "blue", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
-    ],
-    "#player3": [
-        {"base": "green", "destroyed": false, "shotstimes": [10, 30, 40, 50]}
-    ]
-  },
-  "endScores": {
-    "#player1": 11,
-    "#player2": 10,
-    "#player3": 9
-  }
+
+    "players":  { "#p1": {"name": "Player 1", "team": "red"},
+                    "#p2": {"name": "Player 2", "team": "red"},
+                    "#p3": {"name": "Player 3", "team": "red"},
+                    "#p4": {"name": "Player 4", "team": "red"},
+                    "#p5": {"name": "Player 5", "team": "red"},
+                    "#p6": {"name": "Player 6", "team": "green"},
+                    "#p7": {"name": "Player 7", "team": "green"},
+                    "#p8": {"name": "Player 8", "team": "green"},
+                    "#p9": {"name": "Player 9", "team": "green"},
+                    "#p10": {"name": "Player 10", "team": "green"},
+                    "#p11": {"name": "Player 11", "team": "blue"},
+                    "#p12": {"name": "Player 12", "team": "blue"},
+                    "#p13": {"name": "Player 13", "team": "blue"},
+                    "#p14": {"name": "Player 14", "team": "blue"},
+                    "#p15": {"name": "Player 15", "team": "blue"}
+                  },
+
+  "events": [
+    { "time": 5, "delta": 150, "entity":"#p1", "type":"tag"   },
+    { "time": 6,   "entity":"#p1",    "delta": 150, "type":"tag"   },
+    { "time": 6,   "entity":"#p2",    "delta": 150, "type":"tag"   },
+    { "time": 7,   "entity":"#p1",    "delta": 150, "type":"tag"   },
+    { "time": 8,   "entity":"#p1",    "delta": 150, "type":"tag"   },
+    { "time": 8,  "entity":"#p11",   "delta": 150, "type":"tag"   },
+    { "time": 9,  "entity":"#p1",    "delta": 150, "type":"tag"   },
+    { "time": 9,  "entity":"#p11", "delta": 150, "type":"tag"   },
+    { "time": 10,  "entity":"#p11",   "delta": -1000, "type":"penalty"  },
+    { "time": 10,  "entity":"#p13",    "delta": 150, "type":"tag"   },
+    { "time": 7,  "entity":"#p9",    "delta": -500, "type":"base hit"   },
+    { "time": 9,  "entity":"#p9",    "delta": -500, "type":"base hit"   },
+    { "time": 11,  "entity":"#p9",    "delta": 4001, "type":"base destroy"   }
+  ]
 }

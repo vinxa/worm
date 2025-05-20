@@ -28,45 +28,22 @@
       <span class="modal-title">YouTube Player</span>
       <button id="modalClose" class="modal-close">✕</button>
     </div>
-    <div class="modal-body">
-      <iframe
-        id="modalPlayer"
-        width="560"
-        height="315"
-        frameborder="0"
-        allow="autoplay; encrypted-media"
-        allowfullscreen
-      ></iframe>
-    </div>
+<div class="modal-body">
+  <div id="modalPlayer" style="width:560px; height:315px;"></div>
+</div>
   </div>
 
 
   <div class="top-section">
     <section class="results-section">
-      <h2>RESULTS</h2>
-      <div class="players-grid">
-        <!-- 15 player boxes -->
-        <div class="player-summary" data-player-id="player1">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player2">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player3">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player4">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player5">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player6">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player7">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player8">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player9">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player10">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player11">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player12">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player13">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player14">PLAYER STATS</div>
-        <div class="player-summary" data-player-id="player15">PLAYER STATS</div>
-      </div>
-      <ul class="team-scores">
-        <li>Team 1 <span>99,999</span></li>
-        <li>Team 2 <span>99,998</span></li>
-        <li>Team 3 <span>99,997</span></li>
-      </ul>
+      <h2>RESULTS</h2><!-- Player Grid -->
+<div id="playerGrid" class="players-grid"></div>
+
+<ul class="team-scores">
+  <li data-team-id="red">Red Team: <span class="team-score">0</span></li>
+  <li data-team-id="blue">Blue Team: <span class="team-score">0</span></li>
+  <li data-team-id="green">Green Team: <span class="team-score">0</span></li>
+</ul>
     </section>
 
     <section class="map-section">
@@ -81,11 +58,12 @@
         <h2>KEY STATS</h2>
         <h3 id="detail-name">Playername</h3>
         <ul>
-          <li>TAGS <span id="detail-tags">47</span> <span id="detail-tags-grade">A</span></li>
-          <li>TAG RATIO <span id="detail-ratio">120%</span> <span id="detail-ratio-grade">A+</span></li>
-          <li>GOALS <span id="detail-goals">2</span> <span id="detail-goals-grade">A+</span></li>
-          <li>DENIES <span id="detail-denies">2</span> <span id="detail-denies-grade">B</span></li>
-          <li>ACTIVE TIME <span id="detail-active">76%</span> <span id="detail-active-grade">B</span></li>
+          <li>SCORE <span id="detail-score">47</span></li>
+          <li>TAGS <span id="detail-tags">47</span></li>
+          <li>TAG RATIO <span id="detail-ratio">120%</span></li>
+          <li>GOALS <span id="detail-goals">2</span></li>
+          <li>DENIES <span id="detail-denies">2</span></li>
+          <li>ACTIVE TIME <span id="detail-active">76%</span></li>
         </ul>
         <div class="detail-map"></div>
       </div>
@@ -96,13 +74,12 @@
     <h2>TIMELINE</h2>
     <div id="scoreChart"></div>
     <div class="chart-controls">
-      <button id="back-btn">&lt;</button>
+      <button id="rewindButton">&lt;</button>
       <button id="playButton">▶</button>
-      <button id="forward-btn">&gt;</button>
+      <button id="forwardButton">&gt;</button>
     </div>
   </section>
 
   <script src="script.js"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>

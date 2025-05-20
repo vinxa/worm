@@ -82,10 +82,61 @@ body, html {
   grid-auto-rows: 60px; gap: 10px; flex: 1; overflow-y: auto;
 }
 .player-summary {
-  background: #3a3a3a; border: 1px solid #555;
-  display: flex; align-items: center; justify-content: center;
+  background: #1f1f1f;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
   cursor: pointer;
+  overflow: visible;
+  transition: transform 0.2s ease, background 0.2s ease;
 }
+
+/* Header always visible */
+.player-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Details hidden by default */
+.player-summary-details {
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  background: #1f1f1f;
+}
+
+/* Expanded state */
+.player-summary.expanded {
+  transform: scale(1.03);
+  background: #2a2a2a;
+  z-index: 1; /* bring to top */
+  margin-top: 1px;
+}
+
+/* Show details when expanded */
+.player-summary.expanded .player-summary-details {
+  max-height: 500px; /* enough to show all stats */
+  opacity: 1;
+  margin-top: 8px;
+}
+
+
+.player-name {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #e2b12a; 
+  text-align: center;
+}
+
+.player-score {
+  font-size: 1.2rem;
+  color: #eee;
+  text-align: center;
+}
+
 .team-scores {
   list-style: none; padding: 0; margin: 10px 0 0;
   font-size: 0.9rem;
