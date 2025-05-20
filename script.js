@@ -40,6 +40,19 @@ function updatePlayerTiles(currentTime) {
   });
 }
 
+function updateCursorPosition(sec) {
+  const axis = chart.xAxis[0];
+  const x    = axis.toPixels(sec, false);
+  const dx   = x - chart.plotLeft;
+
+  // move the whole group without animation
+  chart.customCursorGroup.attr({ translateX: dx });
+
+  // update its label text
+  const textEl = chart.customCursorGroup.element.querySelector('text');
+  textEl.firstChild.data = formatTime(sec);
+}
+
 // 4) Fetch JSON & bootstrap everything
 async function loadGameData() {
   try {
@@ -515,15 +528,7 @@ function seekToTime(sec) {
   updateLiveSeries(sec);
 
   // 4) move cursor line
-const x = chart.xAxis[0].toPixels(sec, false);
-const dx = x - chart.plotLeft;
-
-chart.customCursorGroup.animate(
-  {translateX: dx},
-  {duration: stepMillis, easing: 'linear' }
-);
-
-chart.customCursorGroup.element.querySelector('text').firstChild.data = formatTime(sec);
+updateCursorPosition(currentTime);
 
 /* // Animate the line to its new x position
 chart.customCursorLine.animate(
