@@ -108,7 +108,7 @@ async function loadGameData() {
       document.getElementById("rewindButton").addEventListener("click", () => {
         seekToTime(currentTime - 15);
         if (isPlaying) {
-          replayTimeouts.forEach(id => clearTimeout(id));
+          replayTimeouts.forEach((id) => clearTimeout(id));
           replayTimeouts = [];
           playReplay(chart, gameData, 1, replayTimeouts, currentTime);
         }
@@ -116,7 +116,7 @@ async function loadGameData() {
       document.getElementById("forwardButton").addEventListener("click", () => {
         seekToTime(currentTime + 15);
         if (isPlaying) {
-          replayTimeouts.forEach(id => clearTimeout(id));
+          replayTimeouts.forEach((id) => clearTimeout(id));
           replayTimeouts = [];
           playReplay(chart, gameData, 1, replayTimeouts, currentTime);
         }
@@ -132,12 +132,11 @@ async function loadGameData() {
  */
 function bucketTeamDeltas(data) {
   const buckets = {};
-  data.teams.forEach(t => buckets[t.id] = {});
+  data.teams.forEach((t) => (buckets[t.id] = {}));
 
-  data.events.forEach(ev => {
-    const teamId = ev.teamDelta != null
-      ? ev.entity
-      : data.players[ev.entity].team;
+  data.events.forEach((ev) => {
+    const teamId =
+      ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
     const d = ev.teamDelta ?? ev.delta ?? 0;
     buckets[teamId][ev.time] = (buckets[teamId][ev.time] || 0) + d;
   });
@@ -149,22 +148,22 @@ function bucketTeamDeltas(data) {
  * Returns { teamId: [ [0,0], [1,score], [2,score], … ] }
  */
 function buildTeamTimeline(data) {
-  const duration = data.gameDuration
-    ?? Math.max(...data.events.map(e => e.time), 0);
+  const duration =
+    data.gameDuration ?? Math.max(...data.events.map((e) => e.time), 0);
 
   const buckets = bucketTeamDeltas(data);
   const timeline = {};
-  const totals   = {};
+  const totals = {};
 
   // init
-  data.teams.forEach(t => {
-    totals[t.id]   = 0;
+  data.teams.forEach((t) => {
+    totals[t.id] = 0;
     timeline[t.id] = [];
   });
 
   // walk each second
   for (let sec = 0; sec <= duration; sec++) {
-    data.teams.forEach(t => {
+    data.teams.forEach((t) => {
       // apply any delta at this second
       totals[t.id] += buckets[t.id][sec] || 0;
       // record the running total
@@ -175,11 +174,10 @@ function buildTeamTimeline(data) {
   return timeline;
 }
 
-
-
 // 5) Initialize an empty chart for live replay
 function initLiveChart(data) {
-  const fullTimeline = buildTeamTimeline(data);  const liveSeries = data.teams.map((t) => ({
+  const fullTimeline = buildTeamTimeline(data);
+  const liveSeries = data.teams.map((t) => ({
     name: t.name,
     data: [[0, 0]],
     color: t.color,
@@ -196,26 +194,26 @@ function initLiveChart(data) {
   }));
 
   const cchart = Highcharts.chart("scoreChart", {
-       chart: {
-     type: 'line',
-     backgroundColor: '#2a2a2a',
-     events: {
-       click: function(e) {
-         // 1) figure out the clicked time (in seconds)
-         const t = Math.round(e.xAxis[0].value);
+    chart: {
+      type: "line",
+      backgroundColor: "#2a2a2a",
+      events: {
+        click: function (e) {
+          // 1) figure out the clicked time (in seconds)
+          const t = Math.round(e.xAxis[0].value);
 
-         // 2) seek to that time (updates tiles, team UI & cursor)
-         seekToTime(t);
+          // 2) seek to that time (updates tiles, team UI & cursor)
+          seekToTime(t);
 
-         // 3) if we're currently playing, restart playback from there
-         if (isPlaying) {
-           replayTimeouts.forEach(id => clearTimeout(id));
-           replayTimeouts = [];
-           playReplay(chart, gameData, 1, replayTimeouts, currentTime);
-         }
-       }
-     }
-   },
+          // 3) if we're currently playing, restart playback from there
+          if (isPlaying) {
+            replayTimeouts.forEach((id) => clearTimeout(id));
+            replayTimeouts = [];
+            playReplay(chart, gameData, 1, replayTimeouts, currentTime);
+          }
+        },
+      },
+    },
     title: { text: null },
     xAxis: {
       gridLineWidth: 1,
@@ -256,22 +254,37 @@ function initLiveChart(data) {
     legend: { enabled: false, itemStyle: { color: "#eee" } },
   });
 
-  cchart.xAxis[0].addPlotLine({
-    id: "cursor-line",
-    value: 0,
-    color: "#888",
-    width: 2,
-    zIndex: 2,
-    dashStyle: "Dash",
-    label: {
-      text: formatTime(0),
-        align: "center",
-        verticalAlign: "top",
-        y: 10,
-        style: { color: '#fff', fontWeight: 'bold'}
-      
-    }
-  });
+
+    // grab chart internals for positioning
+  const left   = cchart.plotLeft;
+  const top    = cchart.plotTop;
+  const height = cchart.plotHeight;
+
+  const cursorGroup = cchart.renderer.g().attr({zIndex: 5}).add();
+
+  // 1a) Draw a vertical line at x=0
+  const cursorLine = cchart.renderer
+    .path(['M', left, top, 'L', left, top + height])
+    .attr({
+      stroke:     '#888',
+      'stroke-width': 2,
+      dashstyle:  'Dash',
+      zIndex:     5
+    })
+    .add(cursorGroup);
+
+  // 1b) Draw a timestamp label just above it
+  const cursorLabel = cchart.renderer
+    .text('0:00', left, top - 2)
+    .attr({ align: 'center', zIndex: 6 })
+    .css({ color: '#fff', fontWeight: 'bold', fontSize: '10px' })
+    .add(cursorGroup);
+
+  // stash them for later
+  /* 
+  cchart.customCursorLine  = cursorLine;
+  cchart.customCursorLabel = cursorLabel; */
+  cchart.customCursorGroup = cursorGroup;
 
   return cchart;
 }
@@ -289,35 +302,48 @@ function initLiveChart(data) {
 function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   // 1) figure out how long the game is
   const maxEventTime = data.events.length
-    ? Math.max(...data.events.map(e => e.time))
+    ? Math.max(...data.events.map((e) => e.time))
     : 0;
-  const duration = data.gameDuration != null
-    ? data.gameDuration
-    : maxEventTime;
+  const duration = data.gameDuration != null ? data.gameDuration : maxEventTime;
 
   // 2) bucket events by second for quick lookup
-  const eventsByTime = {};
+  /*   const eventsByTime = {};
   data.events.forEach(ev => {
     if (!eventsByTime[ev.time]) eventsByTime[ev.time] = [];
     eventsByTime[ev.time].push(ev);
-  });
+  }); */
+
+  // 2 sort events by exact time
+  const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
+  let eventIdx = 0;
 
   // 3) initialize team totals *up to* startSec
   const lastTeamScores = {};
-  data.teams.forEach(t => lastTeamScores[t.id] = 0);
-  data.events.forEach(ev => {
+  data.teams.forEach((t) => (lastTeamScores[t.id] = 0));
+  /*   data.events.forEach(ev => {
     if (ev.time < startSec) {
       const teamId = ev.teamDelta != null
         ? ev.entity
         : data.players[ev.entity].team;
       lastTeamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
     }
-  });
+  }); */
+
+  data.teams.forEach((t) => (lastTeamScores[t.id] = 0));
+  while (
+    eventIdx < sortedEvents.length &&
+    sortedEvents[eventIdx].time < startSec
+  ) {
+    const ev = sortedEvents[eventIdx++];
+    const teamId =
+      ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
+    lastTeamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+  }
 
   // 4) reset live series to match startSec
   updateLiveSeries(startSec);
 
-  // 5) schedule one update per second, from startSec → duration
+  /*   // 5) schedule one update per second, from startSec → duration
   for (let t = startSec; t <= duration; t++) {
     const delay = ((t - startSec) * 1000) / rate;
     const id = setTimeout(() => {
@@ -339,29 +365,54 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
           idx === data.teams.length - 1,
           false
         );
+      }); */
+
+  // 5) Schedule a tick every 0.5 s from startSec → duration
+  const stepSize = 0.5; // seconds
+  const stepMillis = stepSize * 1000; // 100 ms
+  const totalSteps = Math.ceil((duration - startSec) / stepSize);
+  for (let i = 0; i <= totalSteps; i++) {
+    const t = startSec + i * stepSize;
+    const delay = (i * stepMillis) / rate;
+    const id = setTimeout(() => {
+      if (!isPlaying) return;
+
+      // a) apply any events whose time ≤ t
+      while (
+        eventIdx < sortedEvents.length &&
+        sortedEvents[eventIdx].time <= t
+      ) {
+        const ev = sortedEvents[eventIdx++];
+        const teamId =
+          ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
+        lastTeamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+      }
+
+      // b) draw a point for each team at time = t
+      const offset = data.teams.length; // ghost series first
+      data.teams.forEach((team, idx) => {
+        chart.series[offset + idx].addPoint(
+          [t, lastTeamScores[team.id]],
+          idx === data.teams.length - 1, // only redraw on last series
+          false
+        );
       });
 
       // update tiles, team UI, and move cursor
       updatePlayerTiles(t);
       updateTeamScoresUI();
-      const axis = chart.xAxis[0];
-      axis.removePlotLine('cursor-line');
-      axis.addPlotLine({
-        id:        'cursor-line',
-        value:     t,
-        color:     '#888',
-        width:     2,
-        dashStyle: 'Dash',
-        zIndex:    2,
-          label: {
-    text:           formatTime(t),  // dynamic
-    align:          'center',
-    verticalAlign:  'top',
-    y:              10,
-    style:          { color: '#fff', fontWeight: 'bold' }
-  }
-      });
+const x = chart.xAxis[0].toPixels(t, false);
+const dx = x - chart.plotLeft;
+
+chart.customCursorGroup.animate(
+  {translateX: dx},
+  {duration: stepMillis, easing: 'linear' }
+);
+
+chart.customCursorGroup.element.querySelector('text').firstChild.data = formatTime(t);
+      chart.redraw();
     }, delay);
+
     timeouts.push(id);
   }
 }
@@ -490,24 +541,33 @@ function seekToTime(sec) {
   updateLiveSeries(sec);
 
   // 4) move cursor line
-  const axis = chart.xAxis[0];
-  axis.removePlotLine("cursor-line");
-  axis.addPlotLine({
-    id: "cursor-line",
-    value: sec,
-    color: "#888",
-    width: 2,
-    dashStyle: "Dash",
-    zIndex: 2,
-      label: {
-    text:           formatTime(sec),  // dynamic
-    align:          'center',
-    verticalAlign:  'top',
-    y:              10,
-    style:          { color: '#fff', fontWeight: 'bold' }
-  }
-  });
+const x = chart.xAxis[0].toPixels(sec, false);
+const dx = x - chart.plotLeft;
+
+chart.customCursorGroup.animate(
+  {translateX: dx},
+  {duration: stepMillis, easing: 'linear' }
+);
+
+chart.customCursorGroup.element.querySelector('text').firstChild.data = formatTime(sec);
+
+/* // Animate the line to its new x position
+chart.customCursorLine.animate(
+  { d: path },
+  { duration: stepMillis, easing: 'linear' }
+);
+
+// Update & animate the label
+const labelText = formatTime(t);
+chart.customCursorLabel
+  .attr({ text: labelText })      // update text immediately
+  .animate(
+    { x: x },                     // move horizontally
+    { duration: stepMillis, easing: 'linear' }
+  );
+} */
 }
+
 // Build per second timeline for a team.
 function buildTeamTimeline(data) {
   // total game length in seconds
@@ -516,15 +576,15 @@ function buildTeamTimeline(data) {
 
   // bucket events by timestamp, remembering teamId + delta
   const buckets = {};
-  data.teams.forEach(t => buckets[t.id] = {});
+  data.teams.forEach((t) => (buckets[t.id] = {}));
   data.events.forEach((ev) => {
     // figure out which team this event hits
     const teamId =
       ev.teamDelta != null
         ? ev.entity // if entity is already a team
         : data.players[ev.entity].team; // or map player→team
-            buckets[teamId][ev.time] = (buckets[teamId][ev.time] || 0)
-                             + (ev.teamDelta ?? ev.delta ?? 0);
+    buckets[teamId][ev.time] =
+      (buckets[teamId][ev.time] || 0) + (ev.teamDelta ?? ev.delta ?? 0);
   });
   // init running totals & timeline arrays
   const totals = {};
@@ -585,11 +645,11 @@ function updateLiveSeries(currentTime) {
  * Convert an integer number of seconds to "M:SS".
  */
 function formatTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return m + ':' + (s < 10 ? '0' + s : s);
+  const total = Math.floor(sec); // drop any fractional part
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m + ":" + (s < 10 ? "0" + s : s);
 }
-
 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
