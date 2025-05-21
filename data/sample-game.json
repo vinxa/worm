@@ -16,11 +16,11 @@
                     "#p8": {"name": "Player 8", "team": "green"},
                     "#p9": {"name": "Player 9", "team": "green"},
                     "#p10": {"name": "Player 10", "team": "green"},
-                    "#p11": {"name": "Player 11", "team": "blue"},
+                    "#p11": {"name": "Gaza", "team": "blue"},
                     "#p12": {"name": "Player 12", "team": "blue"},
                     "#p13": {"name": "Player 13", "team": "blue"},
                     "#p14": {"name": "Player 14", "team": "blue"},
-                    "#p15": {"name": "Player 15", "team": "blue"}
+                    "#p15": {"name": "Mvffin", "team": "blue"}
                   },
 
   "events": [

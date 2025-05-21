@@ -966,64 +966,84 @@ function sortTiles() {
   const grid  = document.getElementById('playerGrid');
   const tiles = Array.from(grid.children);
 
-  // 1) Record old positions
+  // 1) Record old positions (FLIP pre‐step)
   const oldRects = new Map();
   tiles.forEach(tile => {
     oldRects.set(tile, tile.getBoundingClientRect());
-    // clear any lingering transforms/transitions
     tile.style.transition = '';
     tile.style.transform  = '';
   });
 
-  // 2) Build the new order (group by team, then sort by score)
+  // 2) Compute *current* team scores if you don't have them already
+  //    (e.g. from updateTeamScoresForTime or similar)
+  const totals = {};
+  gameData.teams.forEach(team => {
+    totals[team.id] = computeTeamTotal(team.id, currentTime);  
+  });
+  // --------------------------------------------
+  // You need a `computeTeamTotal(teamId, t)` that returns
+  // the sum of all ev.delta for that team up to `t`.
+  // --------------------------------------------
+
+  // 3) Build an array of team IDs sorted by descending total
+  const sortedTeamIds = gameData.teams
+    .map(t => t.id)
+    .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
+
+  // 4) Group tiles by team
   const byTeam = {};
   tiles.forEach(tile => {
     const pid    = tile.dataset.playerId;
-    const teamId = gameData.players[pid].team;
+    const teamId = gameData.players[pid].team;  
     (byTeam[teamId] ||= []).push(tile);
   });
-  const newOrder = [];
-  gameData.teams.forEach(team => {
-    const arr = byTeam[team.id] || [];
-    arr.sort((a,b) => {
+
+  // 5) Within each team, sort players by descending score
+  sortedTeamIds.forEach(teamId => {
+    const arr = byTeam[teamId] || [];
+    arr.sort((a, b) => {
       const sa = +a.querySelector('.player-score').textContent;
       const sb = +b.querySelector('.player-score').textContent;
       return sb - sa;
     });
-    newOrder.push(...arr);
   });
 
-  // 3) Re-append tiles in the new order
-  newOrder.forEach(tile => grid.appendChild(tile));
+  // 6) Re‐append in row order = sortedTeamIds
+  sortedTeamIds.forEach(teamId => {
+    (byTeam[teamId] || []).forEach(tile => {
+      grid.appendChild(tile);
+    });
+  });
 
-  // 4) Do the FLIP: invert & play
-  newOrder.forEach(tile => {
+  // 7) FLIP animate from oldRects → new positions
+  tiles.forEach(tile => {
     const oldRect = oldRects.get(tile);
     const newRect = tile.getBoundingClientRect();
     const dx = oldRect.left - newRect.left;
     const dy = oldRect.top  - newRect.top;
+    if (!dx && !dy) return;
 
-    // skip if nothing changed
-    if (dx === 0 && dy === 0) return;
-
-    // 4a) Invert
     tile.style.transform = `translate(${dx}px,${dy}px)`;
-
-    // 4b) Force reflow so that transform is applied
-    tile.getBoundingClientRect();
-
-    // 4c) Play
+    tile.getBoundingClientRect();  // force reflow
     tile.style.transition = 'transform 300ms ease';
     tile.style.transform  = '';
-
-    // 4d) Cleanup after transition
-    const cleanup = () => {
+    tile.addEventListener('transitionend', function handler() {
       tile.style.transition = '';
-      tile.removeEventListener('transitionend', cleanup);
-    };
-    tile.addEventListener('transitionend', cleanup);
+      tile.removeEventListener('transitionend', handler);
+    });
   });
 }
+
+// Example helper to compute a team’s total score at time `t`:
+function computeTeamTotal(teamId, t) {
+  return gameData.events
+    .filter(ev => ev.time <= t && /* event affects this team */ (
+       ev.teamDelta != null && ev.entity === teamId 
+       || (ev.delta != null && gameData.players[ev.entity].team === teamId)
+    ))
+    .reduce((sum, ev) => sum + (ev.teamDelta ?? ev.delta ?? 0), 0);
+}
+
 
 
 
