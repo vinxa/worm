@@ -23,17 +23,14 @@ function onYouTubeIframeAPIReady() {
 function handleSkip(delta) {
   // a) If a replay is running, cancel every scheduled tick:
   if (isPlaying) {
-    replayTimeouts.forEach(id => clearTimeout(id));
+    replayTimeouts.forEach((id) => clearTimeout(id));
     replayTimeouts = [];
   }
 
   // b) Compute & clamp the new time:
-  const maxTime = gameData.gameDuration
-    ?? Math.max(...gameData.events.map(e => e.time));
-  const newTime = Math.min(
-    maxTime,
-    Math.max(0, currentTime + delta)
-  );
+  const maxTime =
+    gameData.gameDuration ?? Math.max(...gameData.events.map((e) => e.time));
+  const newTime = Math.min(maxTime, Math.max(0, currentTime + delta));
 
   // c) Seek all UI & chart to newTime:
   seekToTime(newTime);
@@ -66,14 +63,14 @@ function updatePlayerTiles(currentTime) {
 
 function updateCursorPosition(sec) {
   const axis = chart.xAxis[0];
-  const x    = axis.toPixels(sec, false);
-  const dx   = x - chart.plotLeft;
+  const x = axis.toPixels(sec, false);
+  const dx = x - chart.plotLeft;
 
   // move the whole group without animation
   chart.customCursorGroup.attr({ translateX: dx });
 
   // update its label text
-  const textEl = chart.customCursorGroup.element.querySelector('text');
+  const textEl = chart.customCursorGroup.element.querySelector("text");
   textEl.firstChild.data = formatTime(sec);
 }
 
@@ -136,24 +133,26 @@ async function loadGameData() {
         replayTimeouts = [];
         // start replay, passing our array to fill with timeout IDs
         playReplay(chart, gameData, 1, replayTimeouts, currentTime);
-            if (player && typeof player.playVideo === 'function') {
-      player.playVideo();
-    }
+        if (player && typeof player.playVideo === "function") {
+          player.playVideo();
+        }
       } else {
         isPlaying = false;
         btn.textContent = "▶"; // back to play icon
-            if (player && typeof player.pauseVideo === 'function') {
-      player.pauseVideo();
-    }
+        if (player && typeof player.pauseVideo === "function") {
+          player.pauseVideo();
+        }
         // cancel pending events
         replayTimeouts.forEach((id) => clearTimeout(id));
       }
     });
 
-      document.getElementById('rewindButton')
-    .addEventListener('click', () => handleSkip(-15));
-  document.getElementById('forwardButton')
-    .addEventListener('click', () => handleSkip(+15));
+    document
+      .getElementById("rewindButton")
+      .addEventListener("click", () => handleSkip(-15));
+    document
+      .getElementById("forwardButton")
+      .addEventListener("click", () => handleSkip(+15));
   } catch (err) {
     console.error("Failed to load game data:", err);
   }
@@ -284,32 +283,38 @@ function initLiveChart(data) {
     series: [...ghostSeries, ...liveSeries],
     credits: { enabled: false },
     legend: { enabled: false, itemStyle: { color: "#eee" } },
+    plotOptions: {
+      series: {
+        marker: { enabled: false, states: { hover: { enabled: false } } },
+        stickyTracking: false,
+      },
+      tooltip: { snap: 5 },
+    },
   });
 
-
-    // grab chart internals for positioning
-  const left   = cchart.plotLeft;
-  const top    = cchart.plotTop;
+  // grab chart internals for positioning
+  const left = cchart.plotLeft;
+  const top = cchart.plotTop;
   const height = cchart.plotHeight;
 
-  const cursorGroup = cchart.renderer.g().attr({zIndex: 5}).add();
+  const cursorGroup = cchart.renderer.g().attr({ zIndex: 5 }).add();
 
   // 1a) Draw a vertical line at x=0
   const cursorLine = cchart.renderer
-    .path(['M', left, top, 'L', left, top + height])
+    .path(["M", left, top, "L", left, top + height])
     .attr({
-      stroke:     '#888',
-      'stroke-width': 2,
-      dashstyle:  'Dash',
-      zIndex:     5
+      stroke: "#888",
+      "stroke-width": 2,
+      dashstyle: "Dash",
+      zIndex: 5,
     })
     .add(cursorGroup);
 
   // 1b) Draw a timestamp label just above it
   const cursorLabel = cchart.renderer
-    .text('0:00', left, top - 2)
-    .attr({ align: 'center', zIndex: 6 })
-    .css({ color: '#fff', fontWeight: 'bold', fontSize: '10px' })
+    .text("0:00", left, top - 2)
+    .attr({ align: "center", zIndex: 6 })
+    .css({ color: "#fff", fontWeight: "bold", fontSize: "10px" })
     .add(cursorGroup);
 
   cchart.customCursorGroup = cursorGroup;
@@ -348,10 +353,9 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
     sortedEvents[eventIdx].time < startSec
   ) {
     const ev = sortedEvents[eventIdx++];
-    const teamId = ev.teamDelta != null
-      ? ev.entity
-      : data.players[ev.entity].team;
-    teamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
+    const teamId =
+      ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
+    teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
   }
 
   // 4) Reset the live‐series to match startSec
@@ -361,12 +365,12 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   updatePlayerTiles(startSec);
 
   // 5) Schedule ticks every 0.5s from startSec → duration
-  const stepSize   = 0.5;               // seconds
-  const stepMillis = stepSize * 1000;   // ms
+  const stepSize = 0.5; // seconds
+  const stepMillis = stepSize * 1000; // ms
   const totalSteps = Math.ceil((duration - startSec) / stepSize);
 
- for (let i = 0; i <= totalSteps; i++) {
-    const t     = startSec + i * stepSize;
+  for (let i = 0; i <= totalSteps; i++) {
+    const t = startSec + i * stepSize;
     const delay = (i * stepMillis) / rate;
 
     const id = setTimeout(() => {
@@ -381,10 +385,9 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
         sortedEvents[eventIdx].time <= t
       ) {
         const ev = sortedEvents[eventIdx++];
-        const teamId = ev.teamDelta != null
-          ? ev.entity
-          : data.players[ev.entity].team;
-        teamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
+        const teamId =
+          ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
+        teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
       }
 
       // b) draw a point for each team at time = t
@@ -402,15 +405,14 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
       updatePlayerTiles(t);
 
       // d) move the cursor group smoothly
-      const x  = chart.xAxis[0].toPixels(t, false);
+      const x = chart.xAxis[0].toPixels(t, false);
       const dx = x - chart.plotLeft;
       chart.customCursorGroup.animate(
         { translateX: dx },
-        { duration: stepMillis, easing: 'linear' }
+        { duration: stepMillis, easing: "linear" }
       );
-      chart.customCursorGroup.element
-        .querySelector('text')
-        .firstChild.data = formatTime(t);
+      chart.customCursorGroup.element.querySelector("text").firstChild.data =
+        formatTime(t);
 
       // e) final redraw
       chart.redraw();
@@ -419,7 +421,6 @@ function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
     timeouts.push(id);
   }
 }
-
 
 // 7) Dynamically generate your 15 player‐summary tiles
 function generatePlayerTiles() {
@@ -545,7 +546,7 @@ function seekToTime(sec) {
   updateLiveSeries(sec);
 
   // 4) move cursor line
-updateCursorPosition(currentTime);
+  updateCursorPosition(currentTime);
 }
 
 // Build per second timeline for a team.
