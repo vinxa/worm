@@ -6,7 +6,7 @@
     { "id": "green","name": "Green Team","color": "#008140" }
   ],
 
-    "players":  { "#p1": {"name": "Player 1", "team": "red"},
+    "players":  { "#p1": {"name": "CommanderSnake", "team": "red"},
                     "#p2": {"name": "Player 2", "team": "red"},
                     "#p3": {"name": "Player 3", "team": "red"},
                     "#p4": {"name": "Player 4", "team": "red"},

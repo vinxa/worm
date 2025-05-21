@@ -128,7 +128,7 @@ html {
   box-sizing: border-box;
 }
 .player-summary {
-  flex: 0 0 calc((100% - 4 * 8px) / 5);
+  flex: 0 0 calc((100% - 32px) / 5);
   align-self: flex-start;
   box-sizing: border-box;
   padding: 8px;
@@ -140,9 +140,12 @@ html {
   flex-direction: column;
   cursor: pointer;
   position: relative;
+  overflow: hidden;
+  
   /* transition: background 0.2s ease; */
   
 }
+
 
 
 /* Header always visible */
@@ -150,7 +153,23 @@ html {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  white-space: nowrap;           /* no wrapping */
+  overflow: hidden;              /* clip any overflow */
 }
+
+.player-summary-header .player-score {
+  flex: 0 0 auto;                /* don’t stretch */
+  margin-left: 4px;
+  
+}
+
+.player-summary-header .player-name {
+  flex: 1 1 auto;                /* take remaining space */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
+}
+
 
 /* Details hidden by default */
 .player-summary-details {
