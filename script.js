@@ -61,6 +61,8 @@ function updatePlayerTiles(currentTime) {
     if (scoreEl) scoreEl.textContent = score;
     tile.classList.toggle("_negative", score < 0);
   });
+
+  sortTiles();
 }
 
 function updateCursorPosition(sec) {
@@ -284,7 +286,10 @@ function initLiveChart(data) {
         },
       },
     },
-    title: { text: null },
+    title: { text: "Team scores from laser tag game", style: {
+      opacity: 0,
+      fontSize: "0px"
+    } },
     xAxis: {
       gridLineWidth: 1,
       gridLineColor: "rgba(136, 136, 136, 0.3)",
@@ -946,6 +951,79 @@ function setupPlayerSeriesToggles() {
     });
   });
 }
+
+/**
+ * Reorders all .player-summary tiles in #playerGrid
+ * by their current .player-score (desc).
+ */
+function sortTiles() {
+  const grid  = document.getElementById('playerGrid');
+  const tiles = Array.from(grid.children);
+
+  // 1) Record old positions
+  const oldRects = new Map();
+  tiles.forEach(tile => {
+    oldRects.set(tile, tile.getBoundingClientRect());
+    // clear any lingering transforms/transitions
+    tile.style.transition = '';
+    tile.style.transform  = '';
+  });
+
+  // 2) Build the new order (group by team, then sort by score)
+  const byTeam = {};
+  tiles.forEach(tile => {
+    const pid    = tile.dataset.playerId;
+    const teamId = gameData.players[pid].team;
+    (byTeam[teamId] ||= []).push(tile);
+  });
+  const newOrder = [];
+  gameData.teams.forEach(team => {
+    const arr = byTeam[team.id] || [];
+    arr.sort((a,b) => {
+      const sa = +a.querySelector('.player-score').textContent;
+      const sb = +b.querySelector('.player-score').textContent;
+      return sb - sa;
+    });
+    newOrder.push(...arr);
+  });
+
+  // 3) Re-append tiles in the new order
+  newOrder.forEach(tile => grid.appendChild(tile));
+
+  // 4) Do the FLIP: invert & play
+  newOrder.forEach(tile => {
+    const oldRect = oldRects.get(tile);
+    const newRect = tile.getBoundingClientRect();
+    const dx = oldRect.left - newRect.left;
+    const dy = oldRect.top  - newRect.top;
+
+    // skip if nothing changed
+    if (dx === 0 && dy === 0) return;
+
+    // 4a) Invert
+    tile.style.transform = `translate(${dx}px,${dy}px)`;
+
+    // 4b) Force reflow so that transform is applied
+    tile.getBoundingClientRect();
+
+    // 4c) Play
+    tile.style.transition = 'transform 300ms ease';
+    tile.style.transform  = '';
+
+    // 4d) Cleanup after transition
+    const cleanup = () => {
+      tile.style.transition = '';
+      tile.removeEventListener('transitionend', cleanup);
+    };
+    tile.addEventListener('transitionend', cleanup);
+  });
+}
+
+
+
+
+
+
 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
