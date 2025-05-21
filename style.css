@@ -100,13 +100,24 @@ html {
   padding: 10px;
 }
 .results-section {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+  /* fix its height if needed, e.g.: height: 50vh; */
+}
+
+.results-section {
   flex: 0 1 50%;                 /* max 50% of .top-section width */
   margin-right: 10px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;              /* if tiles grow too tall internally, scroll here */
   box-sizing: border-box;
+  position:relative;
+  padding:16px;
 }
+
 .map-section {
   flex: 1 1 auto;                /* fill remaining width */
   display: flex;
@@ -342,4 +353,52 @@ html {
 
 .modal-body {
   padding: 0;
+}
+
+.team-scores {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;                     /* space between teams */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-scores li {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;  /* name up, score down */
+  padding: 4px 6px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 4px;
+  white-space: nowrap;}
+
+.team-scores .team-name {
+  font-weight: bold;
+  margin-bottom: 4px;         /* a bit of breathing room above the score */
+}
+.team-scores .team-score {
+  font-size: 1.1em;           /* or adjust to taste */
+  text-align: right;          /* line up numbers on the right */
+}
+
+
+.results-content {
+  display: flex;
+  gap: 16px;
+  flex: 1 1 auto;           /* take up all the space between header and bottom */
+  overflow: hidden;         /* prevent internal overflow from growing it */
+}
+
+.grid-container {
+  flex: 1 1 auto;           /* grows to fill left side */
+  overflow: auto;           /* scroll if grid gets too tall */
+}
+
+.scores-sidebar {
+  flex: 0 0 120px;          /* fixed width */
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;         /* pushes the sidebar to the bottom of results-content */
+  gap: 8px;
 }

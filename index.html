@@ -38,15 +38,32 @@
 
   <div class="top-section">
     <section class="results-section">
-      <h2>RESULTS</h2><!-- Player Grid -->
-<div id="playerGrid" class="players-grid"></div>
+      <h2>RESULTS</h2>
+ <div class="results-content">
+    <!-- Left: the tile grid -->
+    <div class="grid-container">
+      <div id="playerGrid" class="players-grid"></div>
+    </div>
 
-<ul class="team-scores">
-  <li data-team-id="red">Red Team: <span class="team-score">0</span></li>
-  <li data-team-id="blue">Blue Team: <span class="team-score">0</span></li>
-  <li data-team-id="green">Green Team: <span class="team-score">0</span></li>
-</ul>
-    </section>
+    <!-- Right: the team-scores column -->
+    <div class="scores-sidebar">
+      <ul class="team-scores">
+        <li data-team-id="red">
+          <span class="team-name">Red Team</span>
+          <span class="team-score">0</span>
+        </li>
+        <li data-team-id="blue">
+          <span class="team-name">Blue Team</span>
+          <span class="team-score">0</span>
+        </li>
+        <li data-team-id="green">
+          <span class="team-name">Green Team</span>
+          <span class="team-score">0</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
 
     <section class="map-section">
       <h2>MAP</h2>

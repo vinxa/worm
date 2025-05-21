@@ -564,7 +564,6 @@ function generatePlayerTiles() {
         <p>Ratio: <span class="detail-ratio">–</span></p>
         <p>Bases: <span class="detail-bases">–</span></p>
         <p>Denies: <span class="detail-denies">–</span></p>
-        <p>Active: <span class="detail-active">–</span></p>
       </div>
     `;
 
@@ -794,12 +793,26 @@ function hexToRGBA(hex, alpha) {
  */
 function updateTeamScoresUI() {
   Object.entries(teamScores).forEach(([teamId, score]) => {
-    const el = document.querySelector(
-      `.team-scores li[data-team-id="${teamId}"] .team-score`
-    );
-    if (el) el.textContent = score;
+    const li    = document.querySelector(`.team-scores li[data-team-id="${teamId}"]`);
+    const name  = li?.querySelector('.team-name');
+    const span  = li?.querySelector('.team-score');
+    if (!name || !span) return;
+
+    // update the score text
+    span.textContent = score;
+
+    // pull the chart’s live-series color
+    const series = chart.get(teamId + '-live');
+    const color  = series ? series.color : '';
+
+    // color the team-name, leave the score in default color
+    name.style.color = color;
   });
+
+  sortTeamScoresUI();
 }
+
+
 
 /**
  * Resets each “-live” series to the points up to currentTime
@@ -1044,6 +1057,63 @@ function computeTeamTotal(teamId, t) {
     .reduce((sum, ev) => sum + (ev.teamDelta ?? ev.delta ?? 0), 0);
 }
 
+/**
+ * Re-orders the .team-scores <li>s by descending team score,
+ * and animates the move via FLIP.
+ */
+function sortTeamScoresUI() {
+  const ul    = document.querySelector('.team-scores');
+  const items = Array.from(ul.children);
+
+  // 1) Record old positions
+  const oldRects = new Map();
+  items.forEach(li => {
+    oldRects.set(li, li.getBoundingClientRect());
+    li.style.transition = '';
+    li.style.transform  = '';
+  });
+
+  // 2) Compute current team totals
+  const totals = {};
+  gameData.teams.forEach(team => {
+    totals[team.id] = computeTeamTotal(team.id, currentTime);
+  });
+
+  // 3) Sort team IDs by descending total
+  const sortedIds = gameData.teams
+      .map(t => t.id)
+      .sort((a,b) => (totals[b]||0) - (totals[a]||0));
+
+  // 4) Build new order of <li> elements
+  const newOrder = sortedIds
+    .map(id => ul.querySelector(`li[data-team-id="${id}"]`))
+    .filter(Boolean);
+
+  // 5) Re-append in sorted order
+  newOrder.forEach(li => ul.appendChild(li));
+
+  // 6) FLIP animate from old → new
+  newOrder.forEach(li => {
+    const oldRect = oldRects.get(li);
+    const newRect = li.getBoundingClientRect();
+    const dx = oldRect.left - newRect.left;
+    const dy = oldRect.top  - newRect.top;
+    if (!dx && !dy) return;
+
+    // invert
+    li.style.transform = `translate(${dx}px,${dy}px)`;
+    // force reflow
+    li.getBoundingClientRect();
+    // play
+    li.style.transition = 'transform 300ms ease';
+    li.style.transform  = '';
+    // cleanup
+    li.addEventListener('transitionend', function handler() {
+      li.style.transition = '';
+      li.removeEventListener('transitionend', handler);
+    });
+  });
+}
 
 
 
