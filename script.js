@@ -61,16 +61,16 @@ function updatePlayerTiles(currentTime) {
     if (scoreEl) scoreEl.textContent = score;
     tile.classList.toggle("_negative", score < 0);
 
-    const { tagsFor, tagsAgainst, ratioText, baseCount } = computePlayerStats(
-      pid,
-      currentTime
-    );
+    const { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount } =
+      computePlayerStats(pid, currentTime);
 
     const tagsEl = tile.querySelector(".detail-tags");
     const ratioEl = tile.querySelector(".detail-ratio");
+    const deniesEl = tile.querySelector(".detail-denies");
 
     if (tagsEl) tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
     if (ratioEl) ratioEl.textContent = ratioText;
+    if (deniesEl) deniesEl.textContent = deniesCount;
     const myTeamId = gameData.players[pid].team; // e.g. "green"
     const opponents = gameData.teams
       .filter((t) => t.id !== myTeamId) // keep only other teams
@@ -95,8 +95,6 @@ function updatePlayerTiles(currentTime) {
         })
         .join("");
     }
-
-    // -------------------------------
   });
 
   sortTiles();
@@ -299,8 +297,6 @@ function initLiveChart(data) {
     showInLegend: false,
     zIndex: 1,
   }));
-
-  liveSeries.forEach((s) => console.log(s.id, "points:", s.data.length));
 
   const chart = Highcharts.chart("scoreChart", {
     chart: {
@@ -653,18 +649,19 @@ function computePlayerStats(pid, t) {
   // count tags for / against
   let tagsFor = 0,
     tagsAgainst = 0,
-    baseCount = 0;
+    baseCount = 0,
+    deniesCount = 0;
   evs.forEach((ev) => {
     if (ev.type === "tag") tagsFor++;
     else if (ev.type === "tagged") tagsAgainst++;
     else if (ev.type === "base destroy") baseCount++;
+    else if (ev.type === "deny") deniesCount++;
   });
 
   // ratio
   const ratioText =
     tagsAgainst > 0 ? Math.round((tagsFor / tagsAgainst) * 100) + "%" : "∞";
-
-  return { tagsFor, tagsAgainst, ratioText, baseCount };
+  return { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount };
 }
 
 // 9) Draggable YouTube modal setup
