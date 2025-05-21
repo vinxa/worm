@@ -229,6 +229,7 @@ function initLiveChart(data) {
   const fullTimeline = buildTeamTimeline(data);
   const liveSeries = data.teams.map((t) => ({
     name: t.name,
+    id: t.id + "-live",
     data: [[0, 0]],
     color: t.color,
     zIndex: 5,
@@ -238,7 +239,7 @@ function initLiveChart(data) {
     name: t.name,
     data: fullTimeline[t.id],
     color: hexToRGBA(t.color, 0.4),
-    enableMouseTracking: false,
+    enableMouseTracking: true,
     showInLegend: false,
     zIndex: 1,
   }));
@@ -310,7 +311,24 @@ function initLiveChart(data) {
       tooltip: {snap: 5},
     },
     tooltip: {
-      headerFormat: ""
+      headerFormat: "",
+      snap: 5,
+      shared: false,
+       formatter: function() {
+    const sec     = this.x;
+    const id      = this.series.options.id || '';
+    const isLive  = id.endsWith('-live');
+    const isGhost = id.endsWith('-ghost');
+
+    // before the playhead, only live series tooltips:
+    if (sec <= currentTime && !isLive) return false;
+    // after the playhead, only ghost series tooltips:
+    if (sec >  currentTime && !isGhost) return false;
+
+    // otherwise show the default‐looking Y-only tooltip
+    return `<span style="color:${this.point.color}">\u25CF</span> ` +
+           `${this.series.name}: <b>${this.y}</b>`;
+  }
     }
   });
 
