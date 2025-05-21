@@ -299,6 +299,8 @@ function initLiveChart(data) {
     zIndex: 1,
   }));
 
+liveSeries.forEach(s => console.log(s.id, "points:", s.data.length));
+
   const chart = Highcharts.chart("scoreChart", {
     chart: {
       type: "line",
@@ -333,11 +335,19 @@ function initLiveChart(data) {
       min: 0,
       max: gameData.gameDuration,
       tickInterval: 60,
-      minorTickInterval: 0.5,
+      minorTickInterval: 0.1,
       minorTickLength: 5,
-      minorGridLineWidth: 0.5,
+      minorGridLineWidth: 0.1,
       labels: {
         style: { color: "#ccc" },
+/*************  ✨ Windsurf Command ⭐  *************/
+        /**
+         * Format the tick labels to show minutes:seconds.
+         * @example 45 seconds → "0:45"
+         * @param {number} value - the axis value at this tick
+         * @returns {string} - the formatted tick label
+         */
+/*******  51d804b0-7e17-4cd7-af73-d1ffc693a90c  *******/
         formatter: function () {
           const m = Math.floor(this.value / 60),
             s = this.value % 60;
@@ -779,40 +789,29 @@ function seekToTime(sec) {
 
 // Build per second timeline for a team.
 function buildTeamTimeline(data) {
-  // total game length in seconds
-  const duration =
-    data.gameDuration ?? Math.max(...data.events.map((e) => e.time));
-
-  // bucket events by timestamp, remembering teamId + delta
-  const buckets = {};
-  data.teams.forEach((t) => (buckets[t.id] = {}));
-  data.events.forEach((ev) => {
-    // figure out which team this event hits
-    const teamId =
-      ev.teamDelta != null
-        ? ev.entity // if entity is already a team
-        : data.players[ev.entity].team; // or map player→team
-    buckets[teamId][ev.time] =
-      (buckets[teamId][ev.time] || 0) + (ev.teamDelta ?? ev.delta ?? 0);
-  });
-  // init running totals & timeline arrays
-  const totals = {};
   const timeline = {};
+
   data.teams.forEach((t) => {
-    totals[t.id] = 0;
     timeline[t.id] = [];
   });
 
-  // walk each second, apply that second’s deltas, then record a point
-  for (let sec = 0; sec <= duration; sec++) {
-    data.teams.forEach((t) => {
-      totals[t.id] += buckets[t.id][sec] || 0;
-      timeline[t.id].push([sec, totals[t.id]]);
-    });
-  }
+  const totals = {};
+  data.teams.forEach((t) => (totals[t.id] = 0));
+
+  const sortedEvents = [...data.events].sort((a, b) => a.time - b.time);
+
+  sortedEvents.forEach((ev) => {
+    const player = data.players[ev.entity];
+    if (!player) return;
+
+    const teamId = player.team;
+    totals[teamId] += ev.delta ?? 0;
+    timeline[teamId].push([ev.time, totals[teamId]]);
+  });
 
   return timeline;
 }
+
 
 /** Convert hex color "#RRGGBB" to rgba() string with alpha */
 function hexToRGBA(hex, alpha) {

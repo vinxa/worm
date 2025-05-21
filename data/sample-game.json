@@ -20,12 +20,6 @@
       "index": "2",
       "name": "Green Team",
       "color": "#008140"
-    },
-    {
-      "id": "neutral",
-      "index": "3",
-      "name": "Neutral",
-      "color": "#808080"
     }
   ],
   "players": {
