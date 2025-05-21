@@ -524,7 +524,7 @@ function generatePlayerTiles() {
       <div class="player-summary-details">
         <p>Tags: <span class="detail-tags">–</span></p>
         <p>Ratio: <span class="detail-ratio">–</span></p>
-        <p>Goals: <span class="detail-goals">–</span></p>
+        <p>Bases: <span class="detail-bases">–</span></p>
         <p>Denies: <span class="detail-denies">–</span></p>
         <p>Active: <span class="detail-active">–</span></p>
       </div>
@@ -545,7 +545,7 @@ function setupTileExpansion() {
       const s = gameData.playerStats[pid] || {};
       clickedTile.querySelector(".detail-tags").textContent = s.tags ?? "–";
       clickedTile.querySelector(".detail-ratio").textContent = s.ratio ?? "–";
-      clickedTile.querySelector(".detail-goals").textContent = s.goals ?? "–";
+      clickedTile.querySelector(".detail-bases").textContent = s.bases ?? "–";
       clickedTile.querySelector(".detail-denies").textContent = s.denies ?? "–";
       clickedTile.querySelector(".detail-active").textContent = s.active ?? "–";
     });
