@@ -697,7 +697,7 @@ function setupDraggableModal() {
         events: {
           onReady: () => {
             console.log("YT Player ready");
-            player.seekTo(currentTime, true);
+            if (player) player.seekTo(currentTime, true);
           },
           onStateChange: (e) => {
             // PLAYING → resume game
@@ -728,7 +728,8 @@ function setupDraggableModal() {
 
   closeBtn.addEventListener("click", () => {
     modal.style.display = "none";
-    if (player) player.stopVideo();
+    player.destroy();
+    player = null;
   });
 
   header.addEventListener("mousedown", (e) => {
