@@ -243,7 +243,7 @@ function initLiveChart(data) {
     zIndex: 1,
   }));
 
-  const cchart = Highcharts.chart("scoreChart", {
+  const chart = Highcharts.chart("scoreChart", {
     chart: {
       type: "line",
       backgroundColor: "#2a2a2a",
@@ -307,19 +307,22 @@ function initLiveChart(data) {
         marker: { enabled: false, states: { hover: { enabled: false } } },
         stickyTracking: false,
       },
-      tooltip: { snap: 5 },
+      tooltip: {snap: 5},
     },
+    tooltip: {
+      headerFormat: ""
+    }
   });
 
   // grab chart internals for positioning
-  const left = cchart.plotLeft;
-  const top = cchart.plotTop;
-  const height = cchart.plotHeight;
+  const left = chart.plotLeft;
+  const top = chart.plotTop;
+  const height = chart.plotHeight;
 
-  const cursorGroup = cchart.renderer.g().attr({ zIndex: 5 }).add();
+  const cursorGroup = chart.renderer.g().attr({ zIndex: 5 }).add();
 
   // 1a) Draw a vertical line at x=0
-  const cursorLine = cchart.renderer
+  const cursorLine = chart.renderer
     .path(["M", left, top, "L", left, top + height])
     .attr({
       stroke: "#888",
@@ -330,15 +333,54 @@ function initLiveChart(data) {
     .add(cursorGroup);
 
   // 1b) Draw a timestamp label just above it
-  const cursorLabel = cchart.renderer
+  const cursorLabel = chart.renderer
     .text("0:00", left, top - 2)
     .attr({ align: "center", zIndex: 6 })
     .css({ color: "#fff", fontWeight: "bold", fontSize: "10px" })
     .add(cursorGroup);
 
-  cchart.customCursorGroup = cursorGroup;
+  chart.customCursorGroup = cursorGroup;
 
-  return cchart;
+  // HOVER LINE
+  const hoverGroup = chart.renderer.g().attr({ zIndex: 4 }).add();
+  const hoverLine = chart.renderer
+    .path(["M", left, top, "L", left, top + height])
+    .attr({
+      stroke: "rgba(136, 136, 136, 0.5)", // more transparent
+      "stroke-width": 2,
+      dashstyle: "Dash",
+      zIndex: 4
+    })
+    .add(hoverGroup);
+  const hoverLabel = chart.renderer
+    .text("", left, top - 2)
+    .attr({ align: "center", zIndex: 6 })
+    .css({ color: "#fff", fontWeight: "bold", fontSize: "10px" })
+    .add(hoverGroup);
+  hoverGroup.hide();
+
+  chart.container.addEventListener("mousemove", (e) => {
+    const cbb = chart.container.getBoundingClientRect();
+    const chartX = e.clientX - cbb.left;
+    const t = chart.xAxis[0].toValue(chartX);
+    const x = chart.xAxis[0].toPixels(t);
+
+    if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
+      hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
+      hoverLabel.attr({ text: formatTime(t), x: x, y: top - 2 });
+      hoverGroup.show();
+    } else {
+      hoverGroup.hide();
+    }
+  });
+
+  chart.container.addEventListener("mouseleave", () => {
+    hoverGroup.hide();
+  });
+
+  
+
+  return chart;
 }
 
 /**
