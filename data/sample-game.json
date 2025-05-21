@@ -43,6 +43,7 @@
     { "time": 20,  "entity":"#p1",    "delta": -500, "type":"base hit","target":"Green"   },
     { "time": 21,  "entity":"#p1",    "delta": -500, "type":"base hit","target":"Blue"   },
     { "time": 21,  "entity":"#p1",    "delta": -500, "type":"base hit","target":"Blue"   },
+    {"time": 21, "entity":"#p1", "delta": -40, "type":"tagged","target":""},
     { "time": 22,  "entity":"#p1",    "delta": -500, "type":"base hit","target":"Blue"   },
     { "time": 22,  "entity":"#p1",    "delta": 4001, "type":"base destroy","target":"Green"   }
   ]
