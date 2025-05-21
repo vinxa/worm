@@ -540,7 +540,7 @@ function seekToTime(sec) {
   updatePlayerTiles(sec);
 
   // 2) update team‐score list
-  updateTeamScoresUI();
+  updateTeamScoresForTime(currentTime);
 
   // 3) update live series
   updateLiveSeries(sec);
@@ -630,6 +630,26 @@ function formatTime(sec) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return m + ":" + (s < 10 ? "0" + s : s);
+}
+
+function updateTeamScoresForTime(sec) {
+  // 1) zero out every team
+  gameData.teams.forEach(t => {
+    teamScores[t.id] = 0;
+  });
+
+  // 2) scan every event ≤ sec and add its teamDelta/delta
+  gameData.events.forEach(ev => {
+    if (ev.time <= sec) {
+      const teamId = ev.teamDelta != null
+        ? ev.entity
+        : gameData.players[ev.entity].team;
+      teamScores[teamId] += (ev.teamDelta ?? ev.delta ?? 0);
+    }
+  });
+
+  // 3) repaint the UL
+  updateTeamScoresUI();
 }
 
 // 11) Start everything once the DOM is ready
