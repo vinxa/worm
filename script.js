@@ -481,17 +481,53 @@ function setupDraggableModal() {
     offsetY = 0;
 
   loadBtn.addEventListener("click", () => {
+    // Pause game replay if running.
+    if (isPlaying) {
+      isPlaying = false;
+      document.getElementById('playButton').textContent = '▶';
+      replayTimeouts.forEach((id) => clearTimeout(id));
+      replayTimeouts = [];
+    }
     const v = parseYouTubeId(urlInput.value);
     if (!v) return;
     modal.style.display = "block";
-    if (player) player.loadVideoById(v);
-    else
+     if (player) {
+       player.loadVideoById(v);
+     } else {
       player = new YT.Player("modalPlayer", {
         height: "315",
         width: "560",
         videoId: v,
         playerVars: { origin: location.origin },
-      });
+        events: {
+          onReady: () => {
+            console.log('YT Player ready');
+            player.seekTo(currentTime, true);
+          },
+          onStateChange: (e) => {
+            // PLAYING → resume game
+            if (e.data === YT.PlayerState.PLAYING) {
+              if (!isPlaying) {
+                isPlaying = true;
+                document.getElementById('playButton').textContent = '❚❚';
+                // restart replay from currentTime
+                replayTimeouts.forEach(id => clearTimeout(id));
+                replayTimeouts = [];
+                playReplay(chart, gameData, 1, replayTimeouts, currentTime);
+              }
+            }
+            // PAUSED → pause game
+            else if (e.data === YT.PlayerState.PAUSED) {
+              if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('playButton').textContent = '▶';
+                replayTimeouts.forEach(id => clearTimeout(id));
+                replayTimeouts = [];
+              }
+            }
+          }
+        }
+      })};
   });
 
   closeBtn.addEventListener("click", () => {
