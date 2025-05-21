@@ -60,16 +60,19 @@ function updatePlayerTiles(currentTime) {
     const scoreEl = tile.querySelector(".player-score");
     if (scoreEl) scoreEl.textContent = score;
     tile.classList.toggle("_negative", score < 0);
-  
-      const { tagsCount, ratioText, baseCount } = computePlayerStats(pid, currentTime);
 
-      const tagsEl  = tile.querySelector('.detail-tags');
-      const ratioEl = tile.querySelector('.detail-ratio');
-      const basesEl = tile.querySelector('.detail-bases');  // check your HTML
+    const { tagsCount, ratioText, baseCount } = computePlayerStats(
+      pid,
+      currentTime
+    );
 
-      if (tagsEl)  tagsEl .textContent = tagsCount;
-      if (ratioEl) ratioEl.textContent = ratioText;
-      if (basesEl) basesEl.textContent = baseCount;
+    const tagsEl = tile.querySelector(".detail-tags");
+    const ratioEl = tile.querySelector(".detail-ratio");
+    const basesEl = tile.querySelector(".detail-bases"); // check your HTML
+
+    if (tagsEl) tagsEl.textContent = tagsCount;
+    if (ratioEl) ratioEl.textContent = ratioText;
+    if (basesEl) basesEl.textContent = baseCount;
   });
 
   sortTiles();
@@ -148,9 +151,9 @@ async function loadGameData() {
     document.getElementById("playButton").addEventListener("click", () => {
       const btn = document.getElementById("playButton");
       if (!gameData) return; // safety
-        if (currentTime >= gameData.gameDuration) {
-    seekToTime(0);
-  }
+      if (currentTime >= gameData.gameDuration) {
+        seekToTime(0);
+      }
       if (!isPlaying) {
         isPlaying = true;
         btn.textContent = "❚❚"; // pause icon
@@ -188,9 +191,9 @@ async function loadGameData() {
       switch (e.code) {
         case "Space":
           e.preventDefault();
-              if (currentTime >= gameData.gameDuration) {
-      seekToTime(0);
-    }
+          if (currentTime >= gameData.gameDuration) {
+            seekToTime(0);
+          }
           document.getElementById("playButton").click();
           break;
         case "ArrowLeft":
@@ -296,10 +299,13 @@ function initLiveChart(data) {
         },
       },
     },
-    title: { text: "Team scores from laser tag game", style: {
-      opacity: 0,
-      fontSize: "0px"
-    } },
+    title: {
+      text: "Team scores from laser tag game",
+      style: {
+        opacity: 0,
+        fontSize: "0px",
+      },
+    },
     xAxis: {
       gridLineWidth: 1,
       gridLineColor: "rgba(136, 136, 136, 0.3)",
@@ -601,7 +607,6 @@ function setupTileExpansion() {
       // toggle expanded
       const isNowExpanded = clickedTile.classList.toggle("expanded");
       if (!isNowExpanded) return; // collapse: nothing to fill
-
     });
   });
 }
@@ -610,18 +615,14 @@ function setupTileExpansion() {
  * Compute tags, tagged, ratio and base destroys for player `pid` up to time `t`.
  */
 function computePlayerStats(pid, t) {
-  const evs = gameData.events.filter(ev =>
-    ev.entity === pid && ev.time <= t
-  );
-  const tagsCount    = evs.filter(ev => ev.type === 'tag').length;
-  const taggedCount  = evs.filter(ev => ev.type === 'tagged').length;
-  const baseCount    = evs.filter(ev => ev.type === 'base destroy').length;
-  const ratioText    = taggedCount > 0
-    ? Math.round((tagsCount / taggedCount) * 100) + '%'
-    : '∞';
+  const evs = gameData.events.filter((ev) => ev.entity === pid && ev.time <= t);
+  const tagsCount = evs.filter((ev) => ev.type === "tag").length;
+  const taggedCount = evs.filter((ev) => ev.type === "tagged").length;
+  const baseCount = evs.filter((ev) => ev.type === "base destroy").length;
+  const ratioText =
+    taggedCount > 0 ? Math.round((tagsCount / taggedCount) * 100) + "%" : "∞";
   return { tagsCount, taggedCount, ratioText, baseCount };
 }
-
 
 // 9) Draggable YouTube modal setup
 function setupDraggableModal() {
@@ -793,17 +794,19 @@ function hexToRGBA(hex, alpha) {
  */
 function updateTeamScoresUI() {
   Object.entries(teamScores).forEach(([teamId, score]) => {
-    const li    = document.querySelector(`.team-scores li[data-team-id="${teamId}"]`);
-    const name  = li?.querySelector('.team-name');
-    const span  = li?.querySelector('.team-score');
+    const li = document.querySelector(
+      `.team-scores li[data-team-id="${teamId}"]`
+    );
+    const name = li?.querySelector(".team-name");
+    const span = li?.querySelector(".team-score");
     if (!name || !span) return;
 
     // update the score text
     span.textContent = score;
 
     // pull the chart’s live-series color
-    const series = chart.get(teamId + '-live');
-    const color  = series ? series.color : '';
+    const series = chart.get(teamId + "-live");
+    const color = series ? series.color : "";
 
     // color the team-name, leave the score in default color
     name.style.color = color;
@@ -811,8 +814,6 @@ function updateTeamScoresUI() {
 
   sortTeamScoresUI();
 }
-
-
 
 /**
  * Resets each “-live” series to the points up to currentTime
@@ -976,22 +977,22 @@ function setupPlayerSeriesToggles() {
  * by their current .player-score (desc).
  */
 function sortTiles() {
-  const grid  = document.getElementById('playerGrid');
+  const grid = document.getElementById("playerGrid");
   const tiles = Array.from(grid.children);
 
   // 1) Record old positions (FLIP pre‐step)
   const oldRects = new Map();
-  tiles.forEach(tile => {
+  tiles.forEach((tile) => {
     oldRects.set(tile, tile.getBoundingClientRect());
-    tile.style.transition = '';
-    tile.style.transform  = '';
+    tile.style.transition = "";
+    tile.style.transform = "";
   });
 
   // 2) Compute *current* team scores if you don't have them already
   //    (e.g. from updateTeamScoresForTime or similar)
   const totals = {};
-  gameData.teams.forEach(team => {
-    totals[team.id] = computeTeamTotal(team.id, currentTime);  
+  gameData.teams.forEach((team) => {
+    totals[team.id] = computeTeamTotal(team.id, currentTime);
   });
   // --------------------------------------------
   // You need a `computeTeamTotal(teamId, t)` that returns
@@ -1000,49 +1001,49 @@ function sortTiles() {
 
   // 3) Build an array of team IDs sorted by descending total
   const sortedTeamIds = gameData.teams
-    .map(t => t.id)
+    .map((t) => t.id)
     .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
 
   // 4) Group tiles by team
   const byTeam = {};
-  tiles.forEach(tile => {
-    const pid    = tile.dataset.playerId;
-    const teamId = gameData.players[pid].team;  
+  tiles.forEach((tile) => {
+    const pid = tile.dataset.playerId;
+    const teamId = gameData.players[pid].team;
     (byTeam[teamId] ||= []).push(tile);
   });
 
   // 5) Within each team, sort players by descending score
-  sortedTeamIds.forEach(teamId => {
+  sortedTeamIds.forEach((teamId) => {
     const arr = byTeam[teamId] || [];
     arr.sort((a, b) => {
-      const sa = +a.querySelector('.player-score').textContent;
-      const sb = +b.querySelector('.player-score').textContent;
+      const sa = +a.querySelector(".player-score").textContent;
+      const sb = +b.querySelector(".player-score").textContent;
       return sb - sa;
     });
   });
 
   // 6) Re‐append in row order = sortedTeamIds
-  sortedTeamIds.forEach(teamId => {
-    (byTeam[teamId] || []).forEach(tile => {
+  sortedTeamIds.forEach((teamId) => {
+    (byTeam[teamId] || []).forEach((tile) => {
       grid.appendChild(tile);
     });
   });
 
   // 7) FLIP animate from oldRects → new positions
-  tiles.forEach(tile => {
+  tiles.forEach((tile) => {
     const oldRect = oldRects.get(tile);
     const newRect = tile.getBoundingClientRect();
     const dx = oldRect.left - newRect.left;
-    const dy = oldRect.top  - newRect.top;
+    const dy = oldRect.top - newRect.top;
     if (!dx && !dy) return;
 
     tile.style.transform = `translate(${dx}px,${dy}px)`;
-    tile.getBoundingClientRect();  // force reflow
-    tile.style.transition = 'transform 300ms ease';
-    tile.style.transform  = '';
-    tile.addEventListener('transitionend', function handler() {
-      tile.style.transition = '';
-      tile.removeEventListener('transitionend', handler);
+    tile.getBoundingClientRect(); // force reflow
+    tile.style.transition = "transform 300ms ease";
+    tile.style.transform = "";
+    tile.addEventListener("transitionend", function handler() {
+      tile.style.transition = "";
+      tile.removeEventListener("transitionend", handler);
     });
   });
 }
@@ -1050,10 +1051,13 @@ function sortTiles() {
 // Example helper to compute a team’s total score at time `t`:
 function computeTeamTotal(teamId, t) {
   return gameData.events
-    .filter(ev => ev.time <= t && /* event affects this team */ (
-       ev.teamDelta != null && ev.entity === teamId 
-       || (ev.delta != null && gameData.players[ev.entity].team === teamId)
-    ))
+    .filter(
+      (ev) =>
+        ev.time <= t &&
+        /* event affects this team */ ((ev.teamDelta != null &&
+          ev.entity === teamId) ||
+          (ev.delta != null && gameData.players[ev.entity].team === teamId))
+    )
     .reduce((sum, ev) => sum + (ev.teamDelta ?? ev.delta ?? 0), 0);
 }
 
@@ -1062,42 +1066,42 @@ function computeTeamTotal(teamId, t) {
  * and animates the move via FLIP.
  */
 function sortTeamScoresUI() {
-  const ul    = document.querySelector('.team-scores');
+  const ul = document.querySelector(".team-scores");
   const items = Array.from(ul.children);
 
   // 1) Record old positions
   const oldRects = new Map();
-  items.forEach(li => {
+  items.forEach((li) => {
     oldRects.set(li, li.getBoundingClientRect());
-    li.style.transition = '';
-    li.style.transform  = '';
+    li.style.transition = "";
+    li.style.transform = "";
   });
 
   // 2) Compute current team totals
   const totals = {};
-  gameData.teams.forEach(team => {
+  gameData.teams.forEach((team) => {
     totals[team.id] = computeTeamTotal(team.id, currentTime);
   });
 
   // 3) Sort team IDs by descending total
   const sortedIds = gameData.teams
-      .map(t => t.id)
-      .sort((a,b) => (totals[b]||0) - (totals[a]||0));
+    .map((t) => t.id)
+    .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
 
   // 4) Build new order of <li> elements
   const newOrder = sortedIds
-    .map(id => ul.querySelector(`li[data-team-id="${id}"]`))
+    .map((id) => ul.querySelector(`li[data-team-id="${id}"]`))
     .filter(Boolean);
 
   // 5) Re-append in sorted order
-  newOrder.forEach(li => ul.appendChild(li));
+  newOrder.forEach((li) => ul.appendChild(li));
 
   // 6) FLIP animate from old → new
-  newOrder.forEach(li => {
+  newOrder.forEach((li) => {
     const oldRect = oldRects.get(li);
     const newRect = li.getBoundingClientRect();
     const dx = oldRect.left - newRect.left;
-    const dy = oldRect.top  - newRect.top;
+    const dy = oldRect.top - newRect.top;
     if (!dx && !dy) return;
 
     // invert
@@ -1105,21 +1109,15 @@ function sortTeamScoresUI() {
     // force reflow
     li.getBoundingClientRect();
     // play
-    li.style.transition = 'transform 300ms ease';
-    li.style.transform  = '';
+    li.style.transition = "transform 300ms ease";
+    li.style.transform = "";
     // cleanup
-    li.addEventListener('transitionend', function handler() {
-      li.style.transition = '';
-      li.removeEventListener('transitionend', handler);
+    li.addEventListener("transitionend", function handler() {
+      li.style.transition = "";
+      li.removeEventListener("transitionend", handler);
     });
   });
 }
-
-
-
-
-
-
 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
