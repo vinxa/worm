@@ -148,18 +148,8 @@ html {
 
 
 
-/* Header always visible */
-.player-summary-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  white-space: nowrap;           /* no wrapping */
-  overflow: hidden;              /* clip any overflow */
-}
-
 .player-summary-header .player-score {
-  flex: 0 0 auto;                /* don’t stretch */
-  margin-left: 4px;
+  flex: 0 0 auto;
   
 }
 
@@ -167,7 +157,6 @@ html {
   flex: 1 1 auto;                /* take remaining space */
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: 4px;
 }
 
 
@@ -185,15 +174,16 @@ html {
   padding: 4px 0; 
   
 }
-.player-summary-details p {
-  margin: 2px 0;                   /* smaller vertical margins */
-  white-space: nowrap;             /* prevent wrapping inside a cell */
-}
 
 /* Show details when expanded */
 .player-summary.expanded .player-summary-details {
   max-height: 100px; /* enough to show all stats */
   opacity: 1;
+}
+
+.player-summary-details p {
+  margin: 2px 0;                   /* smaller vertical margins */
+  white-space: nowrap;             /* prevent wrapping inside a cell */
 }
 
 .player-name {
