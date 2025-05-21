@@ -65,35 +65,36 @@ function updatePlayerTiles(currentTime) {
       pid,
       currentTime
     );
-    
+
     const tagsEl = tile.querySelector(".detail-tags");
     const ratioEl = tile.querySelector(".detail-ratio");
-    const basesEl = tile.querySelector(".detail-bases"); // check your HTML
 
     if (tagsEl) tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
     if (ratioEl) ratioEl.textContent = ratioText;
-const myTeamId = gameData.players[pid].team;  // e.g. "green"
-const opponents = gameData.teams
-  .filter(t => t.id !== myTeamId)             // keep only other teams
-  .map(t => ({ id: t.id, color: t.color }));  // get their IDs & colors
-  const baseStats = computeBaseStats(pid, currentTime);
-const container = tile.querySelector('.detail-bases');
+    const myTeamId = gameData.players[pid].team; // e.g. "green"
+    const opponents = gameData.teams
+      .filter((t) => t.id !== myTeamId) // keep only other teams
+      .map((t) => ({ id: t.id, color: t.color })); // get their IDs & colors
+    const baseStats = computeBaseStats(pid, currentTime);
+    const container = tile.querySelector(".detail-bases");
 
-if (container) {
-  container.innerHTML = opponents.map(({id, color}) => {
-    // stat for this target:
-    const stat = baseStats[id] || { count: 0, destroyed: false };
-    return `
-      <div class="base-box${stat.destroyed?' filled':''}"
+    if (container) {
+      container.innerHTML = opponents
+        .map(({ id, color }) => {
+          // stat for this target:
+          const stat = baseStats[id] || { count: 0, destroyed: false };
+          return `
+      <div class="base-box${stat.destroyed ? " filled" : ""}"
            style="
              border-color: ${color};
-             ${stat.destroyed?`background:${color}`:''}
+             ${stat.destroyed ? `background:${color}` : ""}
            ">
         ${stat.count}
       </div>
     `;
-  }).join('');
-}
+        })
+        .join("");
+    }
 
     // -------------------------------
   });
@@ -186,13 +187,13 @@ async function loadGameData() {
         // start replay, passing our array to fill with timeout IDs
         playReplay(chart, gameData, 1, replayTimeouts, currentTime);
         if (player && typeof player.playVideo === "function") {
-      player.playVideo();
-    }
+          player.playVideo();
+        }
       } else {
         isPlaying = false;
         btn.textContent = "▶"; // back to play icon
-            replayTimeouts.forEach((id) => clearTimeout(id));
-    replayTimeouts = [];
+        replayTimeouts.forEach((id) => clearTimeout(id));
+        replayTimeouts = [];
         if (player && typeof player.pauseVideo === "function") {
           player.pauseVideo();
         }
@@ -299,7 +300,7 @@ function initLiveChart(data) {
     zIndex: 1,
   }));
 
-liveSeries.forEach(s => console.log(s.id, "points:", s.data.length));
+  liveSeries.forEach((s) => console.log(s.id, "points:", s.data.length));
 
   const chart = Highcharts.chart("scoreChart", {
     chart: {
@@ -340,14 +341,14 @@ liveSeries.forEach(s => console.log(s.id, "points:", s.data.length));
       minorGridLineWidth: 0.1,
       labels: {
         style: { color: "#ccc" },
-/*************  ✨ Windsurf Command ⭐  *************/
+        /*************  ✨ Windsurf Command ⭐  *************/
         /**
          * Format the tick labels to show minutes:seconds.
          * @example 45 seconds → "0:45"
          * @param {number} value - the axis value at this tick
          * @returns {string} - the formatted tick label
          */
-/*******  51d804b0-7e17-4cd7-af73-d1ffc693a90c  *******/
+        /*******  51d804b0-7e17-4cd7-af73-d1ffc693a90c  *******/
         formatter: function () {
           const m = Math.floor(this.value / 60),
             s = this.value % 60;
@@ -647,22 +648,21 @@ function setupTileExpansion() {
  */
 function computePlayerStats(pid, t) {
   // get all events for this player up to time t
-  const evs = gameData.events.filter(ev => 
-    ev.entity === pid && ev.time <= t
-  );
+  const evs = gameData.events.filter((ev) => ev.entity === pid && ev.time <= t);
 
   // count tags for / against
-  let tagsFor = 0, tagsAgainst = 0, baseCount = 0;
-  evs.forEach(ev => {
-    if (ev.type === 'tag')      tagsFor++;
-    else if (ev.type === 'tagged') tagsAgainst++;
-    else if (ev.type === 'base destroy') baseCount++;
+  let tagsFor = 0,
+    tagsAgainst = 0,
+    baseCount = 0;
+  evs.forEach((ev) => {
+    if (ev.type === "tag") tagsFor++;
+    else if (ev.type === "tagged") tagsAgainst++;
+    else if (ev.type === "base destroy") baseCount++;
   });
 
   // ratio
-  const ratioText = tagsAgainst > 0
-    ? Math.round((tagsFor / tagsAgainst) * 100) + '%'
-    : '∞';
+  const ratioText =
+    tagsAgainst > 0 ? Math.round((tagsFor / tagsAgainst) * 100) + "%" : "∞";
 
   return { tagsFor, tagsAgainst, ratioText, baseCount };
 }
@@ -811,7 +811,6 @@ function buildTeamTimeline(data) {
 
   return timeline;
 }
-
 
 /** Convert hex color "#RRGGBB" to rgba() string with alpha */
 function hexToRGBA(hex, alpha) {
@@ -1154,23 +1153,23 @@ function sortTeamScoresUI() {
 
 function computeBaseStats(pid, t) {
   // all base‐related events for this player up to time t
-  const evs = gameData.events.filter(ev =>
-    ev.entity === pid &&
-    ev.time <= t &&
-    (ev.type === 'base hit' || ev.type === 'base destroy')
+  const evs = gameData.events.filter(
+    (ev) =>
+      ev.entity === pid &&
+      ev.time <= t &&
+      (ev.type === "base hit" || ev.type === "base destroy")
   );
 
   const stats = {};
-  evs.forEach(ev => {
+  evs.forEach((ev) => {
     // normalize the target to lowercase team ID:
     const tgtId = ev.target.toLowerCase(); // "Blue" → "blue"
     if (!stats[tgtId]) stats[tgtId] = { count: 0, destroyed: false };
     stats[tgtId].count++;
-    if (ev.type === 'base destroy') stats[tgtId].destroyed = true;
+    if (ev.type === "base destroy") stats[tgtId].destroyed = true;
   });
   return stats;
 }
-
 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
