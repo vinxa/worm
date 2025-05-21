@@ -60,6 +60,16 @@ function updatePlayerTiles(currentTime) {
     const scoreEl = tile.querySelector(".player-score");
     if (scoreEl) scoreEl.textContent = score;
     tile.classList.toggle("_negative", score < 0);
+  
+      const { tagsCount, ratioText, baseCount } = computePlayerStats(pid, currentTime);
+
+      const tagsEl  = tile.querySelector('.detail-tags');
+      const ratioEl = tile.querySelector('.detail-ratio');
+      const basesEl = tile.querySelector('.detail-bases');  // check your HTML
+
+      if (tagsEl)  tagsEl .textContent = tagsCount;
+      if (ratioEl) ratioEl.textContent = ratioText;
+      if (basesEl) basesEl.textContent = baseCount;
   });
 
   sortTiles();
@@ -559,6 +569,7 @@ function generatePlayerTiles() {
     `;
 
     grid.appendChild(tile);
+    updatePlayerTiles(tile);
   });
 }
 
@@ -592,30 +603,26 @@ function setupTileExpansion() {
       const isNowExpanded = clickedTile.classList.toggle("expanded");
       if (!isNowExpanded) return; // collapse: nothing to fill
 
-      // figure out all events for this player up to now
-      const t = currentTime;
-      const evs = gameData.events.filter(
-        (ev) => ev.entity === pid && ev.time <= t
-      );
-
-      // compute tags / tagged / ratio
-      const tagsCount = evs.filter((ev) => ev.type === "tag").length;
-      const taggedCount = evs.filter((ev) => ev.type === "tagged").length;
-      const ratioText =
-        taggedCount > 0
-          ? Math.round((tagsCount / taggedCount) * 100) + "%"
-          : "∞";
-
-      // compute base destroys
-      const baseCount = evs.filter((ev) => ev.type === "base destroy").length;
-
-      // fill in the detail spans
-      clickedTile.querySelector(".detail-tags").textContent = tagsCount;
-      clickedTile.querySelector(".detail-ratio").textContent = ratioText;
-      clickedTile.querySelector(".detail-goals").textContent = baseCount;
     });
   });
 }
+
+/**
+ * Compute tags, tagged, ratio and base destroys for player `pid` up to time `t`.
+ */
+function computePlayerStats(pid, t) {
+  const evs = gameData.events.filter(ev =>
+    ev.entity === pid && ev.time <= t
+  );
+  const tagsCount    = evs.filter(ev => ev.type === 'tag').length;
+  const taggedCount  = evs.filter(ev => ev.type === 'tagged').length;
+  const baseCount    = evs.filter(ev => ev.type === 'base destroy').length;
+  const ratioText    = taggedCount > 0
+    ? Math.round((tagsCount / taggedCount) * 100) + '%'
+    : '∞';
+  return { tagsCount, taggedCount, ratioText, baseCount };
+}
+
 
 // 9) Draggable YouTube modal setup
 function setupDraggableModal() {
@@ -942,7 +949,6 @@ function setupPlayerSeriesToggles() {
       if (isExpanded) {
         const s = chart.get(pid + "-player");
         const c = s ? s.color : "#e2b12a";
-        console.log(s);
         clickedTile.style.borderColor = c;
       } else {
         // collapsed — reset to default
