@@ -114,13 +114,13 @@ async function loadGameData() {
     chart = initLiveChart(gameData);
     teamFullTimeline = buildTeamTimeline(gameData);
     playerTimelines = buildPlayerTimelines(gameData);
+    
 
     // 4b) Build the 15 player tiles
     generatePlayerTiles();
-
-    // 4c) Wire up tile‐expansion on click
     setupTileExpansion();
     setupPlayerSeriesToggles();
+    colorPlayerNamesFromChart();
 
     // 4d) Wire up the draggable YouTube modal
     setupDraggableModal();
@@ -529,9 +529,30 @@ function generatePlayerTiles() {
         <p>Active: <span class="detail-active">–</span></p>
       </div>
     `;
+    
     grid.appendChild(tile);
   });
 }
+
+function colorPlayerNamesFromChart() {
+  document.querySelectorAll('.player-summary').forEach(tile => {
+    const pid    = tile.dataset.playerId;
+    const player = gameData.players[pid];
+    if (!player) return;
+
+    // 1) find that player’s team
+    const teamId = player.team;  // e.g. 1, 2, 3
+
+    // 2) grab the live-series for that team
+    const liveSeries = chart.get(teamId + '-live');
+
+    if (liveSeries) {
+      // 3) paint the name in the exact same color
+      tile.querySelector('.player-name').style.color = liveSeries.color;
+    }
+  });
+}
+
 
 // 8) Expand‐in‐place logic for each tile
 function setupTileExpansion() {
