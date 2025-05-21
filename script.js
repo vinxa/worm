@@ -13,7 +13,9 @@ let isPlaying = false;
 let replayTimeouts = [];
 let currentTime = 0;
 let teamScores = {};
-let teamFullTimeline = {}; // will hold per‐second arrays from buildTeamTimeline
+let teamFullTimeline = {};
+let playerTimelines = {};
+let selectedPlayers = new Set();
 
 // 3) YouTube API ready callback
 function onYouTubeIframeAPIReady() {
@@ -111,12 +113,14 @@ async function loadGameData() {
     // 4a) Build and show the live‐update chart
     chart = initLiveChart(gameData);
     teamFullTimeline = buildTeamTimeline(gameData);
+    playerTimelines = buildPlayerTimelines(gameData);
 
     // 4b) Build the 15 player tiles
     generatePlayerTiles();
 
     // 4c) Wire up tile‐expansion on click
     setupTileExpansion();
+    setupPlayerSeriesToggles();
 
     // 4d) Wire up the draggable YouTube modal
     setupDraggableModal();
@@ -532,16 +536,18 @@ function generatePlayerTiles() {
 // 8) Expand‐in‐place logic for each tile
 function setupTileExpansion() {
   document.querySelectorAll(".player-summary").forEach((tile) => {
-    tile.addEventListener("click", () => {
-      const isExp = tile.classList.toggle("expanded");
+    tile.addEventListener("click", (e) => {
+      const clickedTile = e.currentTarget;
+      const isExp = clickedTile.classList.toggle("expanded");
       if (!isExp) return;
-      const pid = tile.dataset.playerId;
+      const pid = clickedTile.dataset.playerId;
+      // toggle selection state
       const s = gameData.playerStats[pid] || {};
-      tile.querySelector(".detail-tags").textContent = s.tags ?? "–";
-      tile.querySelector(".detail-ratio").textContent = s.ratio ?? "–";
-      tile.querySelector(".detail-goals").textContent = s.goals ?? "–";
-      tile.querySelector(".detail-denies").textContent = s.denies ?? "–";
-      tile.querySelector(".detail-active").textContent = s.active ?? "–";
+      clickedTile.querySelector(".detail-tags").textContent = s.tags ?? "–";
+      clickedTile.querySelector(".detail-ratio").textContent = s.ratio ?? "–";
+      clickedTile.querySelector(".detail-goals").textContent = s.goals ?? "–";
+      clickedTile.querySelector(".detail-denies").textContent = s.denies ?? "–";
+      clickedTile.querySelector(".detail-active").textContent = s.active ?? "–";
     });
   });
 }
@@ -767,6 +773,119 @@ function updateTeamScoresForTime(sec) {
 
   // 3) repaint the UL
   updateTeamScoresUI();
+}
+
+function buildPlayerTimelines(data) {
+  // 1) Determine duration (in whole seconds)
+  const duration = data.gameDuration != null
+    ? data.gameDuration
+    : Math.max(0, ...data.events.map(e => Math.floor(e.time)));
+
+  // 2) Bucket all player deltas by second
+  const buckets = {};
+  Object.keys(data.players).forEach(pid => buckets[pid] = {});
+  data.events.forEach(ev => {
+    const pid = ev.entity;
+    if (!(pid in buckets)) return;
+    // floor to whole‐second bucket:
+    const sec = Math.floor(ev.time);
+    const d   = ev.playerDelta ?? ev.delta ?? 0;
+    buckets[pid][sec] = (buckets[pid][sec] || 0) + d;
+  });
+
+  // 3) Walk each second, carrying forward each player’s total
+  const timelines = {};
+  const totals    = {};
+  Object.keys(data.players).forEach(pid => {
+    totals[pid]    = 0;
+    timelines[pid] = [[0, 0]];  // start at 0
+  });
+
+  for (let sec = 1; sec <= duration; sec++) {
+    Object.keys(data.players).forEach(pid => {
+      if (buckets[pid][sec]) {
+        totals[pid] += buckets[pid][sec];
+      }
+      timelines[pid].push([sec, totals[pid]]);
+    });
+  }
+
+  return timelines;
+}
+
+function togglePlayerSeries(pid) {
+  const sid = pid + '-player';
+  const existing = chart.get(sid);
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  const tl = playerTimelines[pid] || [];
+  chart.addSeries({
+    id: sid,
+    name: gameData.players[pid].name,
+    data: tl,
+    dashStyle: 'ShortDot',
+    marker: { enabled: false },
+    zIndex: 6
+  });
+}
+
+function updatePlayerSeriesDisplay() {
+  // 1) Add missing series for every selected pid
+  selectedPlayers.forEach(pid => {
+    const sid = pid + '-player';
+    if (!chart.get(sid)) {
+      chart.addSeries({
+        id:       sid,
+        name:     gameData.players[pid].name,
+        data:     playerTimelines[pid] || [[0,0]],
+        dashStyle:'ShortDot',
+        marker:   { enabled: false },
+        zIndex:   4
+      });
+    }
+  });
+
+  // 2) Remove series for any pid not selected
+  Object.keys(playerTimelines).forEach(pid => {
+    if (!selectedPlayers.has(pid)) {
+      const sid = pid + '-player';
+      const s   = chart.get(sid);
+      if (s) s.remove();
+    }
+  });
+}
+
+function setupPlayerSeriesToggles() {
+  document.querySelectorAll('.player-summary').forEach(tile => {
+    tile.addEventListener('click', (e) => {
+      const clickedTile = e.currentTarget;
+      const pid = clickedTile.dataset.playerId;
+
+      // toggle in the Set
+      if (selectedPlayers.has(pid)) {
+        selectedPlayers.delete(pid);
+      } else {
+        selectedPlayers.add(pid);
+      }
+
+      // sync chart to only show selected players
+      updatePlayerSeriesDisplay();
+
+    // if we just expanded, pull the series color and set the border
+    const isExpanded = clickedTile.classList.contains('expanded');
+    if (isExpanded) {
+      const s = chart.get(pid + "-player");
+      const c = s ? s.color : '#e2b12a';
+      console.log(s);
+      clickedTile.style.borderColor = c;
+    } else {
+      // collapsed — reset to default
+      clickedTile.style.borderColor = '';
+    }
+    });
+  });
 }
 
 // 11) Start everything once the DOM is ready
