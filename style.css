@@ -402,3 +402,26 @@ html {
   margin-top: auto;         /* pushes the sidebar to the bottom of results-content */
   gap: 8px;
 }
+
+.detail-bases {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.base-box {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #888;      /* fallback border */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+  line-height: 1;
+  background: transparent;
+  border-radius: 3px;
+}
+
+.base-box.filled {
+  color: white;
+}

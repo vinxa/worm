@@ -61,18 +61,44 @@ function updatePlayerTiles(currentTime) {
     if (scoreEl) scoreEl.textContent = score;
     tile.classList.toggle("_negative", score < 0);
 
-    const { tagsCount, ratioText, baseCount } = computePlayerStats(
+    const { tagsFor, tagsAgainst, ratioText, baseCount } = computePlayerStats(
       pid,
       currentTime
     );
-
+    console.log(computePlayerStats(
+      pid,
+      currentTime
+    ));
     const tagsEl = tile.querySelector(".detail-tags");
     const ratioEl = tile.querySelector(".detail-ratio");
     const basesEl = tile.querySelector(".detail-bases"); // check your HTML
 
-    if (tagsEl) tagsEl.textContent = tagsCount;
+    if (tagsEl) tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
     if (ratioEl) ratioEl.textContent = ratioText;
-    if (basesEl) basesEl.textContent = baseCount;
+const myTeamId = gameData.players[pid].team;  // e.g. "green"
+const opponents = gameData.teams
+  .filter(t => t.id !== myTeamId)             // keep only other teams
+  .map(t => ({ id: t.id, color: t.color }));  // get their IDs & colors
+  const baseStats = computeBaseStats(pid, currentTime);
+const container = tile.querySelector('.detail-bases');
+
+if (container) {
+  container.innerHTML = opponents.map(({id, color}) => {
+    // stat for this target:
+    const stat = baseStats[id] || { count: 0, destroyed: false };
+    return `
+      <div class="base-box${stat.destroyed?' filled':''}"
+           style="
+             border-color: ${color};
+             ${stat.destroyed?`background:${color}`:''}
+           ">
+        ${stat.count}
+      </div>
+    `;
+  }).join('');
+}
+
+    // -------------------------------
   });
 
   sortTiles();
@@ -567,8 +593,8 @@ function generatePlayerTiles() {
       </div>
       <div class="player-summary-details">
         <p>Tags: <span class="detail-tags">–</span></p>
-        <p>Ratio: <span class="detail-ratio">–</span></p>
-        <p>Bases: <span class="detail-bases">–</span></p>
+        <p>TR: <span class="detail-ratio">–</span></p>
+        <div class="detail-bases"></div>
         <p>Denies: <span class="detail-denies">–</span></p>
       </div>
     `;
@@ -615,13 +641,25 @@ function setupTileExpansion() {
  * Compute tags, tagged, ratio and base destroys for player `pid` up to time `t`.
  */
 function computePlayerStats(pid, t) {
-  const evs = gameData.events.filter((ev) => ev.entity === pid && ev.time <= t);
-  const tagsCount = evs.filter((ev) => ev.type === "tag").length;
-  const taggedCount = evs.filter((ev) => ev.type === "tagged").length;
-  const baseCount = evs.filter((ev) => ev.type === "base destroy").length;
-  const ratioText =
-    taggedCount > 0 ? Math.round((tagsCount / taggedCount) * 100) + "%" : "∞";
-  return { tagsCount, taggedCount, ratioText, baseCount };
+  // get all events for this player up to time t
+  const evs = gameData.events.filter(ev => 
+    ev.entity === pid && ev.time <= t
+  );
+
+  // count tags for / against
+  let tagsFor = 0, tagsAgainst = 0, baseCount = 0;
+  evs.forEach(ev => {
+    if (ev.type === 'tag')      tagsFor++;
+    else if (ev.type === 'tagged') tagsAgainst++;
+    else if (ev.type === 'base destroy') baseCount++;
+  });
+
+  // ratio
+  const ratioText = tagsAgainst > 0
+    ? Math.round((tagsFor / tagsAgainst) * 100) + '%'
+    : '∞';
+
+  return { tagsFor, tagsAgainst, ratioText, baseCount };
 }
 
 // 9) Draggable YouTube modal setup
@@ -1118,6 +1156,26 @@ function sortTeamScoresUI() {
     });
   });
 }
+
+function computeBaseStats(pid, t) {
+  // all base‐related events for this player up to time t
+  const evs = gameData.events.filter(ev =>
+    ev.entity === pid &&
+    ev.time <= t &&
+    (ev.type === 'base hit' || ev.type === 'base destroy')
+  );
+
+  const stats = {};
+  evs.forEach(ev => {
+    // normalize the target to lowercase team ID:
+    const tgtId = ev.target.toLowerCase(); // "Blue" → "blue"
+    if (!stats[tgtId]) stats[tgtId] = { count: 0, destroyed: false };
+    stats[tgtId].count++;
+    if (ev.type === 'base destroy') stats[tgtId].destroyed = true;
+  });
+  return stats;
+}
+
 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
