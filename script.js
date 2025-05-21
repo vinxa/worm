@@ -153,6 +153,25 @@ async function loadGameData() {
     document
       .getElementById("forwardButton")
       .addEventListener("click", () => handleSkip(+15));
+
+    document.addEventListener('keydown', e => {
+   switch (e.code) {
+    case 'Space':
+      e.preventDefault();
+      document.getElementById('playButton').click();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      handleSkip(-15);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      handleSkip(+15);
+      break;
+  }
+});
+
+
   } catch (err) {
     console.error("Failed to load game data:", err);
   }
@@ -498,7 +517,9 @@ function setupDraggableModal() {
         height: "315",
         width: "560",
         videoId: v,
-        playerVars: { origin: location.origin },
+        playerVars: { origin: location.origin,
+          disablekb: 1
+         },
         events: {
           onReady: () => {
             console.log('YT Player ready');
