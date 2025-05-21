@@ -65,10 +65,7 @@ function updatePlayerTiles(currentTime) {
       pid,
       currentTime
     );
-    console.log(computePlayerStats(
-      pid,
-      currentTime
-    ));
+    
     const tagsEl = tile.querySelector(".detail-tags");
     const ratioEl = tile.querySelector(".detail-ratio");
     const basesEl = tile.querySelector(".detail-bases"); // check your HTML
