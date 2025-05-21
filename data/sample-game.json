@@ -36,6 +36,8 @@
     { "time": 10,  "entity":"#p13",    "delta": 150, "type":"tag"   },
     { "time": 7,  "entity":"#p9",    "delta": -500, "type":"base hit"   },
     { "time": 9,  "entity":"#p9",    "delta": -500, "type":"base hit"   },
-    { "time": 11,  "entity":"#p9",    "delta": 4001, "type":"base destroy"   }
+    { "time": 11,  "entity":"#p9",    "delta": 4001, "type":"base destroy"   },
+    {"time": 15, "entity":"#p1", "delta": -40, "type":"tagged"},
+    {"time": 15, "entity":"#p7", "delta": 150, "type":"tag"}
   ]
 }

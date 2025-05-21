@@ -92,6 +92,13 @@ async function loadGameData() {
       arr.sort((a, b) => a.time - b.time)
     );
 
+  // 2) compute and store gameDuration & currentTime at the end
+  const maxEvent = gameData.events.length
+    ? Math.max(...gameData.events.map(e => e.time))
+    : 0;
+  gameData.gameDuration = gameData.gameDuration ?? maxEvent;
+  currentTime = gameData.gameDuration;
+
     // Compute final scores for each player
     gameData.playerStats = {};
     Object.entries(gameData.players).forEach(([pid, info]) => {
@@ -124,6 +131,8 @@ async function loadGameData() {
 
     // 4d) Wire up the draggable YouTube modal
     setupDraggableModal();
+
+    seekToTime(currentTime);
 
     // 4e) Hook the "Play" button to start the replay
     document.getElementById("playButton").addEventListener("click", () => {
@@ -556,19 +565,35 @@ function colorPlayerNamesFromChart() {
 
 // 8) Expand‐in‐place logic for each tile
 function setupTileExpansion() {
-  document.querySelectorAll(".player-summary").forEach((tile) => {
-    tile.addEventListener("click", (e) => {
+  document.querySelectorAll('.player-summary').forEach(tile => {
+    tile.addEventListener('click', (e) => {
       const clickedTile = e.currentTarget;
-      const isExp = clickedTile.classList.toggle("expanded");
-      if (!isExp) return;
       const pid = clickedTile.dataset.playerId;
-      // toggle selection state
-      const s = gameData.playerStats[pid] || {};
-      clickedTile.querySelector(".detail-tags").textContent = s.tags ?? "–";
-      clickedTile.querySelector(".detail-ratio").textContent = s.ratio ?? "–";
-      clickedTile.querySelector(".detail-bases").textContent = s.bases ?? "–";
-      clickedTile.querySelector(".detail-denies").textContent = s.denies ?? "–";
-      clickedTile.querySelector(".detail-active").textContent = s.active ?? "–";
+
+      // toggle expanded
+      const isNowExpanded = clickedTile.classList.toggle('expanded');
+      if (!isNowExpanded) return;  // collapse: nothing to fill
+
+      // figure out all events for this player up to now
+      const t = currentTime;
+      const evs = gameData.events.filter(ev => 
+        ev.entity === pid && ev.time <= t
+      );
+
+      // compute tags / tagged / ratio
+      const tagsCount   = evs.filter(ev => ev.type === 'tag').length;
+      const taggedCount = evs.filter(ev => ev.type === 'tagged').length;
+      const ratioText   = taggedCount > 0
+        ? Math.round((tagsCount / taggedCount) * 100) + '%' 
+        : '∞';
+
+      // compute base destroys
+      const baseCount = evs.filter(ev => ev.type === 'base destroy').length;
+
+      // fill in the detail spans
+      clickedTile.querySelector('.detail-tags').textContent  = tagsCount;
+      clickedTile.querySelector('.detail-ratio').textContent = ratioText;
+      clickedTile.querySelector('.detail-goals').textContent = baseCount;
     });
   });
 }
