@@ -16,6 +16,7 @@ let teamScores = {};
 let teamFullTimeline = {};
 let playerTimelines = {};
 let selectedPlayers = new Set();
+let selectedGame = null;
 
 function isTypingField(el) {
   return el.tagName === 'INPUT' ||
@@ -239,6 +240,11 @@ async function loadGameData(dataPath) {
       }
     });
     wiggleLogos();
+    if (selectedGame && gameData.gameType) {
+  const pretty = formatGameDatetime(selectedGame.id);
+  document.querySelector('.title').textContent =
+    `${pretty}    |    ${gameData.gameType}`;
+}
   } catch (err) {
     console.error("Failed to load game data:", err);
   }
@@ -882,6 +888,13 @@ function formatTime(sec) {
   return m + ":" + (s < 10 ? "0" + s : s);
 }
 
+function formatGameDatetime(ts) {
+  const m = ts.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+  if (!m) return ts;
+  const [,YYYY,MM,DD,hh,mm] = m;
+  return `${DD}/${MM}/${YYYY}\u00A0${hh}:${mm}`;
+}
+
 function updateTeamScoresForTime(sec) {
   // 1) zero out every team
   gameData.teams.forEach((t) => {
@@ -1210,7 +1223,8 @@ function buildGrid() {
   games.forEach(game => {
     const tile = document.createElement('div');
     tile.classList.add('game-tile');
-    tile.textContent = `${game.title}`;
+    const raw = game.title || game.id;
+    tile.textContent = formatGameDatetime(raw);
     tile.addEventListener('click', () => showGame(game));
     grid.appendChild(tile);
   });
@@ -1225,14 +1239,13 @@ function showHome() {
 }
 
 function showGame(game) {
+  selectedGame = game;
   // hide home
   homeView.style.display = 'none';
   // show game UI
   leftBtn.style.display = 'inline-block';
   gameHeader.style.display = 'flex';
   gameSections.forEach(s => s.style.display = '');
-  // update the title
-  document.querySelector('.title').textContent = `${game.title} – ${game.date}`;
   // load your existing data
   loadGameData(game.dataPath);
 }
