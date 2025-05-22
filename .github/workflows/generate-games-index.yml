@@ -31,5 +31,5 @@ jobs:
         with:
           author_name: github-actions
           author_email: vinxa@github.com
-          message: chore: update data/games/index.json
+          message: update data/games/index.json
           add: 'data/games/index.json'
