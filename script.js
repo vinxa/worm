@@ -17,6 +17,12 @@ let teamFullTimeline = {};
 let playerTimelines = {};
 let selectedPlayers = new Set();
 
+function isTypingField(el) {
+  return el.tagName === 'INPUT' ||
+         el.tagName === 'TEXTAREA' ||
+         el.isContentEditable;
+}
+
 // 3) YouTube API ready callback
 function onYouTubeIframeAPIReady() {
   console.log("YouTube IFrame API ready");
@@ -114,10 +120,10 @@ function updateCursorPosition(sec) {
 }
 
 // 4) Fetch JSON & bootstrap everything
-async function loadGameData() {
+async function loadGameData(dataPath) {
   try {
     // ← Adjusted path to where sample-game.json actually lives
-    const res = await fetch("data/sample-game.json");
+    const res = await fetch(dataPath);
     gameData = await res.json();
     playerEvents = {};
     gameData.events.forEach((ev) => {
@@ -224,6 +230,12 @@ async function loadGameData() {
           e.preventDefault();
           handleSkip(+15);
           break;
+        case "Backspace":
+          if (!isTypingField(e.target)) {
+            e.preventDefault();
+            showHome();
+            break;
+          }
       }
     });
   } catch (err) {
@@ -1168,5 +1180,69 @@ function computeBaseStats(pid, t) {
   return stats;
 }
 
+
+// Load list of games
+let games = [];
+fetch('data/games/index.json').then(res => {
+  if (!res.ok) throw new Error('Couldn’t fetch games index');
+  return res.json();
+})
+.then(list => { 
+  games = list;
+  buildGrid();
+})
+.catch(err => console.error(err));
+
+// 2) grab the two views and the left-arrow button
+const homeView = document.getElementById('home-view');
+const gameHeader = document.querySelector('body > .app-header');
+const gameSections = [
+  document.querySelector('.top-section'),
+  document.querySelector('.timeline-section')
+];
+const leftBtn = document.querySelector('.nav-button.left');
+
+// 3) build the grid of tiles
+function buildGrid() {
+  const grid = document.getElementById('gamesGrid');
+  grid.innerHTML = ''; // clear any old tiles
+  games.forEach(game => {
+    const tile = document.createElement('div');
+    tile.classList.add('game-tile');
+    tile.textContent = `${game.title}`;
+    tile.addEventListener('click', () => showGame(game));
+    grid.appendChild(tile);
+  });
+}
+
+// 4) view-switching functions
+function showHome() {
+  homeView.style.display = 'block';
+  leftBtn.style.display = 'none';
+  gameHeader.style.display = 'none';
+  gameSections.forEach(s => s.style.display = 'none');
+}
+
+function showGame(game) {
+  // hide home
+  homeView.style.display = 'none';
+  // show game UI
+  leftBtn.style.display = 'inline-block';
+  gameHeader.style.display = 'flex';
+  gameSections.forEach(s => s.style.display = '');
+  // update the title
+  document.querySelector('.title').textContent = `${game.title} – ${game.date}`;
+  // load your existing data
+  loadGameData(game.dataPath);
+}
+
+// 5) wire up the “back” arrow
+leftBtn.addEventListener('click', showHome);
+
+// 6) initialize
+showHome();
+
+/* 
 // 11) Start everything once the DOM is ready
 document.addEventListener("DOMContentLoaded", loadGameData);
+ */
