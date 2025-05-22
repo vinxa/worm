@@ -72,6 +72,7 @@ if __name__ == "__main__":
     output["gameDuration"] = int(int(parsed_data["mission"][0]["duration"]) / 1000 )
     output["penalty"] = int(parsed_data["mission"][0]["penalty"])
     output["startTime"] = datetime.strptime(parsed_data["mission"][0]["start"], "%Y%m%d%H%M%S").strftime("%Y-%m-%d %H:%M")
+    output["gameType"] = parsed_data["mission"][0]["desc"]
 
     # Set output filename
     output_filename = parsed_data["mission"][0]["start"] + ".json"
