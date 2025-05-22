@@ -5,6 +5,7 @@ on:
     # whenever you add, remove, or update JSONs in data/games
     paths:
       - 'data/games/**'
+    workflow_dispatch:
 
 jobs:
   update-manifest:
