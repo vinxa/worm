@@ -524,3 +524,64 @@ html {
 *::after {
   box-sizing: border-box;
 }
+
+.app-logo {
+  width: 48px;          /* or whatever fits your design */
+  height: auto;
+  margin-right: 12px;   /* space before the title */
+  flex-shrink: 0;       /* prevent it from squishing */
+}
+
+@media (min-width: 600px) {
+  .home-section .app-logo {
+    width: 64px;
+  }
+}
+
+/* 1) define the dance */
+@keyframes dance1 {
+  0%,100% { transform: translateY(0) rotate(0deg); }
+  25%     { transform: translateY(-8px) rotate(10deg); }
+  50%     { transform: translateY(0)   rotate(-10deg); }
+  75%     { transform: translateY(-4px) rotate(5deg); }
+}
+
+@keyframes dance2 {
+  0%,100% { transform: scale(1)   rotate(0deg);    }
+  20%     { transform: scale(1.2) rotate(5deg);    }
+  40%     { transform: scale(1)   rotate(-5deg);   }
+  60%     { transform: scale(1.2) rotate(-5deg);   }
+  80%     { transform: scale(1)   rotate(5deg);    }
+}
+
+@keyframes dance3 {
+  0%,100% { transform: translateX(0)    rotate(0deg); }
+  15%     { transform: translateX(-6px) rotate(-5deg); }
+  30%     { transform: translateX(6px)  rotate(5deg);  }
+  45%     { transform: translateX(-6px) rotate(-5deg); }
+  60%     { transform: translateX(6px)  rotate(5deg);  }
+  75%     { transform: translateX(-3px) rotate(-3deg); }
+}
+
+/* 2) trigger it when you hover */
+.app-logo:hover {
+  animation: dance 0.8s ease-in-out 1; /* 1 run per hover */
+}
+
+/* 3) optional: infinite dancing if you add a class */
+.app-logo.dance-on-load {
+  animation: dance 1s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+   15%      { transform: rotate(5deg); }
+   30%      { transform: rotate(-5deg); }
+   45%      { transform: rotate(5deg); }
+   60%      { transform: rotate(-5deg); }
+   75%      { transform: rotate(5deg); }
+}
+
+.app-logo.wiggle-on-load {
+  animation: wiggle 0.8s ease-in-out forwards;
+}
