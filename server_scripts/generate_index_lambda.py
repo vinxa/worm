@@ -24,12 +24,16 @@ def lambda_handler(event, context):
             "dataPath": data_path
         })
 
+    games.sort(key=lambda g: g["id"], reverse=True)
+
     # Write index.json back to S3
     s3.put_object(
         Bucket=BUCKET,
         Key=f"index.json",
         Body=json.dumps(games, indent=2),
-        ContentType="application/json"
+        ContentType="application/json",
+        CacheControl="no-store, no-cache, must-revalidate, proxy-revalidate",
+        Expires="0"
     )
 
     print(f"Updated index.json with {len(games)} entries")
