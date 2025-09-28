@@ -17,6 +17,7 @@ let teamFullTimeline = {};
 let playerTimelines = {};
 let selectedPlayers = new Set();
 let selectedGame = null;
+const S3_BASE_URL = "https://worm-game-data.s3.ap-southeast-2.amazonaws.com";
 
 function isTypingField(el) {
   return el.tagName === 'INPUT' ||
@@ -1197,8 +1198,8 @@ function computeBaseStats(pid, t) {
 
 // Load list of games
 let games = [];
-fetch('data/games/index.json').then(res => {
-  if (!res.ok) throw new Error('Couldn’t fetch games index');
+fetch(S3_BASE_URL + "/index.json").then(res => {
+  if (!res.ok) throw new Error("Couldn't fetch games index");
   return res.json();
 })
 .then(list => { 
