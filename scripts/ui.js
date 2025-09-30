@@ -19,38 +19,38 @@ const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 
 function clickPlayButton() {
-  // Hook the Play button to start the replay
-  const btn = document.getElementById("playButton");
-  if (!state.gameData) return;
-  if (state.currentTime >= state.gameData.gameDuration) {
-    seekToTime(0);
-  }
-  if (!state.isPlaying) {
-    state.isPlaying = true;
-    btn.textContent = "❚❚";
-    // clear old timeouts
-    clearTimeouts();
-    // start replay, passing array to fill with timeout IDs
-    playReplay(
-      state.chart,
-      state.gameData,
-      1,
-      state.replayTimeouts,
-      state.currentTime
-    );
-    if (state.player && typeof state.player.playVideo === "function") {
-      state.player.playVideo();
+    // Hook the Play button to start the replay
+    const btn = document.getElementById("playButton");
+    if (!state.gameData) return;
+    if (state.currentTime >= state.gameData.gameDuration) {
+        seekToTime(0);
     }
-  } else {
-    state.isPlaying = false;
-    btn.textContent = "▶"; // back to play icon
-    clearTimeouts();
-    if (state.player && typeof state.player.pauseVideo === "function") {
-      state.player.pauseVideo();
+    if (!state.isPlaying) {
+        state.isPlaying = true;
+        btn.textContent = "❚❚";
+        // clear old timeouts
+        clearTimeouts();
+        // start replay, passing array to fill with timeout IDs
+        playReplay(
+        state.chart,
+        state.gameData,
+        1,
+        state.replayTimeouts,
+        state.currentTime
+        );
+        if (state.player && typeof state.player.playVideo === "function") {
+        state.player.playVideo();
+        }
+    } else {
+        state.isPlaying = false;
+        btn.textContent = "▶"; // back to play icon
+        clearTimeouts();
+        if (state.player && typeof state.player.pauseVideo === "function") {
+        state.player.pauseVideo();
+        }
+        // cancel pending events
+        clearTimeouts();
     }
-    // cancel pending events
-    clearTimeouts();
-  }
 }
 
 function keyboardControls(e) {
@@ -108,8 +108,16 @@ export function buildGrid(games) {
     games.forEach((game) => {
         const tile = document.createElement("div");
         tile.classList.add("game-tile");
-        const raw = game.title || game.id;
-        tile.textContent = formatGameDatetime(raw);
+        const raw = game.title || "";
+
+        const gameLine = document.createElement("span");
+        gameLine.textContent = formatGameDatetime(game.id);
+
+        const rawLine = document.createElement("span");
+        rawLine.textContent = raw;
+
+        tile.appendChild(gameLine);
+        tile.appendChild(rawLine);
         tile.addEventListener("click", () => showGame(game));
         grid.appendChild(tile);
     });

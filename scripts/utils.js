@@ -83,7 +83,9 @@ export function formatGameDatetime(ts) {
     const m = ts.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
     if (!m) return ts;
     const [,YYYY,MM,DD,hh,mm] = m;
-    return `${DD}/${MM}/${YYYY}\u00A0${hh}:${mm}`;
+    const d = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00Z`);
+    const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
+    return `${dayOfWeek} ${DD}/${MM}/${YYYY}\u00A0${hh}:${mm}`;
 }
 
 /**
