@@ -124,11 +124,11 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
         state.isPlaying = false;
         document.getElementById("playButton").textContent = "▶";
         // clear any leftover timeouts
-        replayTimeouts.forEach((id) => clearTimeout(id));
-        replayTimeouts.length = 0;
+        state.replayTimeouts.forEach((id) => clearTimeout(id));
+        state.replayTimeouts.length = 0;
       }
     }, delay);
-
+    
     timeouts.push(id);
   }
 }

@@ -59,7 +59,7 @@ export function buildPlayerTimelines(data) {
     });
 } */
 
-function updatePlayerSeriesDisplay() {
+export function updatePlayerSeriesDisplay() {
     // 1) Add missing series for every selected pid
     state.selectedPlayers.forEach((pid) => {
         const sid = pid + "-player";
@@ -82,36 +82,6 @@ function updatePlayerSeriesDisplay() {
         const s = state.chart.get(sid);
         if (s) s.remove();
         }
-    });
-}
-
-export function setupPlayerSeriesToggles() {
-    document.querySelectorAll(".player-summary").forEach((tile) => {
-        tile.addEventListener("click", (e) => {
-        const clickedTile = e.currentTarget;
-        const pid = clickedTile.dataset.playerId;
-
-        // toggle in the Set
-        if (state.selectedPlayers.has(pid)) {
-            state.selectedPlayers.delete(pid);
-        } else {
-            state.selectedPlayers.add(pid);
-        }
-
-        // sync chart to only show selected players
-        updatePlayerSeriesDisplay();
-
-        // if we just expanded, pull the series color and set the border
-        const isExpanded = clickedTile.classList.contains("expanded");
-        if (isExpanded) {
-            const s = state.chart.get(pid + "-player");
-            const c = s ? s.color : "#e2b12a";
-            clickedTile.style.borderColor = c;
-        } else {
-            // collapsed — reset to default
-            clickedTile.style.borderColor = "";
-        }
-        });
     });
 }
 
@@ -162,8 +132,8 @@ export function initLiveChart(data) {
 
             // 3) if we're currently playing, restart playback from there
             if (state.isPlaying) {
-                state.replayTimeouts = []; 
                 state.replayTimeouts.forEach((id) => clearTimeout(id));
+                state.replayTimeouts.length = 0;
                 playReplay(chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
             }
             },

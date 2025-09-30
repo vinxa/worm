@@ -1,10 +1,10 @@
 // main.js
 
 // 1) Imports
-import { initLiveChart, setupPlayerSeriesToggles, buildTeamTimeline, buildPlayerTimelines } from "./chart.js";
+import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./chart.js";
 import { formatGameDatetime, isTypingField } from "./utils.js";
 import { wiggleLogos, setupLogoDance } from "./logo.js";
-import { generatePlayerTiles, buildGrid, colorPlayerNamesFromChart, setupTileExpansion } from "./playerTiles.js";
+import { generatePlayerTiles, buildGrid, colorPlayerNamesFromChart, setupTileExpansion, setupPlayerSeriesToggles } from "./playerTiles.js";
 import { setupDraggableModal } from "./video.js";
 import { state } from "./state.js";
 import { playReplay, seekToTime, handleSkip } from "./replay.js";

@@ -2,6 +2,7 @@
 import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal } from "./utils.js";
 import { showGame } from "./main.js";
 import { state } from "./state.js";
+import { updatePlayerSeriesDisplay } from "./chart.js";
 
 export function updatePlayerTiles(currentTime) {
     document.querySelectorAll(".player-summary").forEach((tile) => {
@@ -292,5 +293,36 @@ export function buildGrid(games) {
         tile.textContent = formatGameDatetime(raw);
         tile.addEventListener("click", () => showGame(game));
         grid.appendChild(tile);
+    });
+}
+
+
+export function setupPlayerSeriesToggles() {
+    document.querySelectorAll(".player-summary").forEach((tile) => {
+        tile.addEventListener("click", (e) => {
+        const clickedTile = e.currentTarget;
+        const pid = clickedTile.dataset.playerId;
+
+        // toggle in the Set
+        if (state.selectedPlayers.has(pid)) {
+            state.selectedPlayers.delete(pid);
+        } else {
+            state.selectedPlayers.add(pid);
+        }
+
+        // sync chart to only show selected players
+        updatePlayerSeriesDisplay();
+
+        // if we just expanded, pull the series color and set the border
+        const isExpanded = clickedTile.classList.contains("expanded");
+        if (isExpanded) {
+            const s = state.chart.get(pid + "-player");
+            const c = s ? s.color : "#e2b12a";
+            clickedTile.style.borderColor = c;
+        } else {
+            // collapsed — reset to default
+            clickedTile.style.borderColor = "";
+        }
+        });
     });
 }
