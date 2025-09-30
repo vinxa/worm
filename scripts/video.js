@@ -1,6 +1,6 @@
 // video.js
 import { state } from "./state.js";
-import { playReplay } from "./main.js";
+import { playReplay } from "./replay.js";
 
 // Helper to extract YouTube ID
 function parseYouTubeId(url) {

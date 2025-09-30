@@ -1,5 +1,5 @@
 import { hexToRGBA, formatTime } from "./utils.js";
-import { seekToTime } from "./main.js";
+import { playReplay, seekToTime } from "./replay.js";
 import { state } from "./state.js";
 
 export function buildPlayerTimelines(data) {
