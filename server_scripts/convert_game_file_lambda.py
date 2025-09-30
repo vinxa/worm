@@ -222,7 +222,7 @@ def lambda_handler(event, context):
                 continue
 
     # Output filename from mission start
-    output_filename = f"games/{parsed_data['mission'][0]['start']}.json"
+    output_filename = f"games/{parsed_data['mission'][0]['start']}@{parsed_data['mission'][0]['desc'].replace(" ","_")}.json"
 
     s3.put_object(
         Bucket=bucket,

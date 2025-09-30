@@ -15,8 +15,8 @@ def lambda_handler(event, context):
         key = obj["Key"]
         if not key.endswith(".json") or key.endswith("index.json"):
             continue
-        game_id = os.path.splitext(os.path.basename(key))[0]
-        title = game_id.replace("-", " ").replace("_", " ").title()
+        game_id = os.path.splitext(os.path.basename(key))[0].split("@")[0]
+        title = os.path.splitext(os.path.basename(key))[0].split("@")[1].replace("_"," ").title()
         data_path = f"https://{BUCKET}.s3.amazonaws.com/{key}"
         games.append({
             "id": game_id,
