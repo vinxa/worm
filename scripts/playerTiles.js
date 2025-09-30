@@ -1,8 +1,8 @@
 // playerTiles.js
 import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal } from "./utils.js";
-import { showGame } from "./main.js";
+import { showGame } from "./ui.js";
 import { state } from "./state.js";
-import { updatePlayerSeriesDisplay } from "./chart.js";
+import { updatePlayerSeriesDisplay } from "./timeline.js";
 
 export function updatePlayerTiles(currentTime) {
     document.querySelectorAll(".player-summary").forEach((tile) => {
@@ -89,7 +89,7 @@ export function generatePlayerTiles() {
     });
 }
 
-export function colorPlayerNamesFromChart() {
+export function colourPlayerNamesFromChart() {
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
         const player = state.gameData.players[pid];
@@ -279,20 +279,6 @@ function sortTeamScoresUI() {
         li.style.transition = "";
         li.removeEventListener("transitionend", handler);
         });
-    });
-}
-
-// build the grid of tiles
-export function buildGrid(games) {
-    const grid = document.getElementById("gamesGrid");
-    grid.innerHTML = ""; // clear any old tiles
-    games.forEach((game) => {
-        const tile = document.createElement("div");
-        tile.classList.add("game-tile");
-        const raw = game.title || game.id;
-        tile.textContent = formatGameDatetime(raw);
-        tile.addEventListener("click", () => showGame(game));
-        grid.appendChild(tile);
     });
 }
 

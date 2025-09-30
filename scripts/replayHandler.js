@@ -1,17 +1,13 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
-import { updateLiveSeries, updateCursorPosition } from "./chart.js";
+import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { formatTime } from "./utils.js";
 
 
 
 export function handleSkip(delta) {
     // a) If a replay is running, cancel every scheduled tick:
-    if (state.isPlaying) {
-        state.replayTimeouts.forEach((id) => clearTimeout(id));
-        state.replayTimeouts.length = 0;
-    }
-
+    if (state.isPlaying) clearTimeouts();
     // b) Compute & clamp the new time:
     const maxTime = state.gameData.gameDuration ?? Math.max(...state.gameData.events.map((e) => e.time));
     const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
@@ -124,11 +120,10 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
         state.isPlaying = false;
         document.getElementById("playButton").textContent = "▶";
         // clear any leftover timeouts
-        state.replayTimeouts.forEach((id) => clearTimeout(id));
-        state.replayTimeouts.length = 0;
+        clearTimeouts();
       }
     }, delay);
-    
+
     timeouts.push(id);
   }
 }
@@ -176,4 +171,9 @@ function updateTeamScoresForTime(sec) {
 
   // 3) repaint the UL
   updateTeamScoresUI();
+}
+
+export function clearTimeouts() {
+  state.replayTimeouts.forEach(clearTimeout);
+  state.replayTimeouts.length = 0;
 }

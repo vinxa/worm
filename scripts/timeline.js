@@ -1,5 +1,5 @@
 import { hexToRGBA, formatTime } from "./utils.js";
-import { playReplay, seekToTime } from "./replay.js";
+import { playReplay, seekToTime, clearTimeouts } from "./replayHandler.js";
 import { state } from "./state.js";
 
 export function buildPlayerTimelines(data) {
@@ -132,8 +132,7 @@ export function initLiveChart(data) {
 
             // 3) if we're currently playing, restart playback from there
             if (state.isPlaying) {
-                state.replayTimeouts.forEach((id) => clearTimeout(id));
-                state.replayTimeouts.length = 0;
+                clearTimeouts();
                 playReplay(chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
             }
             },

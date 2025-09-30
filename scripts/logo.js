@@ -29,7 +29,4 @@ export function setupLogoDance() {
             logo.style.animation = "";
         });
     });
-
-    // Initial wiggle :)
-    wiggleLogos();
 }
