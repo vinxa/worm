@@ -158,14 +158,6 @@ export function initLiveChart(data) {
         minorGridLineWidth: 0.1,
         labels: {
             style: { color: "#ccc" },
-            /*************  ✨ Windsurf Command ⭐  *************/
-            /**
-             * Format the tick labels to show minutes:seconds.
-             * @example 45 seconds → "0:45"
-             * @param {number} value - the axis value at this tick
-             * @returns {string} - the formatted tick label
-             */
-            /*******  51d804b0-7e17-4cd7-af73-d1ffc693a90c  *******/
             formatter: function () {
             const m = Math.floor(this.value / 60),
                 s = this.value % 60;
@@ -251,7 +243,7 @@ export function initLiveChart(data) {
     chart.customCursorGroup = cursorGroup;
 
     // HOVER LINE
-    const hoverGroup = chart.renderer.g().attr({ zIndex: 4 }).add();
+    const hoverGroup = chart.renderer.g().attr({ zIndex: 6 }).add();
     const hoverLine = chart.renderer
         .path(["M", left, top, "L", left, top + height])
         .attr({
@@ -262,9 +254,9 @@ export function initLiveChart(data) {
         })
         .add(hoverGroup);
     const hoverLabel = chart.renderer
-        .text("", left, top - 2)
-        .attr({ align: "center", zIndex: 6 })
-        .css({ color: "#fff", fontWeight: "bold", fontSize: "10px" })
+        .text("", left, top - 5)
+        .attr({ align: "center", zIndex: 7 })
+        .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
         .add(hoverGroup);
     hoverGroup.hide();
 
@@ -276,7 +268,7 @@ export function initLiveChart(data) {
 
         if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
         hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
-        hoverLabel.attr({ text: formatTime(t), x: x, y: top - 2 });
+        hoverLabel.attr({ text: formatTime(t), x: x, y: top + 10 });
         hoverGroup.show();
         } else {
         hoverGroup.hide();
