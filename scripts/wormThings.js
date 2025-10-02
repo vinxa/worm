@@ -30,3 +30,14 @@ export function setupLogoDance() {
         });
     });
 }
+
+export function randomWobble() {
+    const spinner = document.querySelector('.spinner-inner');
+    // random stretch around 0.9–1.1
+    const sx = 0.9 + Math.random() * 0.2;
+    const sy = 0.9 + Math.random() * 0.2;
+    // combine with the base spin
+    spinner.style.transformOrigin = "center";
+    spinner.style.transform += ` scale(${sx}, ${sy})`;
+}
+

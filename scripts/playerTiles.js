@@ -286,29 +286,30 @@ function sortTeamScoresUI() {
 export function setupPlayerSeriesToggles() {
     document.querySelectorAll(".player-summary").forEach((tile) => {
         tile.addEventListener("click", (e) => {
-        const clickedTile = e.currentTarget;
-        const pid = clickedTile.dataset.playerId;
+            const clickedTile = e.currentTarget;
+            const pid = clickedTile.dataset.playerId;
+            if ( state.isGameLoading || !state.gameData || !state.gameData.players || !state.gameData.players[pid] ) return; // ignore clicks while loading
 
-        // toggle in the Set
-        if (state.selectedPlayers.has(pid)) {
-            state.selectedPlayers.delete(pid);
-        } else {
-            state.selectedPlayers.add(pid);
-        }
+            // toggle in the Set
+            if (state.selectedPlayers.has(pid)) {
+                state.selectedPlayers.delete(pid);
+            } else {
+                state.selectedPlayers.add(pid);
+            }
 
-        // sync chart to only show selected players
-        updatePlayerSeriesDisplay();
+            // sync chart to only show selected players
+            updatePlayerSeriesDisplay();
 
-        // if we just expanded, pull the series color and set the border
-        const isExpanded = clickedTile.classList.contains("expanded");
-        if (isExpanded) {
-            const s = state.chart.get(pid + "-player");
-            const c = s ? s.color : "#e2b12a";
-            clickedTile.style.borderColor = c;
-        } else {
-            // collapsed — reset to default
-            clickedTile.style.borderColor = "";
-        }
+            // if we just expanded, pull the series color and set the border
+            const isExpanded = clickedTile.classList.contains("expanded");
+            if (isExpanded) {
+                const s = state.chart.get(pid + "-player");
+                const c = s ? s.color : "#e2b12a";
+                clickedTile.style.borderColor = c;
+            } else {
+                // collapsed — reset to default
+                clickedTile.style.borderColor = "";
+            }
         });
     });
 }

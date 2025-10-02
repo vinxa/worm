@@ -3,9 +3,12 @@
 // Imports
 import { state } from "./state.js";
 import { showHome, buildGrid, initUI, renderGameData } from "./ui.js";
+import { wiggleLogos } from "./wormThings.js";
 
 export async function loadGameData(dataPath) {
     try {
+        state.isGameLoading = true;
+        showLoadingIndicator();
         const res = await fetch(dataPath);
         state.gameData = await res.json();
 
@@ -46,7 +49,25 @@ export async function loadGameData(dataPath) {
 
     } catch (err) {
         console.error("Failed to load game data:", err);
+        
     }
+    state.isGameLoading = false;
+    hideLoadingIndicator();
+}
+
+function showLoadingIndicator() {
+    state.loadingStart = Date.now();
+    document.getElementById('loading-indicator').style.display = 'flex';
+}
+function hideLoadingIndicator() {
+    const elapsed = Date.now() - state.loadingStart;
+    const minDisplay = 300;
+    if (elapsed < minDisplay) {
+        setTimeout(hideLoadingIndicator, minDisplay - elapsed);
+        return;
+    }
+    document.getElementById('loading-indicator').style.display = 'none';
+    wiggleLogos();
 }
 
 // Load list of games

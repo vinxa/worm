@@ -12,5 +12,7 @@ export const state = {
     playerTimelines: {},
     selectedPlayers: new Set(),
     selectedGame: null,
+    isGameLoading: false,
+    loadingStart: 0,
     S3_BASE_URL: "https://worm-game-data.s3.ap-southeast-2.amazonaws.com"
 };

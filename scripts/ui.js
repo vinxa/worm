@@ -2,7 +2,7 @@
 
 import { state } from "./state.js";
 import { playReplay, seekToTime, handleSkip, clearTimeouts } from "./replayHandler.js";
-import { wiggleLogos, setupLogoDance } from "./logo.js";
+import { wiggleLogos, setupLogoDance, randomWobble } from "./wormThings.js";
 import { loadGameData } from "./main.js";
 import { formatGameDatetime, isTypingField } from "./utils.js";
 import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
@@ -158,7 +158,6 @@ export function renderGameData() {
     // YouTube modal
     setupDraggableModal();
     seekToTime(state.currentTime);
-    wiggleLogos();
 
     // Header title
     if (state.selectedGame && state.gameData.gameType) {

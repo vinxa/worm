@@ -60,8 +60,10 @@ export function buildPlayerTimelines(data) {
 } */
 
 export function updatePlayerSeriesDisplay() {
+    if (!state.gameData || !state.gameData.players) return;
     // 1) Add missing series for every selected pid
     state.selectedPlayers.forEach((pid) => {
+        if (!state.gameData.players[pid]) return;
         const sid = pid + "-player";
         if (!state.chart.get(sid)) {
         state.chart.addSeries({
