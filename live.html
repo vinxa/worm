@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WORM Live Game</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-left">
+      <button class="nav-button left" onclick="window.location.href='index.html'">&lt;</button>
+      <span class="app-name">WORM</span>
+      <img src="assets/worm.png" alt="WORM logo" class="app-logo">
+    </div>
+    <div class="title">Live Game</div>
+    <div class="header-right"></div>
+  </header>
+
+  <section class="top-section">
+    <section class="results-section">
+      <h2>RESULTS</h2>
+      <div class="results-content">
+        <div class="grid-container">
+          <div id="livePlayerGrid" class="players-grid"></div>
+        </div>
+        <div class="scores-sidebar">
+          <ul id="liveTeamScores" class="team-scores"></ul>
+        </div>
+      </div>
+    </section>
+    <section class="map-section">
+      <h2>EVENTS</h2>
+      <div id="liveEventList" style="overflow:auto; flex:1; font-size:0.8rem; line-height:1.4;"></div>
+    </section>
+  </section>
+
+  <script type="module" src="live_scoreboard/live.js"></script>
+</body>
+</html>
