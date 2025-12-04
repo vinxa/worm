@@ -126,6 +126,8 @@ export function setupTileExpansion() {
  * Write the current teamScores into the HTML.
  */
 export function updateTeamScoresUI() {
+    if (!state.chart) return;
+
     Object.entries(state.teamScores).forEach(([teamId, score]) => {
         const li = document.querySelector(
         `.team-scores li[data-team-id="${teamId}"]`
@@ -138,11 +140,13 @@ export function updateTeamScoresUI() {
         span.textContent = score;
 
         // pull the chart’s live-series color
-        const series = state.chart.get(teamId + "-live");
-        const color = series ? series.color : "";
+        if (state.chart) {
+            const series = state.chart.get(teamId + "-live");
+            const color = series ? series.color : "";
 
-        // color the team-name, leave the score in default color
-        name.style.color = color;
+            // color the team-name, leave the score in default color
+            name.style.color = color;
+        }
     });
 
     sortTeamScoresUI();
