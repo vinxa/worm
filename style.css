@@ -150,6 +150,7 @@ button {
   gap: 8px;
   height: 100%;                /* fill its parent vertically */
   box-sizing: border-box;
+  padding: 2px;
 }
 .player-summary {
   flex: 0 0 calc((100% - 32px) / 5);
