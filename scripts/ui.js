@@ -20,6 +20,8 @@ const leftBtn = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
 const gameFilter = document.getElementById("gameFilter");
 const dateFilter = document.getElementById("dateFilter");
+const playerFilter = document.getElementById("playerFilter");
+const playerOptionsList = document.getElementById("playerOptions");
 
 function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
@@ -149,21 +151,31 @@ function matchesDate(game, dateValue) {
     return gameDateKey(game) === dateValue;
 }
 
+function matchesPlayer(game, playerValue) {
+    if (playerValue === "all" || !playerValue) return true;
+    const list = Array.isArray(game.players) ? game.players : [];
+    return list.some((name) => (name || "").toLowerCase() === playerValue.toLowerCase());
+}
+
 function applyFilter(games) {
     const typeValue = state.gameFilter || "all";
     const dateValue = state.gameDateFilter || "all";
-    return games.filter((g) => matchesType(g, typeValue) && matchesDate(g, dateValue));
+    const playerValue = state.gamePlayerFilter || "all";
+    return games.filter(
+        (g) => matchesType(g, typeValue) && matchesDate(g, dateValue) && matchesPlayer(g, playerValue)
+    );
 }
 
 function populateFilterOptions(games) {
     if (!gameFilter) return;
     const currentType = state.gameFilter || "all";
     const currentDate = state.gameDateFilter || "all";
+    const currentPlayer = state.gamePlayerFilter || "all";
 
     const typeScopedGames =
-        currentDate === "all"
+        currentDate === "all" && currentPlayer === "all"
             ? games
-            : games.filter((g) => matchesDate(g, currentDate));
+            : games.filter((g) => matchesDate(g, currentDate) && matchesPlayer(g, currentPlayer));
     const typeOptionsMap = new Map();
     typeScopedGames.forEach((g) => {
         if (!g.title) return;
@@ -183,9 +195,9 @@ function populateFilterOptions(games) {
 
     if (dateFilter) {
         const dateScopedGames =
-            currentType === "all"
+            currentType === "all" && currentPlayer === "all"
                 ? games
-                : games.filter((g) => matchesType(g, currentType));
+                : games.filter((g) => matchesType(g, currentType) && matchesPlayer(g, currentPlayer));
         const dateOptions = ["all", ...Array.from(new Set(dateScopedGames.map(gameDateKey)))];
         dateFilter.innerHTML = dateOptions
             .map((opt) => `<option value="${opt}">${opt === "all" ? "All dates" : opt}</option>`)
@@ -195,6 +207,32 @@ function populateFilterOptions(games) {
         } else {
             state.gameDateFilter = "all";
             dateFilter.value = "all";
+        }
+    }
+
+    if (playerFilter) {
+        const playerScopedGames =
+            currentType === "all" && currentDate === "all"
+                ? games
+                : games.filter((g) => matchesType(g, currentType) && matchesDate(g, currentDate));
+        const playersSet = new Set();
+        playerScopedGames.forEach((g) => {
+            (Array.isArray(g.players) ? g.players : []).forEach((name) => {
+                if (name) playersSet.add(name);
+            });
+        });
+        const playerOptions = ["all", ...playersSet];
+        if (playerOptionsList) {
+            playerOptionsList.innerHTML = playerOptions
+                .filter((opt) => opt !== "all")
+                .map((opt) => `<option value="${opt}"></option>`)
+                .join("");
+        }
+        const currentText = state.gamePlayerFilterText || "";
+        playerFilter.value = currentText;
+        // if text emptied by user, also reset filter
+        if (currentText === "") {
+            state.gamePlayerFilter = "all";
         }
     }
 }
@@ -261,6 +299,21 @@ export function initUI() {
         dateFilter.addEventListener("change", (e) => {
             state.gameDateFilter = e.target.value || "all";
             buildGrid(state.games || []);
+        });
+    }
+
+    if (playerFilter) {
+        const updatePlayerFilter = (value) => {
+            const trimmed = (value || "").trim();
+            state.gamePlayerFilterText = value || "";
+            state.gamePlayerFilter = trimmed === "" ? "all" : trimmed;
+            buildGrid(state.games || []);
+        };
+        playerFilter.addEventListener("change", (e) => updatePlayerFilter(e.target.value));
+        playerFilter.addEventListener("input", (e) => updatePlayerFilter(e.target.value));
+        playerFilter.addEventListener("focus", (e) => {
+            // ensure suggestions are available on focus for Safari/Chrome
+            e.target.value = state.gamePlayerFilterText || "";
         });
     }
 

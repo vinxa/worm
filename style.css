@@ -477,6 +477,22 @@ button {
   justify-content: center;
 }
 
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.player-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 100%;
+  justify-content: center;
+}
+
 .filter-bar select {
   background: #2a2a2a;
   color: #eee;
@@ -486,6 +502,23 @@ button {
   font-size: 0.9rem;
   min-width: 180px;
   width: 200px; /* keep width steady across options */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.filter-bar input,
+.filter-bar input[type="text"] {
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  min-width: 200px;
+  width: 240px;
 }
 
 

@@ -19,5 +19,7 @@ export const state = {
     latestGame: null,
     gameFilter: "all",
     gameDateFilter: "all",
+    gamePlayerFilter: "all",
+    gamePlayerFilterText: "",
     S3_BASE_URL: "https://worm-game-data.s3.ap-southeast-2.amazonaws.com"
 };

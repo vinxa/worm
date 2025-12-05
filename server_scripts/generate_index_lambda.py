@@ -18,10 +18,20 @@ def lambda_handler(event, context):
         game_id = os.path.splitext(os.path.basename(key))[0].split("@")[0]
         title = os.path.splitext(os.path.basename(key))[0].split("@")[1].replace("_"," ").title()
         data_path = f"https://{BUCKET}.s3.amazonaws.com/{key}"
+        players = []
+        try:
+            game_obj = s3.get_object(Bucket=BUCKET, Key=key)
+            game_json = json.loads(game_obj["Body"].read())
+            if isinstance(game_json, dict) and "players" in game_json:
+                players = sorted({p.get("name") for p in game_json["players"].values() if isinstance(p, dict) and p.get("name")})
+        except Exception as e:
+            print(f"Warning: unable to read players for {key}: {e}")
+
         games.append({
             "id": game_id,
             "title": title,
-            "dataPath": data_path
+            "dataPath": data_path,
+            "players": players
         })
 
     games.sort(key=lambda g: g["id"], reverse=True)
