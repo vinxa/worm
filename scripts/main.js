@@ -5,6 +5,11 @@ import { state } from "./state.js";
 import { showHome, buildGrid, initUI, renderGameData } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
 
+function getLatestGame(games) {
+    if (!games || !games.length) return null;
+    return [...games].sort((a, b) => b.id.localeCompare(a.id))[0];
+}
+
 export async function loadGameData(dataPath) {
     try {
         state.isGameLoading = true;
@@ -78,6 +83,8 @@ fetch(state.S3_BASE_URL + "/index.json").then(res => {
 })
 .then(list => { 
     games = list;
+    state.games = list;
+    state.latestGame = getLatestGame(list);
     buildGrid(games);
 })
 .catch(err => console.error(err));

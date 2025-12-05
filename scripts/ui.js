@@ -17,6 +17,16 @@ const gameSections = [
 ];
 const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
+const nextGameBtn = document.querySelector(".next-game-button");
+
+function updateNextGameButtonVisibility() {
+    if (!nextGameBtn) return;
+    const shouldShow =
+        !!state.selectedGame &&
+        !!state.latestGame &&
+        state.selectedGame.id !== state.latestGame.id;
+    nextGameBtn.style.display = shouldShow ? "inline-block" : "none";
+}
 
 function clickPlayButton() {
     // Hook the Play button to start the replay
@@ -84,6 +94,7 @@ export function showHome() {
     leftBtn.style.display = "none";
     gameHeader.style.display = "none";
     gameSections.forEach((s) => (s.style.display = "none"));
+    if (nextGameBtn) nextGameBtn.style.display = "none";
     wiggleLogos();
 }
 
@@ -98,6 +109,7 @@ export function showGame(game) {
     gameSections.forEach((s) => (s.style.display = ""));
     // load existing data
     loadGameData(game.dataPath);
+    updateNextGameButtonVisibility();
     wiggleLogos();
 }
 
@@ -137,6 +149,12 @@ export function initUI() {
 
     const forwardButton = document.getElementById("forwardButton");
     forwardButton.addEventListener("click", () => handleSkip(+15));
+
+    if (nextGameBtn) {
+        nextGameBtn.addEventListener("click", () => {
+            if (state.latestGame) showGame(state.latestGame);
+        });
+    }
 
     document.addEventListener("keydown", (e) => keyboardControls(e));
     
