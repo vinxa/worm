@@ -2,20 +2,21 @@ body,
 html {
   margin: 0;
   padding: 0;
-  height: 100vh;                /* exactly one viewport tall */
+  min-height: 100vh;                /* exactly one viewport tall */
   font-family: "Segoe UI", sans-serif;
   background-color: #1e1e1e;
   color: white;
 
-  display: grid;                /* grid instead of flex */
+  display: flex;                /* grid instead of flex */
   grid-template-rows: auto 1fr auto; /* auto = header, 1fr = middle, auto = timeline */
+  flex-direction:column;
 }
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: #2a2a2a;
-  padding: 10px 20px;
+  padding: 6px 20px;
   border-bottom: 2px solid #444;
   flex: 0 0 auto;
 }
@@ -78,7 +79,8 @@ html {
   justify-content: center;
   margin-left: 2%;
 }
-.nav-button {
+
+button {
   background: #444;
   color: white;
   border: 1px solid #555;
@@ -86,12 +88,18 @@ html {
   cursor: pointer;
   border-radius: 4px;
 }
+
+
+
 .top-section {
-  flex: 0 0 50vh;                /* exactly half the viewport */
+  flex: 0 0 auto;                /* exactly half the viewport */
   display: flex;
   padding: 10px;
   box-sizing: border-box;
-  overflow: hidden;              /* prevent it from growing beyond 50vh */
+  max-height:55vh;
+  min-height:260px;
+  gap:10px;
+  /*overflow: hidden;              /* prevent it from growing beyond 50vh */
 }
 .results-section,
 .map-section {
@@ -108,7 +116,7 @@ html {
 }
 
 .results-section {
-  flex: 0 1 50%;                 /* max 50% of .top-section width */
+  flex: 0 1 100%;                 /* max 50% of .top-section width */
   margin-right: 10px;
   display: flex;
   flex-direction: column;
@@ -283,19 +291,24 @@ html {
   margin-top: 10px;
 }
 .timeline-section {
-  flex: 1 1 auto;                /* fill everything below .top-section */
+  flex: 1 1 0;                /* fill everything below .top-section */
   padding: 10px;
   box-sizing: border-box;
   background: #2a2a2a;
   border-top: 2px solid #444;
   overflow: hidden;              /* never let its content push it bigger */
+  display: flex;
+  flex-direction: column;
+  min-height:0;
 }
 .timeline-section h2 {
   margin: 0 0 10px;
   color: #ccc;
 }
 #scoreChart {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 240px;
+  width:100%;
 }
 .chart-controls {
   display: flex;
@@ -510,9 +523,14 @@ html {
   border-bottom: 1px solid #444;
 }
 
-.nav-button:hover, #loadButton:hover  {
+.nav-button:hover, #loadButton:hover, .next-game-button:hover  {
   background: #282828;
   border-color: #e2b12a;
+}
+
+.next-game-button {
+  margin-right: 20px;
+  display: none;
 }
 
 @media (max-width: 768px) {

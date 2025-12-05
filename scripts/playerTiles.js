@@ -69,7 +69,8 @@ export function generatePlayerTiles() {
     ids.forEach((pid) => {
         const stats = state.gameData.playerStats[pid] || {};
         const tile = document.createElement("div");
-        tile.className = "player-summary";
+        tile.classList.add("player-summary");
+        tile.classList.add("expanded");
         tile.dataset.playerId = pid;
         tile.innerHTML = `
         <div class="player-summary-header">
@@ -115,9 +116,9 @@ export function setupTileExpansion() {
         const clickedTile = e.currentTarget;
         const pid = clickedTile.dataset.playerId;
 
-        // toggle expanded
-        const isNowExpanded = clickedTile.classList.toggle("expanded");
-        if (!isNowExpanded) return; // collapse: nothing to fill
+        // toggle graph view
+        const isSelected = clickedTile.classList.toggle("selected");
+        if (!isSelected) return; // collapse: nothing to fill */
         });
     });
 } 
@@ -305,8 +306,8 @@ export function setupPlayerSeriesToggles() {
             updatePlayerSeriesDisplay();
 
             // if we just expanded, pull the series color and set the border
-            const isExpanded = clickedTile.classList.contains("expanded");
-            if (isExpanded) {
+            const isSelected = clickedTile.classList.contains("selected");
+            if (isSelected) {
                 const s = state.chart.get(pid + "-player");
                 const c = s ? s.color : "#e2b12a";
                 clickedTile.style.borderColor = c;
