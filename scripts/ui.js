@@ -18,6 +18,8 @@ const gameSections = [
 const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
+const gameFilter = document.getElementById("gameFilter");
+const dateFilter = document.getElementById("dateFilter");
 
 function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
@@ -129,13 +131,82 @@ export function showGame(game) {
     wiggleLogos();
 }
 
-// build the grid of tiles on index page
+function gameDateLabel(game) {
+    return formatGameDatetime(game.id);
+}
+
+function gameDateKey(game) {
+    return gameDateLabel(game).replace(/[\u00A0\s]*\d{2}:\d{2}$/, "");
+}
+
+function matchesType(game, typeValue) {
+    if (typeValue === "all") return true;
+    return (game.title || "").toLowerCase() === typeValue.toLowerCase();
+}
+
+function matchesDate(game, dateValue) {
+    if (dateValue === "all") return true;
+    return gameDateKey(game) === dateValue;
+}
+
+function applyFilter(games) {
+    const typeValue = state.gameFilter || "all";
+    const dateValue = state.gameDateFilter || "all";
+    return games.filter((g) => matchesType(g, typeValue) && matchesDate(g, dateValue));
+}
+
+function populateFilterOptions(games) {
+    if (!gameFilter) return;
+    const currentType = state.gameFilter || "all";
+    const currentDate = state.gameDateFilter || "all";
+
+    const typeScopedGames =
+        currentDate === "all"
+            ? games
+            : games.filter((g) => matchesDate(g, currentDate));
+    const typeOptionsMap = new Map();
+    typeScopedGames.forEach((g) => {
+        if (!g.title) return;
+        const key = g.title.toLowerCase();
+        if (!typeOptionsMap.has(key)) typeOptionsMap.set(key, g.title);
+    });
+    const typeOptions = ["all", ...typeOptionsMap.values()];
+    gameFilter.innerHTML = typeOptions
+        .map((opt) => `<option value="${opt}">${opt === "all" ? "All types" : opt}</option>`)
+        .join("");
+    if (typeOptions.includes(currentType)) {
+        gameFilter.value = currentType;
+    } else {
+        state.gameFilter = "all";
+        gameFilter.value = "all";
+    }
+
+    if (dateFilter) {
+        const dateScopedGames =
+            currentType === "all"
+                ? games
+                : games.filter((g) => matchesType(g, currentType));
+        const dateOptions = ["all", ...Array.from(new Set(dateScopedGames.map(gameDateKey)))];
+        dateFilter.innerHTML = dateOptions
+            .map((opt) => `<option value="${opt}">${opt === "all" ? "All dates" : opt}</option>`)
+            .join("");
+        if (dateOptions.includes(currentDate)) {
+            dateFilter.value = currentDate;
+        } else {
+            state.gameDateFilter = "all";
+            dateFilter.value = "all";
+        }
+    }
+}
+
 export function buildGrid(games, highlightIds = []) {
     const grid = document.getElementById("gamesGrid");
     grid.innerHTML = ""; // clear any old tiles
     const highlightSet = new Set(highlightIds);
+    populateFilterOptions(games);
+    const filtered = applyFilter(games);
 
-    games.forEach((game) => {
+    filtered.forEach((game) => {
         const tile = document.createElement("div");
         tile.classList.add("game-tile");
         const raw = game.title || "";
@@ -176,6 +247,20 @@ export function initUI() {
     if (nextGameBtn) {
         nextGameBtn.addEventListener("click", () => {
             if (state.latestGame) showGame(state.latestGame);
+        });
+    }
+
+    if (gameFilter) {
+        gameFilter.addEventListener("change", (e) => {
+            state.gameFilter = e.target.value || "all";
+            buildGrid(state.games || []);
+        });
+    }
+
+    if (dateFilter) {
+        dateFilter.addEventListener("change", (e) => {
+            state.gameDateFilter = e.target.value || "all";
+            buildGrid(state.games || []);
         });
     }
 

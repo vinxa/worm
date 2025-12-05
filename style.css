@@ -16,7 +16,6 @@ html {
   justify-content: space-between;
   background: #2a2a2a;
   padding: 6px 20px;
-  border-bottom: 2px solid #444;
   flex: 0 0 auto;
   position: relative;
 }
@@ -465,6 +464,30 @@ button {
   text-decoration: underline dotted #e2b12a;
 }
 
+.filter-bar {
+  width: calc(100% - 24px);
+  max-width: 860px;
+  margin: 4px auto 8px auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ccc;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.filter-bar select {
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  min-width: 180px;
+  width: 200px; /* keep width steady across options */
+}
+
 
 .games-grid {
   display: grid;
@@ -530,8 +553,7 @@ button {
 
 .home-section .app-header {
   z-index: 1;
-  background: #1a1a1a;
-  border-bottom: 1px solid #444;
+  background: #181818;
 }
 
 .nav-button:hover, #loadButton:hover, .next-game-button:hover  {
