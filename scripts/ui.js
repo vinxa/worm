@@ -19,7 +19,7 @@ const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
 
-function updateNextGameButtonVisibility(fade = false) {
+function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
     const shouldShow =
         !!state.selectedGame &&
@@ -34,10 +34,13 @@ function updateNextGameButtonVisibility(fade = false) {
         } else {
             nextGameBtn.classList.add("is-visible");
         }
-        nextGameBtn.classList.add("flash-new");
-        setTimeout(() => nextGameBtn.classList.remove("flash-new"), 3000);
+        if (flash) {
+            nextGameBtn.classList.add("flash-new");
+            setTimeout(() => nextGameBtn.classList.remove("flash-new"), 3000);
+        }
     } else {
         nextGameBtn.classList.remove("is-visible");
+        nextGameBtn.classList.remove("flash-new");
     }
 }
 
@@ -107,7 +110,7 @@ export function showHome() {
     leftBtn.style.display = "none";
     gameHeader.style.display = "none";
     gameSections.forEach((s) => (s.style.display = "none"));
-    updateNextGameButtonVisibility(false);
+    updateNextGameButtonVisibility(false, false);
     wiggleLogos();
 }
 
@@ -122,7 +125,7 @@ export function showGame(game) {
     gameSections.forEach((s) => (s.style.display = ""));
     // load existing data
     loadGameData(game.dataPath);
-    updateNextGameButtonVisibility();
+    updateNextGameButtonVisibility(false, false);
     wiggleLogos();
 }
 
@@ -181,8 +184,8 @@ export function initUI() {
     setupLogoDance();
 }
 
-export function refreshNextGameButton(fade = false) {
-    updateNextGameButtonVisibility(fade);
+export function refreshNextGameButton(fade = false, flash = false) {
+    updateNextGameButtonVisibility(fade, flash);
 }
 
 export function renderGameData() {

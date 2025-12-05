@@ -14,6 +14,7 @@ export const state = {
     selectedGame: null,
     isGameLoading: false,
     loadingStart: 0,
+    gameSignatures: {},
     games: [],
     latestGame: null,
     S3_BASE_URL: "https://worm-game-data.s3.ap-southeast-2.amazonaws.com"

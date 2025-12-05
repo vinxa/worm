@@ -6,10 +6,42 @@ import { showHome, buildGrid, initUI, renderGameData, refreshNextGameButton } fr
 import { wiggleLogos } from "./wormThings.js";
 
 const INDEX_REFRESH_MS = 10000;
+const FRESH_WINDOW_MINUTES = 15;
 
 function getLatestGame(games) {
     if (!games || !games.length) return null;
     return [...games].sort((a, b) => b.id.localeCompare(a.id))[0];
+}
+
+function computeGameSignature(data) {
+    if (!data) return "";
+    const explicit =
+        data.lastUpdated ||
+        data.updatedAt ||
+        data.timestamp ||
+        data.generatedAt;
+    if (explicit) return String(explicit);
+
+    const events = Array.isArray(data.events) ? data.events : [];
+    const last = events[events.length - 1] || {};
+    const lastTime = last.time ?? "";
+    const lastDelta = last.playerDelta ?? last.teamDelta ?? last.delta ?? "";
+    return `${events.length}|${lastTime}|${lastDelta}|${data.gameDuration ?? ""}`;
+}
+
+function parseGameStart(game) {
+    if (!game || !game.id) return null;
+    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const [, YYYY, MM, DD, hh, mm] = m;
+    return new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00+08:00`);
+}
+
+function isFreshGame(game) {
+    const start = parseGameStart(game);
+    if (!start) return false;
+    const now = Date.now();
+    return now - start.getTime() < FRESH_WINDOW_MINUTES * 60 * 1000;
 }
 
 async function fetchGamesIndex(fromPoll = false) {
@@ -39,18 +71,46 @@ function applyGameIndex(list, { fromPoll = false } = {}) {
 
     const latestChanged = state.latestGame?.id && state.latestGame.id !== prevLatestId;
     if (fromPoll && latestChanged) {
-        refreshNextGameButton(true);
+        refreshNextGameButton(true, true);
     } else {
-        refreshNextGameButton(false);
+        refreshNextGameButton(false, false);
+    }
+
+    const viewingLatest =
+        fromPoll &&
+        state.selectedGame &&
+        state.latestGame &&
+        state.selectedGame.id === state.latestGame.id;
+    if (viewingLatest && isFreshGame(state.latestGame) && !state.isGameLoading) {
+        loadGameData(state.latestGame.dataPath, {
+            skipIfSignatureUnchanged: true,
+            showSpinner: false,
+        });
     }
 }
 
-export async function loadGameData(dataPath) {
+export async function loadGameData(dataPath, options = {}) {
+    const {
+        skipIfSignatureUnchanged = false,
+        showSpinner = true,
+        prefetchedData = null,
+    } = options;
     try {
         state.isGameLoading = true;
-        showLoadingIndicator();
-        const res = await fetch(dataPath);
-        state.gameData = await res.json();
+        if (showSpinner) showLoadingIndicator();
+
+        const data = prefetchedData
+            ? prefetchedData
+            : await (await fetch(dataPath, { cache: "no-store" })).json();
+
+        const sigKey = state.selectedGame?.id || data.id || dataPath;
+        const newSig = computeGameSignature(data);
+        const prevSig = state.gameSignatures[sigKey];
+        if (skipIfSignatureUnchanged && prevSig && prevSig === newSig) {
+            return;
+        }
+        state.gameSignatures[sigKey] = newSig;
+        state.gameData = data;
 
         // Index player events
         state.playerEvents = {};
@@ -90,9 +150,10 @@ export async function loadGameData(dataPath) {
     } catch (err) {
         console.error("Failed to load game data:", err);
         
+    } finally {
+        state.isGameLoading = false;
+        if (showSpinner) hideLoadingIndicator();
     }
-    state.isGameLoading = false;
-    hideLoadingIndicator();
 }
 
 function showLoadingIndicator() {
