@@ -19,13 +19,26 @@ const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
 
-function updateNextGameButtonVisibility() {
+function updateNextGameButtonVisibility(fade = false) {
     if (!nextGameBtn) return;
     const shouldShow =
         !!state.selectedGame &&
         !!state.latestGame &&
         state.selectedGame.id !== state.latestGame.id;
-    nextGameBtn.style.display = shouldShow ? "inline-block" : "none";
+
+    if (shouldShow) {
+        if (fade) {
+            // retrigger transition
+            nextGameBtn.classList.remove("is-visible");
+            requestAnimationFrame(() => nextGameBtn.classList.add("is-visible"));
+        } else {
+            nextGameBtn.classList.add("is-visible");
+        }
+        nextGameBtn.classList.add("flash-new");
+        setTimeout(() => nextGameBtn.classList.remove("flash-new"), 3000);
+    } else {
+        nextGameBtn.classList.remove("is-visible");
+    }
 }
 
 function clickPlayButton() {
@@ -94,7 +107,7 @@ export function showHome() {
     leftBtn.style.display = "none";
     gameHeader.style.display = "none";
     gameSections.forEach((s) => (s.style.display = "none"));
-    if (nextGameBtn) nextGameBtn.style.display = "none";
+    updateNextGameButtonVisibility(false);
     wiggleLogos();
 }
 
@@ -114,9 +127,11 @@ export function showGame(game) {
 }
 
 // build the grid of tiles on index page
-export function buildGrid(games) {
+export function buildGrid(games, highlightIds = []) {
     const grid = document.getElementById("gamesGrid");
     grid.innerHTML = ""; // clear any old tiles
+    const highlightSet = new Set(highlightIds);
+
     games.forEach((game) => {
         const tile = document.createElement("div");
         tile.classList.add("game-tile");
@@ -132,6 +147,11 @@ export function buildGrid(games) {
         tile.appendChild(rawLine);
         tile.addEventListener("click", () => showGame(game));
         grid.appendChild(tile);
+
+        if (highlightSet.has(game.id)) {
+            tile.classList.add("flash-new");
+            setTimeout(() => tile.classList.remove("flash-new"), 3000);
+        }
     });
 }
 
@@ -159,6 +179,10 @@ export function initUI() {
     document.addEventListener("keydown", (e) => keyboardControls(e));
     
     setupLogoDance();
+}
+
+export function refreshNextGameButton(fade = false) {
+    updateNextGameButtonVisibility(fade);
 }
 
 export function renderGameData() {

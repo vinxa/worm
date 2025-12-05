@@ -2,12 +2,47 @@
 
 // Imports
 import { state } from "./state.js";
-import { showHome, buildGrid, initUI, renderGameData } from "./ui.js";
+import { showHome, buildGrid, initUI, renderGameData, refreshNextGameButton } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
+
+const INDEX_REFRESH_MS = 10000;
 
 function getLatestGame(games) {
     if (!games || !games.length) return null;
     return [...games].sort((a, b) => b.id.localeCompare(a.id))[0];
+}
+
+async function fetchGamesIndex(fromPoll = false) {
+    try {
+        const res = await fetch(state.S3_BASE_URL + "/index.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("Couldn't fetch games index");
+        const list = await res.json();
+        applyGameIndex(list, { fromPoll });
+    } catch (err) {
+        console.error("Failed to refresh games index:", err);
+    }
+}
+
+function applyGameIndex(list, { fromPoll = false } = {}) {
+    if (!Array.isArray(list)) return;
+    const prevGames = state.games || [];
+    const prevIds = new Set(prevGames.map((g) => g.id));
+    const prevLatestId = state.latestGame?.id;
+
+    state.games = list;
+    state.latestGame = getLatestGame(list);
+
+    const newGameIds = fromPoll
+        ? list.filter((g) => !prevIds.has(g.id)).map((g) => g.id)
+        : [];
+    buildGrid(list, newGameIds);
+
+    const latestChanged = state.latestGame?.id && state.latestGame.id !== prevLatestId;
+    if (fromPoll && latestChanged) {
+        refreshNextGameButton(true);
+    } else {
+        refreshNextGameButton(false);
+    }
 }
 
 export async function loadGameData(dataPath) {
@@ -75,19 +110,9 @@ function hideLoadingIndicator() {
     wiggleLogos();
 }
 
-// Load list of games
-let games = [];
-fetch(state.S3_BASE_URL + "/index.json").then(res => {
-    if (!res.ok) throw new Error("Couldn't fetch games index");
-    return res.json();
-})
-.then(list => { 
-    games = list;
-    state.games = list;
-    state.latestGame = getLatestGame(list);
-    buildGrid(games);
-})
-.catch(err => console.error(err));
+// Load list of games initially and start polling
+fetchGamesIndex(false);
+setInterval(() => fetchGamesIndex(true), INDEX_REFRESH_MS);
 
 
 document.addEventListener("DOMContentLoaded", () => {

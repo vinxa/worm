@@ -123,7 +123,7 @@ export function initLiveChart(data) {
     const chart = Highcharts.chart("scoreChart", {
         chart: {
         type: "line",
-        backgroundColor: "#2a2a2a",
+        backgroundColor: "#1E1E1E",
         events: {
             click: function (e) {
             // 1) figure out the clicked time (in seconds)

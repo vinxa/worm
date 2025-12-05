@@ -294,8 +294,8 @@ button {
   flex: 1 1 0;                /* fill everything below .top-section */
   padding: 10px;
   box-sizing: border-box;
-  background: #2a2a2a;
-  border-top: 2px solid #444;
+  background: #1E1E1E;
+  /*border-top: 2px solid #444;*/
   overflow: hidden;              /* never let its content push it bigger */
   display: flex;
   flex-direction: column;
@@ -499,6 +499,15 @@ button {
   box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
 
+.flash-new {
+  animation: flash-border 0.7s ease-in-out infinite;
+}
+
+@keyframes flash-border {
+  0%, 100% { border-color: #444; box-shadow: 0 0 0 rgba(226,177,42,0); }
+  50% { border-color: #e2b12a; box-shadow: 0 0 14px rgba(226,177,42,0.45); }
+}
+
 .game-tile span:first-child {
   font-size: 0.85rem;
   color: #666;
@@ -530,7 +539,17 @@ button {
 
 .next-game-button {
   margin-right: 20px;
-  display: none;
+  display: inline-block;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease-in-out;
+}
+
+.next-game-button.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 @media (max-width: 768px) {
