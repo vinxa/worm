@@ -2,13 +2,12 @@ body,
 html {
   margin: 0;
   padding: 0;
-  min-height: 100vh;                /* exactly one viewport tall */
+  min-height: 100vh;
   font-family: "Segoe UI", sans-serif;
   background-color: #1e1e1e;
   color: white;
-
-  display: flex;                /* grid instead of flex */
-  grid-template-rows: auto 1fr auto; /* auto = header, 1fr = middle, auto = timeline */
+  display: flex;
+  grid-template-rows: auto 1fr auto;
   flex-direction:column;
 }
 .app-header {
@@ -19,6 +18,7 @@ html {
   padding: 6px 20px;
   border-bottom: 2px solid #444;
   flex: 0 0 auto;
+  position: relative;
 }
 .header-left {
   display: flex;
@@ -31,15 +31,20 @@ html {
   font-weight: bold;
 }
 .title {
-  flex: 1;
   text-align: center;
   font-size: 1.2rem;
   font-weight: bold;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: fit-content;
 }
 .header-right {
   display: flex;
   align-items: center;
   white-space: nowrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .youtube-input-container {
@@ -164,8 +169,6 @@ button {
   /* transition: background 0.2s ease; */
   
 }
-
-
 
 .player-summary-header .player-score {
   flex: 0 0 auto;
