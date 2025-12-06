@@ -141,9 +141,12 @@
     <!-- <h2>TIMELINE</h2> -->
     <div id="scoreChart"></div>
     <div class="chart-controls">
-      <button id="rewindButton">&lt;</button>
-      <button id="playButton">▶</button>
-      <button id="forwardButton">&gt;</button>
+      <button id="skipStartButton" title="Jump to start"><<</button>
+      <button id="rewindButton" title="Skip back 15s">&lt;</button>
+      <button id="playButton" title="Play / Pause">▶</button>
+      <button id="forwardButton" title="Skip forward 15s">&gt;</button>
+      <button id="skipEndButton" title="Jump to end">>></button>
+      <button id="speedButton" title="Change playback speed">1x</button>
     </div>
   </section>
   <script type="module" src="scripts/main.js"></script>

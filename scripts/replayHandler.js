@@ -17,8 +17,28 @@ export function handleSkip(delta) {
 
     // d) If we were playing, start a fresh replay from newTime
     if (state.isPlaying) {
-        playReplay(state.chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
     }
+}
+
+function jumpTo(time) {
+    if (!state.gameData) return;
+    if (state.isPlaying) clearTimeouts();
+    seekToTime(time);
+    if (state.isPlaying) {
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+    }
+}
+
+export function jumpToStart() {
+    jumpTo(0);
+}
+
+export function jumpToEnd() {
+    const duration =
+        state.gameData?.gameDuration ??
+        Math.max(0, ...(state.gameData?.events || []).map((e) => e.time));
+    jumpTo(duration);
 }
 
 /**

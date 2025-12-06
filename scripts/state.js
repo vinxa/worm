@@ -13,6 +13,7 @@ export const state = {
     selectedPlayers: new Set(),
     hiddenTeams: null, // null = all teams visible; otherwise Set of hidden team IDs
     selectedGame: null,
+    playbackRate: 1,
     isGameLoading: false,
     loadingStart: 0,
     gameSignatures: {},

@@ -324,7 +324,7 @@ export function initLiveChart(data) {
             // 3) if we're currently playing, restart playback from there
             if (state.isPlaying) {
                 clearTimeouts();
-                playReplay(chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
+                playReplay(chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
             }
             },
             render: function () {

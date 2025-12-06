@@ -1,7 +1,7 @@
 // ui.js
 
 import { state } from "./state.js";
-import { playReplay, seekToTime, handleSkip, clearTimeouts } from "./replayHandler.js";
+import { playReplay, seekToTime, handleSkip, clearTimeouts, jumpToStart, jumpToEnd } from "./replayHandler.js";
 import { wiggleLogos, setupLogoDance, randomWobble } from "./wormThings.js";
 import { loadGameData } from "./main.js";
 import { formatGameDatetime, isTypingField } from "./utils.js";
@@ -22,6 +22,7 @@ const gameFilter = document.getElementById("gameFilter");
 const dateFilter = document.getElementById("dateFilter");
 const playerFilter = document.getElementById("playerFilter");
 const playerOptionsList = document.getElementById("playerOptions");
+const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 
 function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
@@ -64,7 +65,7 @@ function clickPlayButton() {
         playReplay(
         state.chart,
         state.gameData,
-        1,
+        state.playbackRate,
         state.replayTimeouts,
         state.currentTime
         );
@@ -281,6 +282,30 @@ export function initUI() {
 
     const forwardButton = document.getElementById("forwardButton");
     forwardButton.addEventListener("click", () => handleSkip(+15));
+
+    const skipStartButton = document.getElementById("skipStartButton");
+    if (skipStartButton) skipStartButton.addEventListener("click", () => jumpToStart());
+
+    const skipEndButton = document.getElementById("skipEndButton");
+    if (skipEndButton) skipEndButton.addEventListener("click", () => jumpToEnd());
+
+    const speedButton = document.getElementById("speedButton");
+    const applySpeedLabel = () => {
+        if (speedButton) speedButton.textContent = `${state.playbackRate}x`;
+    };
+    if (speedButton) {
+        applySpeedLabel();
+        speedButton.addEventListener("click", () => {
+        const idx = SPEED_OPTIONS.indexOf(state.playbackRate);
+        const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
+        state.playbackRate = next;
+        applySpeedLabel();
+        if (state.isPlaying) {
+            clearTimeouts();
+            playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+        }
+        });
+    }
 
     if (nextGameBtn) {
         nextGameBtn.addEventListener("click", () => {
