@@ -32,6 +32,7 @@ function buildBaseDestroyPoints(data) {
             const attackerName = attackerTeam?.name || teamId;
             const targetName = targetTeam?.name || ev.target || "";
             const targetLabel = (targetName.trim() || "?").charAt(0).toUpperCase();
+            const targetColor = targetTeam?.color || "#ffffff";
 
             acc.push({
                 x: ev.time,
@@ -41,6 +42,7 @@ function buildBaseDestroyPoints(data) {
                 attackerTeamName: attackerName,
                 targetTeamName: targetName,
                 teamLabel: targetLabel,
+                targetColor,
             });
         }
 
@@ -64,11 +66,12 @@ function drawBaseDestroyOverlays(chart) {
     };
 
     series.points.forEach((pt) => {
-        const { plotX, plotY, color = "#ffffff", teamLabel = "" } = pt;
+        const { plotX, plotY, color = "#ffffff", teamLabel = "", targetColor = "#ffffff" } = pt;
         if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
         const x = chart.plotLeft + plotX;
         const y = chart.plotTop + plotY;
         const endY = y - BASE_MARKER_OFFSET;
+        const labelColor = targetColor;
 
         const stem = chart.renderer
         .path(["M", x, y, "L", x, endY])
@@ -97,7 +100,7 @@ function drawBaseDestroyOverlays(chart) {
         const lbl = chart.renderer
         .text(teamLabel, x, endY - 6)
         .attr({ align: "center", zIndex: 8 })
-        .css({ color: "#fff", fontSize: "9px", fontWeight: "bold", textOutline: "1px #000" })
+        .css({ color: labelColor, fontSize: "12px", fontWeight: "bold", textOutline: "1px #000" })
         .add(g);
 
         addTooltipHandlers(stem, pt);
