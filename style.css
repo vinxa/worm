@@ -83,6 +83,25 @@ html {
   justify-content: center;
   margin-left: 2%;
 }
+#header-play-button {
+  display: none;
+  padding: 6px 10px;
+  font-size: 1rem;
+  border-radius: 4px;
+  background: #444;
+  color: #eee;
+  border: 1px solid #555;
+}
+#header-speed-button {
+  display: none;
+  padding: 6px 10px;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  background: #444;
+  color: #eee;
+  border: 1px solid #555;
+  min-width: 52px;
+}
 
 button {
   background: #444;
@@ -320,6 +339,12 @@ button {
 }
 .chart-controls #speedButton {
   min-width: 52px;
+}
+
+@media (max-width: 900px) {
+  .chart-controls button {
+    display: none;
+  }
 }
 
 /* ---------- Draggable Video Modal ---------- */
@@ -611,6 +636,11 @@ button {
   border-color: #e2b12a;
 }
 
+button:hover {
+  background: #282828;
+  border-color: #e2b12a;
+}
+
 .next-game-button {
   margin-right: 20px;
   display: inline-block;
@@ -624,6 +654,10 @@ button {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+}
+
+#headerSpeedButton, #headerPlayButton {
+  display: none;
 }
 
 @media (max-width: 768px) {
@@ -668,6 +702,9 @@ button {
     padding: 4px 8px;
     font-size: 0.9rem;
     min-height: 28px;
+  }
+  #loadButton {
+    display: none;
   }
   .top-section {
     padding: 6px;
@@ -722,11 +759,18 @@ button {
   .app-name {
     font-size: 0.95rem;
   }
-  .youtube-input-container {
+  #youtubeUrl, .next-game-button {
     display: none;
   }
-  .chart-controls #playButton {
-    display: none;
+  .header-play-button {
+    display: inline-flex;
+    align-items: right;
+    justify-content: center;
+  }
+  .header-speed-button {
+    display: inline-flex;
+    align-items: right;
+    justify-content: center;
   }
 
   .team-scores {
@@ -741,6 +785,12 @@ button {
     text-align: left;
     font-size: 1rem;
   }
+  #headerSpeedButton, #headerPlayButton {
+    display: block;
+  }
+  #headerSpeedButton:hover, #headerPlayButton:hover {
+  border: none;
+}
 }
 
 @media (max-width: 480px) {

@@ -22,6 +22,8 @@ const gameFilter = document.getElementById("gameFilter");
 const dateFilter = document.getElementById("dateFilter");
 const playerFilter = document.getElementById("playerFilter");
 const playerOptionsList = document.getElementById("playerOptions");
+const headerPlayButton = document.getElementById("headerPlayButton");
+const headerSpeedButton = document.getElementById("headerSpeedButton");
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 
 function updateNextGameButtonVisibility(fade = false, flash = false) {
@@ -52,6 +54,7 @@ function updateNextGameButtonVisibility(fade = false, flash = false) {
 function clickPlayButton() {
     // Hook the Play button to start the replay
     const btn = document.getElementById("playButton");
+    const headerBtn = document.getElementById("headerPlayButton");
     if (!state.gameData) return;
     if (state.currentTime >= state.gameData.gameDuration) {
         seekToTime(0);
@@ -59,6 +62,7 @@ function clickPlayButton() {
     if (!state.isPlaying) {
         state.isPlaying = true;
         btn.textContent = "❚❚";
+        if (headerBtn) headerBtn.textContent = "❚❚";
         // clear old timeouts
         clearTimeouts();
         // start replay, passing array to fill with timeout IDs
@@ -75,6 +79,7 @@ function clickPlayButton() {
     } else {
         state.isPlaying = false;
         btn.textContent = "▶"; // back to play icon
+        if (headerBtn) headerBtn.textContent = "▶";
         clearTimeouts();
         if (state.player && typeof state.player.pauseVideo === "function") {
         state.player.pauseVideo();
@@ -283,6 +288,10 @@ export function initUI() {
     const forwardButton = document.getElementById("forwardButton");
     forwardButton.addEventListener("click", () => handleSkip(+15));
 
+    if (headerPlayButton) {
+        headerPlayButton.addEventListener("click", clickPlayButton);
+    }
+
     const skipStartButton = document.getElementById("skipStartButton");
     if (skipStartButton) skipStartButton.addEventListener("click", () => jumpToStart());
 
@@ -291,11 +300,13 @@ export function initUI() {
 
     const speedButton = document.getElementById("speedButton");
     const applySpeedLabel = () => {
-        if (speedButton) speedButton.textContent = `${state.playbackRate}x`;
+        const label = `${state.playbackRate}x`;
+        if (speedButton) speedButton.textContent = label;
+        if (headerSpeedButton) headerSpeedButton.textContent = label;
     };
-    if (speedButton) {
-        applySpeedLabel();
-        speedButton.addEventListener("click", () => {
+    const bindSpeedButton = (btn) => {
+        if (!btn) return;
+        btn.addEventListener("click", () => {
         const idx = SPEED_OPTIONS.indexOf(state.playbackRate);
         const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
         state.playbackRate = next;
@@ -305,7 +316,10 @@ export function initUI() {
             playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
         }
         });
-    }
+    };
+    applySpeedLabel();
+    bindSpeedButton(speedButton);
+    bindSpeedButton(headerSpeedButton);
 
     if (nextGameBtn) {
         nextGameBtn.addEventListener("click", () => {

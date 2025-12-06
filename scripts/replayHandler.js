@@ -3,6 +3,13 @@ import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { formatTime } from "./utils.js";
 
+function updatePlayButtonsLabel(label) {
+  const mainBtn = document.getElementById("playButton");
+  const headerBtn = document.getElementById("headerPlayButton");
+  if (mainBtn) mainBtn.textContent = label;
+  if (headerBtn) headerBtn.textContent = label;
+}
+
 
 
 export function handleSkip(delta) {
@@ -138,7 +145,7 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
       if (t >= duration) {
         // we’ve reached (or passed) the end
         state.isPlaying = false;
-        document.getElementById("playButton").textContent = "▶";
+        updatePlayButtonsLabel("▶");
         // clear any leftover timeouts
         clearTimeouts();
       }
