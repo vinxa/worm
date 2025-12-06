@@ -11,6 +11,7 @@ export const state = {
     teamFullTimeline: {},
     playerTimelines: {},
     selectedPlayers: new Set(),
+    visibleTeams: null, // null = all teams visible
     selectedGame: null,
     isGameLoading: false,
     loadingStart: 0,

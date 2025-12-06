@@ -2,7 +2,7 @@
 import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal } from "./utils.js";
 import { showGame } from "./ui.js";
 import { state } from "./state.js";
-import { updatePlayerSeriesDisplay } from "./timeline.js";
+import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
 
 export function updatePlayerTiles(currentTime) {
     document.querySelectorAll(".player-summary").forEach((tile) => {
@@ -106,6 +106,24 @@ export function colourPlayerNamesFromChart() {
         // 3) paint the name in the exact same color
         tile.querySelector(".player-name").style.color = liveSeries.color;
         }
+    });
+}
+
+export function setupTeamSeriesFilter() {
+    const items = document.querySelectorAll(".team-scores li");
+    items.forEach((el) => el.classList.remove("active-team-filter"));
+    items.forEach((li) => {
+        li.style.cursor = "pointer";
+        li.addEventListener("click", () => {
+        const teamId = li.dataset.teamId;
+        if (!teamId) return;
+        toggleTeamVisibility(teamId);
+        const activeSet = state.visibleTeams || new Set();
+        items.forEach((el) => {
+            const active = activeSet.has(el.dataset.teamId);
+            el.classList.toggle("active-team-filter", active);
+        });
+        });
     });
 }
 

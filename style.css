@@ -386,7 +386,13 @@ button {
   padding: 4px 6px;
   background: rgba(0,0,0,0.4);
   border-radius: 4px;
-  white-space: nowrap;}
+  white-space: nowrap;
+  cursor: pointer;
+}
+.team-scores li.active-team-filter {
+  outline: 1px solid #e2b12a;
+  background: rgba(226,177,42,0.18);
+}
 
 .team-scores .team-name {
   font-weight: bold;

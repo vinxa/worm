@@ -6,7 +6,7 @@ import { wiggleLogos, setupLogoDance, randomWobble } from "./wormThings.js";
 import { loadGameData } from "./main.js";
 import { formatGameDatetime, isTypingField } from "./utils.js";
 import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
-import { generatePlayerTiles, setupTileExpansion, setupPlayerSeriesToggles, colourPlayerNamesFromChart } from "./playerTiles.js";
+import { generatePlayerTiles, setupTileExpansion, setupPlayerSeriesToggles, colourPlayerNamesFromChart, setupTeamSeriesFilter } from "./playerTiles.js";
 import { setupDraggableModal } from "./video.js";
 
 // Shared UI elements
@@ -337,6 +337,7 @@ export function renderGameData() {
     setupTileExpansion();
     setupPlayerSeriesToggles();
     colourPlayerNamesFromChart();
+    setupTeamSeriesFilter();
 
     // YouTube modal
     setupDraggableModal();

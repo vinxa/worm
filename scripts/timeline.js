@@ -38,6 +38,7 @@ function buildBaseDestroyPoints(data) {
                 x: ev.time,
                 y: totals[teamId],
                 color: attackerTeam?.color || "#ffffff",
+                attackerTeamId: teamId,
                 playerName: player.name || player.id || ev.entity,
                 attackerTeamName: attackerName,
                 targetTeamName: targetName,
@@ -109,6 +110,52 @@ function drawBaseDestroyOverlays(chart) {
     });
 
     chart.baseDestroyOverlayGroup = g;
+}
+
+function filterBaseDestroySeries(selectedSet) {
+    const series = state.chart?.get("base-destroys");
+    if (!series) return;
+    const allPoints = state.chart.baseDestroyAllPoints || [];
+    const filtered =
+        selectedSet && selectedSet.size
+        ? allPoints.filter((pt) => selectedSet.has(pt.attackerTeamId))
+        : allPoints;
+    // clone objects
+    const payload = filtered.map((pt) => ({ ...pt }));
+    series.setData(payload, false);
+}
+
+function applyTeamSeriesVisibility(selectedSet) {
+    if (!state.chart || !state.gameData) return;
+    const showAll = !selectedSet || selectedSet.size === 0;
+    state.gameData.teams.forEach((team) => {
+        const live = state.chart.get(`${team.id}-live`);
+        const ghost = state.chart.get(`${team.id}-ghost`);
+        const visible = showAll || (selectedSet ? selectedSet.has(team.id) : false);
+        if (live) live.setVisible(visible, false);
+        if (ghost) ghost.setVisible(visible, false);
+    });
+    filterBaseDestroySeries(selectedSet);
+    state.chart.redraw();
+}
+
+export function toggleTeamVisibility(teamId = null) {
+    if (!state.visibleTeams) state.visibleTeams = new Set();
+
+    if (!teamId) {
+        state.visibleTeams.clear();
+        state.visibleTeams = null;
+    } else {
+        if (state.visibleTeams.has(teamId)) {
+        state.visibleTeams.delete(teamId);
+        } else {
+        state.visibleTeams.add(teamId);
+        }
+        if (state.visibleTeams.size === 0) {
+        state.visibleTeams = null; // fall back to show all
+        }
+    }
+    applyTeamSeriesVisibility(state.visibleTeams);
 }
 
 export function buildPlayerTimelines(data) {
@@ -370,6 +417,8 @@ export function initLiveChart(data) {
         },
     });
 
+    // keep an immutable copy for filtering toggles
+    chart.baseDestroyAllPoints = baseDestroyPoints.map((pt) => ({ ...pt }));
     // grab chart internals for positioning
     const left = chart.plotLeft;
     const top = chart.plotTop;
@@ -434,6 +483,7 @@ export function initLiveChart(data) {
         hoverGroup.hide();
     });
 
+    applyTeamSeriesVisibility(state.visibleTeams);
     return chart;
 }
 
