@@ -345,7 +345,12 @@ export function renderGameData() {
     // Header title
     if (state.selectedGame && state.gameData.gameType) {
         const pretty = formatGameDatetime(state.selectedGame.id);
-        document.querySelector('.title').textContent =
-            `${pretty}    |    ${state.gameData.gameType}`;
+        const titleEl = document.querySelector('.title');
+        if (titleEl) {
+            titleEl.innerHTML =
+            `<span class="title-date">${pretty}</span>` +
+            `<span class="title-sep"> | </span>` +
+            `<span class="title-game">${state.gameData.gameType}</span>`;
+        }
     }
 }

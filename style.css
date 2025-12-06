@@ -96,14 +96,13 @@ button {
 
 
 .top-section {
-  flex: 0 0 auto;                /* exactly half the viewport */
+  flex: 0 0 auto;
   display: flex;
   padding: 10px;
   box-sizing: border-box;
   max-height:55vh;
   min-height:260px;
   gap:10px;
-  /*overflow: hidden;              /* prevent it from growing beyond 50vh */
 }
 .results-section,
 .map-section {
@@ -619,6 +618,97 @@ button {
     
     gap: 12px;
     padding: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  body, html {
+    font-size: 14px;
+  }
+  .app-header {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .title {
+    font-size: 1rem;
+  }
+  .app-name {
+    font-size: 0.95rem;
+  }
+  .nav-button,
+  .next-game-button {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    min-height: 28px;
+  }
+  .youtube-input-container input {
+    width: 140px;
+    padding: 5px 8px;
+    font-size: 0.85rem;
+  }
+  .youtube-input-container button {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    min-height: 28px;
+  }
+  .top-section {
+    padding: 6px;
+    gap: 6px;
+    max-height: 52vh;
+    overflow-y: auto;
+  }
+  .results-section,
+  .map-section {
+    padding: 8px;
+    min-height: 32vh;
+  }
+  .players-grid {
+    gap: 6px;
+    padding-bottom: 6px;
+  }
+  .player-summary {
+    flex: 0 0 calc((100% - 32px) / 5);
+    padding: 5px;
+    min-width: 0;
+  }
+  .player-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .player-name {
+    font-size: 0.9rem;
+  }
+  .player-score {
+    font-size: 0.95rem;
+  }
+  .timeline-section {
+    padding: 6px;
+  }
+  #scoreChart {
+    min-height: 180px;
+  }
+  .title-date,
+  .title-sep {
+    display: none;
+  }
+  .app-logo {
+    display: none;
+  }
+  .app-header {
+    padding: 4px 8px;
+    min-height: auto;
+    gap: 4px;
+  }
+  .app-name {
+    font-size: 0.95rem;
+  }
+  .youtube-input-container {
+    display: none;
+  }
+  .chart-controls #playButton {
+    display: none;
   }
 }
 
