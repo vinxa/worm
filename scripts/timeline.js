@@ -447,42 +447,44 @@ export function initLiveChart(data) {
 
     chart.customCursorGroup = cursorGroup;
 
-    // HOVER LINE
-    const hoverGroup = chart.renderer.g().attr({ zIndex: 6 }).add();
-    const hoverLine = chart.renderer
-        .path(["M", left, top, "L", left, top + height])
-        .attr({
-        stroke: "rgba(136, 136, 136, 0.5)", // more transparent
-        "stroke-width": 2,
-        dashstyle: "Dash",
-        zIndex: 4,
-        })
-        .add(hoverGroup);
-    const hoverLabel = chart.renderer
-        .text("", left, top - 5)
-        .attr({ align: "center", zIndex: 7 })
-        .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
-        .add(hoverGroup);
-    hoverGroup.hide();
-
-    chart.container.addEventListener("mousemove", (e) => {
-        const cbb = chart.container.getBoundingClientRect();
-        const chartX = e.clientX - cbb.left;
-        const t = chart.xAxis[0].toValue(chartX);
-        const x = chart.xAxis[0].toPixels(t);
-
-        if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
-        hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
-        hoverLabel.attr({ text: formatTime(t), x: x, y: top + 10 });
-        hoverGroup.show();
-        } else {
+    // HOVER LINE (desktop only)
+    if (window.matchMedia("(pointer:fine)").matches) {
+        const hoverGroup = chart.renderer.g().attr({ zIndex: 6 }).add();
+        const hoverLine = chart.renderer
+            .path(["M", left, top, "L", left, top + height])
+            .attr({
+            stroke: "rgba(136, 136, 136, 0.5)", // more transparent
+            "stroke-width": 2,
+            dashstyle: "Dash",
+            zIndex: 4,
+            })
+            .add(hoverGroup);
+        const hoverLabel = chart.renderer
+            .text("", left, top - 5)
+            .attr({ align: "center", zIndex: 7 })
+            .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
+            .add(hoverGroup);
         hoverGroup.hide();
-        }
-    });
 
-    chart.container.addEventListener("mouseleave", () => {
-        hoverGroup.hide();
-    });
+        chart.container.addEventListener("mousemove", (e) => {
+            const cbb = chart.container.getBoundingClientRect();
+            const chartX = e.clientX - cbb.left;
+            const t = chart.xAxis[0].toValue(chartX);
+            const x = chart.xAxis[0].toPixels(t);
+
+            if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
+            hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
+            hoverLabel.attr({ text: formatTime(t), x: x, y: top + 10 });
+            hoverGroup.show();
+            } else {
+            hoverGroup.hide();
+            }
+        });
+
+        chart.container.addEventListener("mouseleave", () => {
+            hoverGroup.hide();
+        });
+    }
 
     applyTeamSeriesVisibility(state.hiddenTeams);
     return chart;
