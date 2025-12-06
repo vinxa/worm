@@ -2,6 +2,112 @@ import { hexToRGBA, formatTime } from "./utils.js";
 import { playReplay, seekToTime, clearTimeouts } from "./replayHandler.js";
 import { state } from "./state.js";
 
+const BASE_MARKER_OFFSET = 12;
+const BASE_MARKER_SIZE = 8;
+
+function buildBaseDestroyPoints(data) {
+    const totals = {};
+    const teamsById = {};
+    data.teams.forEach((t) => {
+        totals[t.id] = 0;
+        teamsById[t.id] = t;
+    });
+
+    const sortedEvents = [...data.events].sort((a, b) => a.time - b.time);
+
+    return sortedEvents.reduce((acc, ev) => {
+        const player = data.players[ev.entity];
+        if (!player) return acc;
+
+        const teamId = player.team;
+        if (!(teamId in totals)) return acc;
+
+        const delta = ev.delta ?? 0;
+        totals[teamId] += delta;
+
+        if (ev.type === "base destroy") {
+            const attackerTeam = teamsById[teamId];
+            const targetId = (ev.target || "").toLowerCase();
+            const targetTeam = teamsById[targetId];
+            const attackerName = attackerTeam?.name || teamId;
+            const targetName = targetTeam?.name || ev.target || "";
+            const targetLabel = (targetName.trim() || "?").charAt(0).toUpperCase();
+
+            acc.push({
+                x: ev.time,
+                y: totals[teamId],
+                color: attackerTeam?.color || "#ffffff",
+                playerName: player.name || player.id || ev.entity,
+                attackerTeamName: attackerName,
+                targetTeamName: targetName,
+                teamLabel: targetLabel,
+            });
+        }
+
+        return acc;
+    }, []);
+}
+
+function drawBaseDestroyOverlays(chart) {
+    const series = chart.get("base-destroys");
+    if (!series) return;
+
+    if (chart.baseDestroyOverlayGroup) chart.baseDestroyOverlayGroup.destroy();
+
+    const g = chart.renderer.g().attr({ zIndex: 7 }).add();
+    g.element.style.pointerEvents = "auto";
+
+    const addTooltipHandlers = (el, point) => {
+        if (!el || !el.element) return;
+        el.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
+        el.element.addEventListener("mouseleave", () => chart.tooltip.hide());
+    };
+
+    series.points.forEach((pt) => {
+        const { plotX, plotY, color = "#ffffff", teamLabel = "" } = pt;
+        if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
+        const x = chart.plotLeft + plotX;
+        const y = chart.plotTop + plotY;
+        const endY = y - BASE_MARKER_OFFSET;
+
+        const stem = chart.renderer
+        .path(["M", x, y, "L", x, endY])
+        .attr({
+            stroke: color,
+            "stroke-width": 1,
+            "stroke-opacity": 0.6,
+        })
+        .add(g);
+
+        const tri = chart.renderer
+        .symbol(
+            "triangle",
+            x - BASE_MARKER_SIZE / 2,
+            endY - BASE_MARKER_SIZE / 2,
+            BASE_MARKER_SIZE,
+            BASE_MARKER_SIZE
+        )
+        .attr({
+            fill: color,
+            stroke: "#111",
+            "stroke-width": 1,
+        })
+        .add(g);
+
+        const lbl = chart.renderer
+        .text(teamLabel, x, endY - 6)
+        .attr({ align: "center", zIndex: 8 })
+        .css({ color: "#fff", fontSize: "9px", fontWeight: "bold", textOutline: "1px #000" })
+        .add(g);
+
+        addTooltipHandlers(stem, pt);
+        addTooltipHandlers(tri, pt);
+        addTooltipHandlers(lbl, pt);
+    });
+
+    chart.baseDestroyOverlayGroup = g;
+}
+
 export function buildPlayerTimelines(data) {
     // 1) Determine duration (in whole seconds)
     const duration =
@@ -103,6 +209,7 @@ export function updateCursorPosition(sec) {
 // Empty chart for live replay
 export function initLiveChart(data) {
     const fullTimeline = buildTeamTimeline(data);
+    const baseDestroyPoints = buildBaseDestroyPoints(data);
     const liveSeries = data.teams.map((t) => ({
         name: t.name,
         id: t.id + "-live",
@@ -119,6 +226,37 @@ export function initLiveChart(data) {
         showInLegend: false,
         zIndex: 1,
     }));
+    const baseDestroySeries = {
+        id: "base-destroys",
+        type: "scatter",
+        name: "Base destroyed",
+        data: baseDestroyPoints,
+        color: "#ffffff",
+        marker: {
+            enabled: true,
+            symbol: "circle",
+            radius: 6,
+            lineWidth: 0,
+            fillOpacity: 0,
+            fillColor: "rgba(0,0,0,0)",
+            lineColor: "rgba(0,0,0,0)",
+            states: {
+                hover: {
+                    enabled: true,
+                    radius: 7,
+                    lineWidth: 0,
+                    fillOpacity: 0,
+                    fillColor: "rgba(0,0,0,0)",
+                    lineColor: "rgba(0,0,0,0)",
+                    halo: false,
+                },
+            },
+        },
+        dataLabels: { enabled: false },
+        showInLegend: false,
+        enableMouseTracking: true,
+        zIndex: 7,
+    };
 
     const chart = Highcharts.chart("scoreChart", {
         chart: {
@@ -137,6 +275,9 @@ export function initLiveChart(data) {
                 clearTimeouts();
                 playReplay(chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
             }
+            },
+            render: function () {
+            drawBaseDestroyOverlays(this);
             },
         },
         },
@@ -181,7 +322,7 @@ export function initLiveChart(data) {
             },
         ],
         },
-        series: [...ghostSeries, ...liveSeries],
+        series: [...ghostSeries, ...liveSeries, baseDestroySeries],
         credits: { enabled: false },
         legend: { enabled: false, itemStyle: { color: "#eee" } },
         plotOptions: {
@@ -196,8 +337,19 @@ export function initLiveChart(data) {
         snap: 5,
         shared: false,
         formatter: function () {
-            const sec = this.x;
             const id = this.series.options.id || "";
+            if (id === "base-destroys") {
+            const target = this.point.targetTeamName
+                ? ` on ${this.point.targetTeamName} base`
+                : "";
+            return (
+                `<span style="color:${this.point.color}">\u25B2</span> ` +
+                `${formatTime(this.x)} — ` +
+                `<b>${this.point.playerName}</b> (${this.point.attackerTeamName})${target}`
+            );
+            }
+
+            const sec = this.x;
             const isLive = id.endsWith("-live");
             const isGhost = id.endsWith("-ghost");
 
