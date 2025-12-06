@@ -4,6 +4,9 @@ import { showGame } from "./ui.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
 
+const FAST_SORT_MIN_INTERVAL = 2; // seconds of game time
+let lastTileSortGameTime = -Infinity;
+
 export function updatePlayerTiles(currentTime) {
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
@@ -58,12 +61,20 @@ export function updatePlayerTiles(currentTime) {
         }
     });
 
-    sortTiles();
+    const fastRate = state.playbackRate && state.playbackRate > 1.25;
+    const shouldSort =
+        !fastRate || currentTime - lastTileSortGameTime >= FAST_SORT_MIN_INTERVAL;
+    if (shouldSort) {
+        const durationMs = fastRate ? 120 : 300;
+        sortTiles(durationMs);
+        lastTileSortGameTime = currentTime;
+    }
 }
 
 export function generatePlayerTiles() {
     const grid = document.getElementById("playerGrid");
     grid.innerHTML = "";
+    lastTileSortGameTime = -Infinity;
     const ids = Object.keys(state.gameData.playerStats).slice(0, 15);
 
     ids.forEach((pid) => {
@@ -175,7 +186,7 @@ export function updateTeamScoresUI() {
  * Reorders all .player-summary tiles in #playerGrid
  * by their current .player-score (desc).
  */
-function sortTiles() {
+function sortTiles(transitionMs = 300) {
     const grid = document.getElementById("playerGrid");
     const tiles = Array.from(grid.children);
 
@@ -238,7 +249,7 @@ function sortTiles() {
 
         tile.style.transform = `translate(${dx}px,${dy}px)`;
         tile.getBoundingClientRect(); // force reflow
-        tile.style.transition = "transform 300ms ease";
+        tile.style.transition = `transform ${transitionMs}ms ease`;
         tile.style.transform = "";
         tile.addEventListener("transitionend", function handler() {
         tile.style.transition = "";
