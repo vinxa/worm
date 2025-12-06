@@ -118,7 +118,7 @@ function filterBaseDestroySeries(selectedSet) {
     const allPoints = state.chart.baseDestroyAllPoints || [];
     const filtered =
         selectedSet && selectedSet.size
-        ? allPoints.filter((pt) => selectedSet.has(pt.attackerTeamId))
+        ? allPoints.filter((pt) => !selectedSet.has(pt.attackerTeamId))
         : allPoints;
     // clone objects
     const payload = filtered.map((pt) => ({ ...pt }));
@@ -131,7 +131,8 @@ function applyTeamSeriesVisibility(selectedSet) {
     state.gameData.teams.forEach((team) => {
         const live = state.chart.get(`${team.id}-live`);
         const ghost = state.chart.get(`${team.id}-ghost`);
-        const visible = showAll || (selectedSet ? selectedSet.has(team.id) : false);
+        const hidden = selectedSet ? selectedSet.has(team.id) : false;
+        const visible = showAll || !hidden;
         if (live) live.setVisible(visible, false);
         if (ghost) ghost.setVisible(visible, false);
     });
@@ -140,22 +141,22 @@ function applyTeamSeriesVisibility(selectedSet) {
 }
 
 export function toggleTeamVisibility(teamId = null) {
-    if (!state.visibleTeams) state.visibleTeams = new Set();
+    if (!state.hiddenTeams) state.hiddenTeams = new Set();
 
     if (!teamId) {
-        state.visibleTeams.clear();
-        state.visibleTeams = null;
+        state.hiddenTeams.clear();
+        state.hiddenTeams = null;
     } else {
-        if (state.visibleTeams.has(teamId)) {
-        state.visibleTeams.delete(teamId);
+        if (state.hiddenTeams.has(teamId)) {
+        state.hiddenTeams.delete(teamId);
         } else {
-        state.visibleTeams.add(teamId);
+        state.hiddenTeams.add(teamId);
         }
-        if (state.visibleTeams.size === 0) {
-        state.visibleTeams = null; // fall back to show all
+        if (state.hiddenTeams.size === 0) {
+        state.hiddenTeams = null; // fall back to show all
         }
     }
-    applyTeamSeriesVisibility(state.visibleTeams);
+    applyTeamSeriesVisibility(state.hiddenTeams);
 }
 
 export function buildPlayerTimelines(data) {
@@ -483,7 +484,7 @@ export function initLiveChart(data) {
         hoverGroup.hide();
     });
 
-    applyTeamSeriesVisibility(state.visibleTeams);
+    applyTeamSeriesVisibility(state.hiddenTeams);
     return chart;
 }
 

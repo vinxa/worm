@@ -11,7 +11,7 @@ export const state = {
     teamFullTimeline: {},
     playerTimelines: {},
     selectedPlayers: new Set(),
-    visibleTeams: null, // null = all teams visible
+    hiddenTeams: null, // null = all teams visible; otherwise Set of hidden team IDs
     selectedGame: null,
     isGameLoading: false,
     loadingStart: 0,

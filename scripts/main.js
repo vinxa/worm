@@ -144,7 +144,7 @@ export async function loadGameData(dataPath, options = {}) {
         state.gameData.teams.forEach((t) => {
             state.teamScores[t.id] = 0;
         });
-        state.visibleTeams = null;
+        state.hiddenTeams = null;
 
         renderGameData();
 

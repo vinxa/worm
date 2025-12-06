@@ -118,10 +118,10 @@ export function setupTeamSeriesFilter() {
         const teamId = li.dataset.teamId;
         if (!teamId) return;
         toggleTeamVisibility(teamId);
-        const activeSet = state.visibleTeams || new Set();
+        const activeSet = state.hiddenTeams || new Set();
         items.forEach((el) => {
-            const active = activeSet.has(el.dataset.teamId);
-            el.classList.toggle("active-team-filter", active);
+            const inactive = activeSet.has(el.dataset.teamId);
+            el.classList.toggle("inactive-team-filter", inactive);
         });
         });
     });
