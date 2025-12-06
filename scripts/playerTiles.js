@@ -78,10 +78,10 @@ export function generatePlayerTiles() {
             <div class="player-score">${stats.score ?? "0"}</div>
         </div>
         <div class="player-summary-details">
-            <p>Tags: <span class="detail-tags">–</span></p>
-            <p>TR: <span class="detail-ratio">–</span></p>
+            <p class="detail-tags-line"><span class="detail-tags-label">Tags:</span> <span class="detail-tags">–</span></p>
+            <p class="detail-ratio-line">TR: <span class="detail-ratio">–</span></p>
             <div class="detail-bases"></div>
-            <p>Denies: <span class="detail-denies">–</span></p>
+            <p class="detail-denies-line">Denies: <span class="detail-denies">–</span></p>
         </div>
         `;
 

@@ -138,8 +138,7 @@ button {
 }
 
 .results-section {
-  flex: 0 1 100%;                 /* max 50% of .top-section width */
-  margin-right: 10px;
+  flex: 0 1 100%;
   display: flex;
   flex-direction: column;
   overflow-y: auto;              /* if tiles grow too tall internally, scroll here */
@@ -693,6 +692,10 @@ button:hover {
     font-size: 0.9rem;
     min-height: 28px;
   }
+  .youtube-input-container {
+    gap: 2px;
+  }
+
   .youtube-input-container input {
     width: 140px;
     padding: 5px 8px;
@@ -707,24 +710,83 @@ button:hover {
     display: none;
   }
   .top-section {
-    padding: 6px;
+    padding: 0px;
     gap: 6px;
-    max-height: 52vh;
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
+    min-height: 0px;
   }
   .results-section,
   .map-section {
     padding: 8px;
     min-height: 32vh;
   }
+  .scores-sidebar {
+    margin-top: 0;
+    flex: none;
+  }
   .players-grid {
-    gap: 6px;
-    padding-bottom: 6px;
+    gap: 4px;
+    padding: 0px;
   }
   .player-summary {
     flex: 0 0 calc((100% - 32px) / 5);
-    padding: 5px;
+    padding: 4px;
     min-width: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name score"
+      "bases tags";
+    row-gap: 0px;
+    margin-bottom: 2px;
+  }
+  .player-summary-header {
+    grid-area: name / name / name / score;
+    display: contents;
+  }
+  .player-name {
+    grid-area: name;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .player-score {
+    grid-area: score;
+    text-align: right;
+  }
+  .player-summary-details {
+    grid-area: bases / bases / bases / tags;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 4px 6px;
+    max-height: none;
+    opacity: 1;
+    padding: 0;
+  }
+  .detail-bases {
+    margin: 0;
+    justify-self: flex-end;
+  }
+  .detail-tags-line {
+    margin: 0;
+    text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .detail-tags-label {
+    display: none;
+  }
+  .detail-ratio-line,
+  .detail-denies-line {
+    display: none;
+  }
+  .player-summary-details p {
+    margin: 0;
   }
   .player-summary-header {
     display: flex;
@@ -740,9 +802,21 @@ button:hover {
   }
   .timeline-section {
     padding: 6px;
+    flex: 0 0 auto;
+    min-height: 220px;
   }
+  .base-box {
+    width: 18px;
+    height: 18px;
+  }
+
+  .results-content {
+    flex: none;
+    gap: 0px;
+  }
+
   #scoreChart {
-    min-height: 180px;
+    min-height: 150px;
   }
   .title-date,
   .title-sep {
@@ -752,7 +826,8 @@ button:hover {
     display: none;
   }
   .app-header {
-    padding: 4px 8px;
+    /* padding: 4px 8px; */
+    padding: 2px;
     min-height: auto;
     gap: 4px;
   }
@@ -775,6 +850,8 @@ button:hover {
 
   .team-scores {
     gap: 6px;
+    margin: none;
+    display: block;
   }
   .team-scores li {
     align-items: flex-start;
