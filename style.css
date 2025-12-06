@@ -317,7 +317,7 @@ button {
 }
 #scoreChart {
   flex: 1 1 0;
-  min-height: 240px;
+  min-height: 160px;
   width:100%;
 }
 .chart-controls {
@@ -710,10 +710,10 @@ button:hover {
     display: none;
   }
   .top-section {
-    padding: 0px;
+    padding: 4px;
     gap: 6px;
-    max-height: none;
-    overflow: visible;
+    max-height: 60vh;
+    overflow: auto;
     min-height: 0px;
   }
   .results-section,
@@ -802,8 +802,8 @@ button:hover {
   }
   .timeline-section {
     padding: 6px;
-    flex: 0 0 auto;
-    min-height: 220px;
+    flex: 1 1 auto;
+    min-height: 180px;
   }
   .base-box {
     width: 18px;
@@ -811,12 +811,12 @@ button:hover {
   }
 
   .results-content {
-    flex: none;
-    gap: 0px;
+    flex: 1 1 auto;
+    gap: 6px;
   }
 
   #scoreChart {
-    min-height: 150px;
+    min-height: 120px;
   }
   .title-date,
   .title-sep {
@@ -881,6 +881,9 @@ button:hover {
     padding: 8px;
     width:90%;
     margin: 2% 0;
+  }
+  #scoreChart {
+    min-height: 110px;
   }
 }
 
