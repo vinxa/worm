@@ -219,11 +219,6 @@ button {
   color: #eee;
   text-align: center;
 }
-
-.team-scores li {
-  margin: 5px 0;
-}
-
 .map-placeholder {
   background: #1e1e1e;
   border: 1px dashed #555;
@@ -383,6 +378,7 @@ button {
   background: rgba(0,0,0,0.4);
   border-radius: 4px;
   border: 1px solid transparent;   /* keep size consistent across states */
+  margin: 5px 0;
   white-space: nowrap;
   cursor: pointer;
 }
