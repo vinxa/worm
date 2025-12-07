@@ -112,8 +112,9 @@ function drawBaseDestroyOverlays(chart) {
     chart.baseDestroyOverlayGroup = g;
 }
 
-function filterBaseDestroySeries(selectedSet) {
-    const series = state.chart?.get("base-destroys");
+function filterBaseDestroySeries(selectedSet, chart = state.chart) {
+    if (!chart) return;
+    const series = state.chart.get("base-destroys");
     if (!series) return;
     const allPoints = state.chart.baseDestroyAllPoints || [];
     const filtered =
@@ -126,18 +127,20 @@ function filterBaseDestroySeries(selectedSet) {
 }
 
 function applyTeamSeriesVisibility(selectedSet) {
-    if (!state.chart || !state.gameData) return;
+    const chart = state.chart;
+    const gameData = state.gameData;
+    if (!chart || !gameData) return;
     const showAll = !selectedSet || selectedSet.size === 0;
-    state.gameData.teams.forEach((team) => {
-        const live = state.chart.get(`${team.id}-live`);
-        const ghost = state.chart.get(`${team.id}-ghost`);
+    gameData.teams.forEach((team) => {
+        const live = chart.get(`${team.id}-live`);
+        const ghost = chart.get(`${team.id}-ghost`);
         const hidden = selectedSet ? selectedSet.has(team.id) : false;
         const visible = showAll || !hidden;
         if (live) live.setVisible(visible, false);
         if (ghost) ghost.setVisible(visible, false);
     });
-    filterBaseDestroySeries(selectedSet);
-    state.chart.redraw();
+    filterBaseDestroySeries(selectedSet, chart);
+    chart.redraw();
 }
 
 export function toggleTeamVisibility(teamId = null) {
@@ -259,6 +262,11 @@ export function updateCursorPosition(sec) {
 
 // Empty chart for live replay
 export function initLiveChart(data) {
+    if (state.chart) {
+        state.chart.destroy();
+        state.chart = null;
+    }
+
     const fullTimeline = buildTeamTimeline(data);
     const baseDestroyPoints = buildBaseDestroyPoints(data);
     const liveSeries = data.teams.map((t) => ({
