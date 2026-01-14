@@ -1,5 +1,5 @@
 // playerTiles.js
-import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal } from "./utils.js";
+import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags } from "./utils.js";
 import { showGame } from "./ui.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
@@ -8,6 +8,12 @@ const FAST_SORT_MIN_INTERVAL = 2; // seconds of game time
 let lastTileSortGameTime = -Infinity;
 
 export function updatePlayerTiles(currentTime) {
+    const focusPid =
+        state.selectedPlayers && state.selectedPlayers.size === 1
+        ? Array.from(state.selectedPlayers)[0]
+        : null;
+    const focusName = focusPid ? state.gameData.players[focusPid]?.name || "Player" : "";
+
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
         const events = state.playerEvents[pid] || [];
@@ -29,10 +35,22 @@ export function updatePlayerTiles(currentTime) {
         computePlayerStats(pid, currentTime);
 
         const tagsEl = tile.querySelector(".detail-tags");
+        const tagsLabelEl = tile.querySelector(".detail-tags-label");
         const ratioEl = tile.querySelector(".detail-ratio");
         const deniesEl = tile.querySelector(".detail-denies");
 
-        if (tagsEl) tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
+        if (tagsEl) {
+        if (focusPid && focusPid !== pid) {
+            const headToHead = computeHeadToHeadTags(focusPid, pid, currentTime);
+            tagsEl.innerHTML =
+            `${tagsFor} – ${tagsAgainst} ` +
+            `<span class="detail-tags-h2h">(${headToHead.tagsFor} – ${headToHead.tagsAgainst})</span>`; // using thin spaces
+            if (tagsLabelEl) tagsLabelEl.textContent = "Tags:";
+        } else {
+            tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
+            if (tagsLabelEl) tagsLabelEl.textContent = "Tags:";
+        }
+        }
         if (ratioEl) ratioEl.textContent = ratioText;
         if (deniesEl) deniesEl.textContent = deniesCount;
         const myTeamId = state.gameData.players[pid].team; // e.g. "green"
@@ -333,6 +351,7 @@ export function setupPlayerSeriesToggles() {
 
             // sync chart to only show selected players
             updatePlayerSeriesDisplay();
+            updatePlayerTiles(state.currentTime);
 
             // if we just expanded, pull the series color and set the border
             const isSelected = clickedTile.classList.contains("selected");

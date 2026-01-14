@@ -79,6 +79,25 @@ export function computePlayerStats(pid, t) {
     return { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount };
 }
 
+/**
+ * tags for against between 2 players up to time t
+ */
+export function computeHeadToHeadTags(focusPid, otherPid, t) {
+    let tagsFor = 0;
+    let tagsAgainst = 0;
+
+    state.gameData.events.forEach((ev) => {
+        if (ev.time > t || ev.type !== "tag") return;
+        if (ev.entity === focusPid && ev.target === otherPid) {
+        tagsFor++;
+        } else if (ev.entity === otherPid && ev.target === focusPid) {
+        tagsAgainst++;
+        }
+    });
+
+    return { tagsFor, tagsAgainst };
+}
+
 export function formatGameDatetime(ts) {
     const m = ts.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
     if (!m) return ts;

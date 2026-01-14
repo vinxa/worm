@@ -224,6 +224,10 @@ button {
   margin: 2px 0;                   /* smaller vertical margins */
   white-space: nowrap;             /* prevent wrapping inside a cell */
 }
+.detail-tags-h2h {
+  font-size: 0.85em;
+  color: #9a9a9a;
+}
 
 .player-name {
   font-size: 1rem;
@@ -777,6 +781,10 @@ button:hover {
     justify-content: flex-end;
     gap: 4px;
     white-space: nowrap;
+  }
+  .detail-tags-h2h {
+    font-size: 0.85em;
+    color: #9a9a9a;
   }
   .detail-tags-label {
     display: none;
