@@ -120,6 +120,7 @@ export function showHome() {
     leftBtn.style.display = "none";
     gameHeader.style.display = "none";
     gameSections.forEach((s) => (s.style.display = "none"));
+    state.selectedPlayers = new Set();
     updateNextGameButtonVisibility(false, false);
     wiggleLogos();
 }
@@ -323,7 +324,10 @@ export function initUI() {
 
     if (nextGameBtn) {
         nextGameBtn.addEventListener("click", () => {
-            if (state.latestGame) showGame(state.latestGame);
+            if (state.latestGame) {
+                state.selectedPlayers = new Set();
+                showGame(state.latestGame);
+            }
         });
     }
 
