@@ -1,0 +1,13 @@
+{
+  "name": "Worm",
+  "icons": [
+    {
+      "src": "assets/worm.png",
+      "type": "image/png",
+      "sizes": "1024x1024"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1e1e1e"
+}
