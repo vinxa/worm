@@ -172,6 +172,28 @@ function hideLoadingIndicator() {
     wiggleLogos();
 }
 
+function PWAinstallPrompt() {
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installButton').style.display = 'block';
+    });
+
+    document.getElementById('installButton').addEventListener('click', () => {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+        } else {
+        console.log('User dismissed the install prompt');
+        }
+        deferredPrompt = null;
+    });
+    });
+}
+
 // Load list of games initially and start polling
 fetchGamesIndex(false);
 setInterval(() => fetchGamesIndex(true), INDEX_REFRESH_MS);
@@ -180,4 +202,5 @@ setInterval(() => fetchGamesIndex(true), INDEX_REFRESH_MS);
 document.addEventListener("DOMContentLoaded", () => {
     initUI();
     showHome();
+    PWAinstallPrompt();
 });
