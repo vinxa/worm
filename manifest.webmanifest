@@ -2,22 +2,23 @@
   "name": "Worm",
   "icons": [
     {
-      "src": "assets/worm.png",
+      "src": "/worm/assets/worm.png",
       "type": "image/png",
       "sizes": "1024x1024"
     },
     {
-      "src": "assets/worm-512.png",
+      "src": "/worm/assets/worm-512.png",
       "type": "image/png",
       "sizes": "512x512"
     },
     {
-      "src": "assets/worm-192.png",
+      "src": "/worm/assets/worm-192.png",
       "type": "image/png",
       "sizes": "192x192"
     }
   ],
-  "start_url": ".",
+  "start_url": "/worm/",
+  "scope": "/worm/",
   "display": "standalone",
   "background_color": "#1e1e1e"
 }
