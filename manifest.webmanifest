@@ -1,5 +1,7 @@
 {
   "name": "Worm",
+  "short_name": "Worm",
+  "description": "Worm laser tag game analysis app",
   "icons": [
     {
       "src": "/worm/assets/worm.png",
@@ -20,5 +22,6 @@
   "start_url": "/worm/",
   "scope": "/worm/",
   "display": "standalone",
-  "background_color": "#1e1e1e"
+  "background_color": "#1e1e1e",
+  "theme_color": "#1e1e1e"
 }
