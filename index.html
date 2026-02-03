@@ -153,5 +153,13 @@
     </div>
   </section>
   <script type="module" src="scripts/main.js"></script>
+  <script>
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.register (
+          '/worm/sw.js',
+          {scope: '/worm/'}
+        )
+    }
+  </script>
 </body>
 </html>
