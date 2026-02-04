@@ -70,7 +70,10 @@ export function computePlayerStats(pid, t) {
         if (ev.type === "tag") tagsFor++;
         else if (ev.type === "tagged") tagsAgainst++;
         else if (ev.type === "base destroy") baseCount++;
-        else if (ev.type === "deny") deniesCount++;
+        else if (ev.type === "deny") {
+            if (ev.delta == 500) deniesCount+=2;
+            else deniesCount++;
+        }    
     });
 
     // ratio
