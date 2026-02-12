@@ -8,6 +8,7 @@ import { formatGameDatetime, isTypingField } from "./utils.js";
 import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
 import { generatePlayerTiles, setupTileExpansion, setupPlayerSeriesToggles, colourPlayerNamesFromChart, setupTeamSeriesFilter } from "./playerTiles.js";
 import { setupDraggableModal } from "./video.js";
+import { getEventTeamColourMap, getGameDisplayTitle, getMatchedEventTeamNames, getTeamLabelMapForGame } from "./displayLabels.js";
 
 // Shared UI elements
 const gameHeader = document.querySelector("body > .app-header");
@@ -199,6 +200,82 @@ function matchesPlayer(game, playerValue) {
     return list.some((name) => (name || "").toLowerCase() === playerValue.toLowerCase());
 }
 
+function applyCurrentGameTeamLabels() {
+    const teamLabelMap = getTeamLabelMapForGame(
+        state.selectedGame,
+        state.gameData?.players || {},
+        state.events || []
+    );
+    const defaultNames = { red: "Red Team", blue: "Blue Team", green: "Green Team" };
+
+    document.querySelectorAll(".team-scores li").forEach((li) => {
+        const teamId = li?.dataset?.teamId;
+        const nameEl = li?.querySelector(".team-name");
+        if (!teamId || !nameEl) return;
+        const fullName = teamLabelMap[teamId] || defaultNames[teamId] || `${teamId} Team`;
+        const shortName = fullName.length > 8 ? `${fullName.slice(0, 8)}...` : fullName;
+        nameEl.textContent = shortName;
+        nameEl.title = fullName;
+    });
+}
+
+function setGridTitleContent(titleEl, game, displayTitle) {
+    const matchedTeams = getMatchedEventTeamNames(game, state.events || []);
+    const teamColourMap = getEventTeamColourMap(game, state.events || []);
+    if (!matchedTeams.length) {
+        titleEl.textContent = displayTitle;
+        return;
+    }
+
+    const prefixText = displayTitle.includes(":")
+        ? `${displayTitle.split(":")[0]}: `
+        : "";
+
+    titleEl.textContent = "";
+    const prefix = document.createElement("span");
+    prefix.textContent = prefixText;
+    titleEl.appendChild(prefix);
+
+    matchedTeams.forEach((teamName, idx) => {
+        if (idx > 0) {
+            const sep = document.createElement("span");
+            sep.textContent = " v ";
+            titleEl.appendChild(sep);
+        }
+        const teamSpan = document.createElement("span");
+        teamSpan.className = `game-title-team game-title-team--${idx % 3}`;
+        const trimmed = String(teamName || "").trim();
+        const shortName = trimmed.length > 15 ? `${trimmed.slice(0, 15)}...` : trimmed;
+        teamSpan.textContent = shortName;
+        if (teamColourMap[teamName]) {
+            teamSpan.style.color = teamColourMap[teamName];
+        }
+        if (shortName !== trimmed) {
+            teamSpan.title = trimmed;
+        }
+        titleEl.appendChild(teamSpan);
+    });
+}
+
+function fitDisplayTitleToTile(titleEl, enabled) {
+    titleEl.style.fontSize = "";
+    if (!enabled) return;
+
+    requestAnimationFrame(() => {
+        let sizePx = 12.5;
+        const minSizePx = 6;
+        const stepPx = 0.5;
+        titleEl.style.fontSize = `${sizePx}px`;
+
+        let guard = 0;
+        while (titleEl.scrollHeight > titleEl.clientHeight + 0.5 && sizePx > minSizePx && guard < 30) {
+            sizePx -= stepPx;
+            titleEl.style.fontSize = `${sizePx}px`;
+            guard += 1;
+        }
+    });
+}
+
 function currentFilterValues() {
     return {
         type: state.gameFilter || "all",
@@ -329,16 +406,21 @@ export function buildGrid(games, highlightIds = []) {
     filtered.forEach((game) => {
         const tile = document.createElement("div");
         tile.classList.add("game-tile");
-        const raw = game.title || "";
+        const originalTitle = game?.title || "";
+        const raw = getGameDisplayTitle(game, state.events || []);
+        const isDisplayTitle = raw !== originalTitle;
 
         const gameLine = document.createElement("span");
         gameLine.textContent = formatGameDatetime(game.id);
 
         const rawLine = document.createElement("span");
-        rawLine.textContent = raw;
+        rawLine.classList.add("game-title-text");
+        if (isDisplayTitle) rawLine.classList.add("game-title-text--display");
+        setGridTitleContent(rawLine, game, raw);
 
         tile.appendChild(gameLine);
         tile.appendChild(rawLine);
+        fitDisplayTitleToTile(rawLine, isDisplayTitle);
         tile.addEventListener("click", () => showGame(game));
         grid.appendChild(tile);
 
@@ -459,6 +541,7 @@ export function renderGameData() {
 
     // Player tiles
     generatePlayerTiles();
+    applyCurrentGameTeamLabels();
     setupTileExpansion();
     setupPlayerSeriesToggles();
     colourPlayerNamesFromChart();
@@ -469,14 +552,23 @@ export function renderGameData() {
     seekToTime(state.currentTime);
 
     // Header title
-    if (state.selectedGame && state.gameData.gameType) {
+    if (state.selectedGame) {
         const pretty = formatGameDatetime(state.selectedGame.id);
+        const fallbackPlayers = Object.values(state.gameData?.players || {})
+            .map((p) => p?.name)
+            .filter(Boolean);
+        const displayTitle =
+            getGameDisplayTitle(state.selectedGame, state.events || [], fallbackPlayers) ||
+            state.gameData.gameType ||
+            "Game";
+        const isDisplayTitle = displayTitle !== (state.selectedGame.title || "");
+        const titleClass = isDisplayTitle ? "title-game title-game--display" : "title-game";
         const titleEl = document.querySelector('.title');
         if (titleEl) {
             titleEl.innerHTML =
             `<span class="title-date">${pretty}</span>` +
             `<span class="title-sep"> | </span>` +
-            `<span class="title-game">${state.gameData.gameType}</span>`;
+            `<span class="${titleClass}">${displayTitle}</span>`;
         }
     }
 }

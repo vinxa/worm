@@ -38,6 +38,18 @@ html {
   transform: translateX(-50%);
   width: fit-content;
 }
+
+.title-date,
+.title-sep {
+  flex: 0 0 auto;
+}
+
+.title-game {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .header-right {
   display: flex;
   align-items: center;
@@ -616,22 +628,38 @@ button {
   50% { border-color: #e2b12a; box-shadow: 0 0 14px rgba(226,177,42,0.45); }
 }
 
-.game-tile span:first-child {
+.game-tile > span:first-child {
   font-size: 0.85rem;
   color: #666;
   font-weight: 500;
 }
 
-.game-tile:hover span:first-child {
+.game-tile:hover > span:first-child {
   font-size: 0.85rem;
   color: #e2b12a;
   font-weight: 500;
 }
 
-.game-tile span:last-child {
+.game-tile > span:last-child {
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.4;
+  color: #eee;
+}
+
+.game-title-text {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.game-title-text--display {
+  font-size: clamp(0.6rem, 1vw, 0.78rem);
+  line-height: 1.15;
+}
+
+.title-game--display {
+  font-size: clamp(0.8rem, 1.1vw, 1rem);
 }
 
 .home-section .app-header {

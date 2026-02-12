@@ -6,7 +6,18 @@
                 "start": "2025-12-05T14:00:00+08:00",
                 "end": "2025-12-08T01:00:00+08:00"
             }
-        ]
+        ],
+        "teams": {
+            "I'm Clashing Out": ["Commander-Snake","Shaz","Lilbo","Xam","Muffin"],
+            "Saja Boys": ["Brodizzle","Method","Dart","Stinky","Holmes"],
+            "Ninja's Meat: Return of the King": ["Gaza","Diggy","Ninja","Sawdust","Exile","TechDeck205"],
+            "Don't Poke the Bear": ["Flash","Plank","Noobz316","Gustice","Phynn"],
+            "The Canadian Conspiracy": ["Deathstalker","Fluffo","Jacko","DeanLogan 1","Aqua","Mr. Meeseeks"],
+            "The Emotional Support Cookies":["Gripsy","Dorky","Longshot","Mikey","Jette","Rogue","PanaKing"],
+            "Bootza's Boys": ["Master Arbel","GypC","Beans","Bootza","Serenity"],
+            "7he Squid and 7he Furious 3: Elmo Drift": ["Shaniarenee7","Squidz","Keirlos3","Elmo","Punisher"]
+        },
+        "game-type": "Zltac Training - Full Game"
     },
     {
         "name": "WAPL 2",
@@ -23,6 +34,14 @@
                 "start": "2025-12-21T17:00:00+08:00",
                 "end": "2025-12-21T23:59:59+08:00"
             }
-        ]
+        ],
+        "teams": {
+            "Team 1": ["Master Arbel","Jette","Muffin","Stinky","TechDeck205"],
+            "Team 2": ["Commander-Snake","Banksy","Basilisk","Deathstalker","Serenity"],
+            "Team 3": ["Fluffo","Plank","John Wick","Shaniarenee7","Keirlos3"],
+            "Team 4": ["Gaza","Bulldogs","Gripsy","Sawdust","Noobz316","JackoCoop"],
+            "Team 5": ["Brodizzle","Method","Sawdust","DeanLogan 1","CaptEmmerica"]
+        },
+        "game-type": "Zltac Settings - Wapl"
     }
 ]
