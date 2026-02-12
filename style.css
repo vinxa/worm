@@ -595,6 +595,29 @@ button {
   justify-items: stretch;
 }
 
+.global-github-link {
+  position: fixed;
+  top: 12px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.72;
+  z-index: 2000;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.global-github-link:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.global-github-logo {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
 .game-tile {
   background: #282828;
   border: 1px solid #444;
