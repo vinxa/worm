@@ -521,6 +521,67 @@ button {
   text-decoration: underline dotted #e2b12a;
 }
 
+.home-mascot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.home-mascot .app-logo {
+  position: relative;
+  z-index: 2;
+}
+
+.worm-speech-bubble {
+  position: absolute;
+  top: -28px;
+  left: -42px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 66px;
+  min-height: 42px;
+  padding: 4px 3px;
+  border-radius: 50%;
+  background: #f5f5f5;
+  border: none;
+  color: #1e1e1e;
+  font-size: 0.11em;
+  font-weight: 400;
+  line-height: 1.05;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-decoration: none;
+  transform: rotate(-9deg);
+  z-index: 1;
+}
+
+.worm-speech-bubble-date {
+  display: block;
+  font-weight: 400;
+}
+
+.worm-speech-bubble-event {
+  display: block;
+  font-weight: 700;
+}
+
+.worm-speech-bubble::after {
+  content: "";
+  position: absolute;
+  left: 83%;
+  bottom: 3px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 10px solid #f5f5f5;
+  transform: rotate(-23deg);
+}
+
 .filter-bar {
   width: calc(100% - 24px);
   max-width: 860px;
@@ -887,6 +948,9 @@ button:hover {
     display: none;
   }
   .app-logo {
+    display: none;
+  }
+  .worm-speech-bubble {
     display: none;
   }
   .app-header {
