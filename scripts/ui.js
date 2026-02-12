@@ -237,15 +237,10 @@ function setGridTitleContent(titleEl, game, displayTitle) {
     titleEl.appendChild(prefix);
 
     matchedTeams.forEach((teamName, idx) => {
-        if (idx > 0) {
-            const sep = document.createElement("span");
-            sep.textContent = " v ";
-            titleEl.appendChild(sep);
-        }
-        const teamSpan = document.createElement("span");
+        const teamSpan = document.createElement("div");
         teamSpan.className = `game-title-team game-title-team--${idx % 3}`;
         const trimmed = String(teamName || "").trim();
-        const shortName = trimmed.length > 15 ? `${trimmed.slice(0, 15)}...` : trimmed;
+        const shortName = trimmed.length > 20 ? `${trimmed.slice(0, 20)}...` : trimmed;
         teamSpan.textContent = shortName;
         if (teamColourMap[teamName]) {
             teamSpan.style.color = teamColourMap[teamName];
