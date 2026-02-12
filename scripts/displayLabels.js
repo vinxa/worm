@@ -1,4 +1,5 @@
 // displayLabels.js
+// these are for the display names & team names for games in an event. sorry idk what else to call it
 
 function normaliseText(value) {
     return String(value || "").trim().toLowerCase();
