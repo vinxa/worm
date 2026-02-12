@@ -526,7 +526,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
 }
 
@@ -534,7 +534,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1 1 100%;
+  flex: 0 0 auto;
   justify-content: center;
 }
 
@@ -552,6 +552,11 @@ button {
   appearance: none;
   line-height: 1.2;
   cursor: pointer;
+}
+
+#dateFilter {
+  min-width: 130px;
+  width: 150px;
 }
 
 .filter-bar input,

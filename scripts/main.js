@@ -44,6 +44,22 @@ function isFreshGame(game) {
     return now - start.getTime() < FRESH_WINDOW_MINUTES * 60 * 1000;
 }
 
+async function fetchEventsConfig() {
+    try {
+        const res = await fetch("assets/events.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("Couldn't fetch events config");
+        const list = await res.json();
+        state.events = Array.isArray(list) ? list : [];
+    } catch (err) {
+        state.events = [];
+        console.error("Failed to load events config:", err);
+    } finally {
+        if (state.games && state.games.length) {
+            buildGrid(state.games);
+        }
+    }
+}
+
 async function fetchGamesIndex(fromPoll = false) {
     try {
         const res = await fetch(state.S3_BASE_URL + "/index.json", { cache: "no-store" });
@@ -195,6 +211,7 @@ function PWAinstallPrompt() {
 }
 
 // Load list of games initially and start polling
+fetchEventsConfig();
 fetchGamesIndex(false);
 setInterval(() => fetchGamesIndex(true), INDEX_REFRESH_MS);
 

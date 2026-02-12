@@ -19,6 +19,7 @@ const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
 const gameFilter = document.getElementById("gameFilter");
+const eventFilter = document.getElementById("eventFilter");
 const dateFilter = document.getElementById("dateFilter");
 const playerFilter = document.getElementById("playerFilter");
 const playerOptionsList = document.getElementById("playerOptions");
@@ -158,31 +159,78 @@ function matchesDate(game, dateValue) {
     return gameDateKey(game) === dateValue;
 }
 
+function parseGameStart(game) {
+    if (!game || !game.id) return null;
+    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const [, YYYY, MM, DD, hh, mm] = m;
+    const parsed = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00+08:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function eventKey(event) {
+    return event?.id || event?.name || event?.label || "";
+}
+
+function eventLabel(event) {
+    return event?.label || event?.name || event?.id || "";
+}
+
+function matchesEvent(game, eventId) {
+    if (eventId === "none") return true;
+    const event = (state.events || []).find((e) => eventKey(e) === eventId);
+    if (!event) return false;
+
+    const gameStart = parseGameStart(game);
+    if (!gameStart) return false;
+
+    return (event.ranges || []).some((r) => {
+        const start = new Date(r.start);
+        const end = new Date(r.end);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+        return gameStart >= start && gameStart <= end;
+    });
+}
+
+
 function matchesPlayer(game, playerValue) {
     if (playerValue === "all" || !playerValue) return true;
     const list = Array.isArray(game.players) ? game.players : [];
     return list.some((name) => (name || "").toLowerCase() === playerValue.toLowerCase());
 }
 
-function applyFilter(games) {
-    const typeValue = state.gameFilter || "all";
-    const dateValue = state.gameDateFilter || "all";
-    const playerValue = state.gamePlayerFilter || "all";
+function currentFilterValues() {
+    return {
+        type: state.gameFilter || "all",
+        event: state.eventFilter || "none",
+        date: state.gameDateFilter || "all",
+        player: state.gamePlayerFilter || "all",
+    };
+}
+
+function filterGames(games, overrides = {}) {
+    const filters = { ...currentFilterValues(), ...overrides };
     return games.filter(
-        (g) => matchesType(g, typeValue) && matchesDate(g, dateValue) && matchesPlayer(g, playerValue)
+        (g) =>
+            matchesType(g, filters.type) &&
+            matchesEvent(g, filters.event) &&
+            matchesDate(g, filters.date) &&
+            matchesPlayer(g, filters.player)
     );
+}
+
+function applyFilter(games) {
+    return filterGames(games);
 }
 
 function populateFilterOptions(games) {
     if (!gameFilter) return;
-    const currentType = state.gameFilter || "all";
-    const currentDate = state.gameDateFilter || "all";
-    const currentPlayer = state.gamePlayerFilter || "all";
+    const filters = currentFilterValues();
 
     const typeScopedGames =
-        currentDate === "all" && currentPlayer === "all"
+        filters.date === "all" && filters.player === "all" && filters.event === "none"
             ? games
-            : games.filter((g) => matchesDate(g, currentDate) && matchesPlayer(g, currentPlayer));
+            : filterGames(games, { type: "all" });
     const typeOptionsMap = new Map();
     typeScopedGames.forEach((g) => {
         if (!g.title) return;
@@ -190,38 +238,65 @@ function populateFilterOptions(games) {
         if (!typeOptionsMap.has(key)) typeOptionsMap.set(key, g.title);
     });
     const typeOptions = ["all", ...typeOptionsMap.values()];
+    if (filters.type !== "all" && !typeOptions.includes(filters.type)) {
+        typeOptions.push(filters.type);
+    }
     gameFilter.innerHTML = typeOptions
         .map((opt) => `<option value="${opt}">${opt === "all" ? "All types" : opt}</option>`)
         .join("");
-    if (typeOptions.includes(currentType)) {
-        gameFilter.value = currentType;
-    } else {
-        state.gameFilter = "all";
-        gameFilter.value = "all";
-    }
+    gameFilter.value = typeOptions.includes(filters.type) ? filters.type : "all";
 
     if (dateFilter) {
         const dateScopedGames =
-            currentType === "all" && currentPlayer === "all"
+            filters.type === "all" && filters.player === "all" && filters.event === "none"
                 ? games
-                : games.filter((g) => matchesType(g, currentType) && matchesPlayer(g, currentPlayer));
+                : filterGames(games, { date: "all" });
         const dateOptions = ["all", ...Array.from(new Set(dateScopedGames.map(gameDateKey)))];
+        if (filters.date !== "all" && !dateOptions.includes(filters.date)) {
+            dateOptions.push(filters.date);
+        }
         dateFilter.innerHTML = dateOptions
             .map((opt) => `<option value="${opt}">${opt === "all" ? "All dates" : opt}</option>`)
             .join("");
-        if (dateOptions.includes(currentDate)) {
-            dateFilter.value = currentDate;
-        } else {
-            state.gameDateFilter = "all";
-            dateFilter.value = "all";
+        dateFilter.value = dateOptions.includes(filters.date) ? filters.date : "all";
+    }
+
+    if (eventFilter) {
+        const eventScopedGames =
+            filters.type === "all" && filters.date === "all" && filters.player === "all"
+                ? games
+                : filterGames(games, { event: "none" });
+
+        const options = [{ value: "none", label: "All events" }];
+        const seen = new Set(["none"]);
+        (state.events || []).forEach((event) => {
+            const value = eventKey(event);
+            const label = eventLabel(event);
+            if (!value || !label || seen.has(value)) return;
+            if (!eventScopedGames.some((g) => matchesEvent(g, value))) return;
+            seen.add(value);
+            options.push({ value, label });
+        });
+        if (filters.event !== "none" && !options.some((opt) => opt.value === filters.event)) {
+            const selectedEvent = (state.events || []).find((event) => eventKey(event) === filters.event);
+            options.push({
+                value: filters.event,
+                label: selectedEvent ? eventLabel(selectedEvent) : filters.event,
+            });
         }
+
+        eventFilter.innerHTML = options
+            .map((opt) => `<option value="${opt.value}">${opt.label}</option>`)
+            .join("");
+
+        eventFilter.value = options.some((opt) => opt.value === filters.event) ? filters.event : "none";
     }
 
     if (playerFilter) {
         const playerScopedGames =
-            currentType === "all" && currentDate === "all"
+            filters.type === "all" && filters.date === "all" && filters.event === "none"
                 ? games
-                : games.filter((g) => matchesType(g, currentType) && matchesDate(g, currentDate));
+                : filterGames(games, { player: "all" });
         const playersSet = new Set();
         playerScopedGames.forEach((g) => {
             (Array.isArray(g.players) ? g.players : []).forEach((name) => {
@@ -334,6 +409,13 @@ export function initUI() {
     if (gameFilter) {
         gameFilter.addEventListener("change", (e) => {
             state.gameFilter = e.target.value || "all";
+            buildGrid(state.games || []);
+        });
+    }
+
+    if (eventFilter) {
+        eventFilter.addEventListener("change", (e) => {
+            state.eventFilter = e.target.value || "none";
             buildGrid(state.games || []);
         });
     }
