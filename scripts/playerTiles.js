@@ -18,10 +18,13 @@ export function updatePlayerTiles(currentTime) {
         const pid = tile.dataset.playerId;
         const events = state.playerEvents[pid] || [];
         let score = 0;
+        let isActive = true;
         for (let ev of events) {
         if (ev.time <= currentTime) {
             // sum the playerDelta (fallback to ev.delta if needed)
             score += ev.playerDelta ?? ev.delta ?? 0;
+            if (ev.type === "deactivated") isActive = false;
+            if (ev.type === "reactivated") isActive = true;
         } else {
             break;
         }
@@ -30,6 +33,7 @@ export function updatePlayerTiles(currentTime) {
         const scoreEl = tile.querySelector(".player-score");
         if (scoreEl) scoreEl.textContent = score;
         tile.classList.toggle("_negative", score < 0);
+        tile.classList.toggle("is-deactivated", !isActive);
 
         const { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount } =
         computePlayerStats(pid, currentTime);

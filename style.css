@@ -198,6 +198,16 @@ button {
   /* transition: background 0.2s ease; */
   
 }
+.player-summary.is-deactivated {
+  background: #242424;
+  border-color: #555;
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+.player-summary.is-deactivated .player-name,
+.player-summary.is-deactivated .player-score {
+  color: #b0b0b0;
+}
 
 .player-summary-header .player-score {
   flex: 0 0 auto;
