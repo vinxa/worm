@@ -3,6 +3,7 @@ import csv
 import json
 from io import StringIO
 from datetime import datetime
+from urllib.parse import unquote_plus
 
 s3 = boto3.client("s3")
 
@@ -12,10 +13,10 @@ def readFile(fileobj):
         "mission": ["type", "desc", "start", "duration", "penalty"],
         "team": ["index", "desc", "colour-enum", "colour-desc", "colour-rgb"],
         "event": ["time", "type", "varies"],
-        "entity-start": ["time", "id", "type", "desc", "team", "level", "category", "battlesuit"],
+        "entity-start": ["time", "id", "type", "desc", "team", "level", "category", "battlesuit", "memberId"],
         "player-state": ["time", "entity", "state"],
         "score": ["time", "entity", "old", "delta", "new"],
-        "entity-end": ["time", "id", "type", "score"]
+        "entity-end": ["time", "id", "type", "score"],
     }
 
     sections = {key: [] for key in known_headers}
@@ -56,8 +57,11 @@ def readFile(fileobj):
 
 
 def lambda_handler(event, context):
+    print(f"Incoming event: {event}")
+    print(f"Using context: {context}")
+
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
-    key = event["Records"][0]["s3"]["object"]["key"]
+    key = unquote_plus(event["Records"][0]["s3"]["object"]["key"])
 
     if not key.lower().endswith(".tdf"):
         print(f"Skipping non-tdf file: {key}")
@@ -67,6 +71,7 @@ def lambda_handler(event, context):
 
     # Download file
     obj = s3.get_object(Bucket=bucket, Key=key)
+    print(obj)
     body = obj["Body"].read()
 
     # Decode UTF-16LE
@@ -131,12 +136,32 @@ def lambda_handler(event, context):
             }
             bases[player_data["id"]] = base
 
-    # Check for late logins in startup sequence
-    for state in parsed_data["player-state"]:
-        if state["entity"].startswith("#") and state["entity"] not in output["players"].keys():
-            print(state)
+    # Drop teams with no players assigned
+    used_team_ids = {p["team"] for p in output["players"].values() if p.get("team")}
+    output["teams"] = [t for t in output["teams"] if t["id"] in used_team_ids]
+    
     # Events (full parsing logic)
     for i, (section, event) in enumerate(raw_records):
+
+        # Parse player state - track player up/down state
+        if section == "player-state":
+            entity = event.get("entity")
+            if entity not in output["players"]:
+                continue
+            t = int(event["time"]) / 1000
+            state = event.get("state")
+            if state == "3":
+                output["events"].append({
+                    "time": t, "entity": entity,
+                    "target": "", "type": "deactivated", "delta": 0
+                })
+            elif state == "0":
+                output["events"].append({
+                    "time": t, "entity": entity,
+                    "target": "", "type": "reactivated", "delta": 0
+                })
+            continue
+
         if section != "event":
             continue
 
@@ -148,6 +173,10 @@ def lambda_handler(event, context):
                     output["events"].append({
                         "time": t, "entity": player["id"],
                         "target": "", "type": "game end", "delta": 0
+                    })
+                    output["events"].append({
+                        "time": t, "entity": player["id"],
+                        "target": "", "type": "reactivated", "delta": 0
                     })
 
             case "0100":  # game start
