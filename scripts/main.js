@@ -143,7 +143,8 @@ export async function loadGameData(dataPath, options = {}) {
         const maxEvent = state.gameData.events.length
         ? Math.max(...state.gameData.events.map((e) => e.time))
         : 0;
-        state.gameData.gameDuration = state.gameData.gameDuration ?? maxEvent;
+        const baseDuration = state.gameData.gameDuration ?? 0;
+        state.gameData.gameDuration = Math.max(baseDuration, maxEvent);
         state.currentTime = state.gameData.gameDuration;
 
         // Final scores for each player
