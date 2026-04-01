@@ -46,7 +46,7 @@ function isFreshGame(game) {
 
 async function fetchEventsConfig() {
     try {
-        const res = await fetch("assets/events.json", { cache: "no-store" });
+        const res = await fetch("static/events/events.json", { cache: "no-store" });
         if (!res.ok) throw new Error("Couldn't fetch events config");
         const list = await res.json();
         state.events = Array.isArray(list) ? list : [];

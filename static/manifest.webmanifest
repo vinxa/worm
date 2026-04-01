@@ -4,17 +4,17 @@
   "description": "Worm laser tag game analysis app",
   "icons": [
     {
-      "src": "/worm/assets/worm.png",
+      "src": "images/worm.png",
       "type": "image/png",
       "sizes": "1024x1024"
     },
     {
-      "src": "/worm/assets/worm-512.png",
+      "src": "images/worm-512.png",
       "type": "image/png",
       "sizes": "512x512"
     },
     {
-      "src": "/worm/assets/worm-192.png",
+      "src": "images/worm-192.png",
       "type": "image/png",
       "sizes": "192x192"
     }

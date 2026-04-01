@@ -30,6 +30,11 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Inject build stamp into service worker
+        run: |
+          BUILD_ID=$(date -u +%Y%m%d%H%M%S)
+          sed -i "s/__BUILD_ID__/${BUILD_ID}/g" sw.js
+
       - name: Prepare site files (exclude backend)
         run: |
           rsync -av --progress ./ ./_site --exclude server_scripts
