@@ -8,7 +8,6 @@ self.addEventListener("install", (event) => {
         "./",
         "./index.html",
         "./style.css",
-        "./scripts/main.js",
         "./static/manifest.webmanifest",
       ])
     ).catch(() => {})
@@ -30,7 +29,6 @@ self.addEventListener("fetch", (event) => {
 
   const isStatic =
     url.pathname.includes("/static/") ||
-    url.pathname.endsWith(".js") ||
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".webmanifest") ||
     url.pathname.endsWith(".png") ||
