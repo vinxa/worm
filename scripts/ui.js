@@ -201,21 +201,35 @@ function matchesPlayer(game, playerValue) {
 }
 
 function applyCurrentGameTeamLabels() {
+    const ul = document.querySelector(".team-scores");
+    if (!ul) return;
+
     const teamLabelMap = getTeamLabelMapForGame(
         state.selectedGame,
         state.gameData?.players || {},
         state.events || []
     );
-    const defaultNames = { red: "Red Team", blue: "Blue Team", green: "Green Team" };
+    const defaultNames = Object.fromEntries(
+        (state.gameData?.teams || []).map((t) => [t.id, t.name])
+    );
+    ul.innerHTML = "";
+    (state.gameData?.teams || []).forEach((team) => {
+        const li = document.createElement("li");
+        li.dataset.teamId = team.id;
 
-    document.querySelectorAll(".team-scores li").forEach((li) => {
-        const teamId = li?.dataset?.teamId;
-        const nameEl = li?.querySelector(".team-name");
-        if (!teamId || !nameEl) return;
-        const fullName = teamLabelMap[teamId] || defaultNames[teamId] || `${teamId} Team`;
+        const nameEl = document.createElement("span");
+        nameEl.className = "team-name";
+        const fullName = teamLabelMap[team.id] || defaultNames[team.id] || team.id;
         const shortName = fullName.length > 8 ? `${fullName.slice(0, 8)}...` : fullName;
         nameEl.textContent = shortName;
         nameEl.title = fullName;
+
+        const score = document.createElement("span");
+        score.className = "team-score";
+        score.textContent = "0";
+        li.appendChild(nameEl);
+        li.appendChild(score);
+        ul.appendChild(li);
     });
 }
 

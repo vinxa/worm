@@ -254,14 +254,45 @@ function sortTiles(transitionMs = 300) {
         });
     });
 
-    // 6) Re‐append in row order = sortedTeamIds
+    // 6) Layout: use the larger dimension as columns
+    const teamCount = sortedTeamIds.length;
+    const maxTeamSize = Math.max(
+        1,
+        ...sortedTeamIds.map((teamId) => (byTeam[teamId] || []).length)
+    );
+
+    if (teamCount >= maxTeamSize) {
+        // Teams as columns (more teams than players per team)
+        grid.style.gridTemplateColumns = `repeat(${teamCount}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${maxTeamSize}, auto)`;
+        sortedTeamIds.forEach((teamId, colIdx) => {
+        const arr = byTeam[teamId] || [];
+        arr.forEach((tile, rowIdx) => {
+            tile.style.gridColumn = colIdx + 1;
+            tile.style.gridRow = rowIdx + 1;
+        });
+        });
+    } else {
+        // Teams as rows (more players per team than teams)
+        grid.style.gridTemplateColumns = `repeat(${maxTeamSize}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${teamCount}, auto)`;
+        sortedTeamIds.forEach((teamId, rowIdx) => {
+        const arr = byTeam[teamId] || [];
+        arr.forEach((tile, colIdx) => {
+            tile.style.gridRow = rowIdx + 1;
+            tile.style.gridColumn = colIdx + 1;
+        });
+        });
+    }
+
+    // 7) Re‐append in row order = sortedTeamIds
     sortedTeamIds.forEach((teamId) => {
         (byTeam[teamId] || []).forEach((tile) => {
         grid.appendChild(tile);
         });
     });
 
-    // 7) FLIP animate from oldRects → new positions
+    // 8) FLIP animate from oldRects → new positions
     tiles.forEach((tile) => {
         const oldRect = oldRects.get(tile);
         const newRect = tile.getBoundingClientRect();

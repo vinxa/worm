@@ -97,20 +97,12 @@ def lambda_handler(event, context):
     for team_data in parsed_data["team"]:
         if "Neutral" in team_data["desc"]:
             continue
-        if "Yellow" in team_data["desc"]:
-            team = {
-                "id": "green",
-                "index": team_data["index"],
-                "name": "Green Team",
-                "color": "#008140"
-            }
-        else:
-            team = {
-                "id": team_data["desc"].lower().split(" ")[0],
-                "index": team_data["index"],
-                "name": team_data["desc"],
-                "color": team_data["colour-rgb"]
-            }
+        team = {
+            "id": team_data["desc"].lower().split(" ")[0],
+            "index": team_data["index"],
+            "name": team_data["desc"],
+            "color": team_data["colour-rgb"]
+        }
         output["teams"].append(team)
 
     # Players and bases

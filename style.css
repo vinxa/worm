@@ -172,8 +172,9 @@ button {
   color: #ccc;
 }
 .players-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: minmax(0, auto);
   align-items: flex-start;     /* Important: don’t stretch row items */
   gap: 8px;
   height: 100%;                /* fill its parent vertically */
@@ -181,7 +182,7 @@ button {
   padding: 2px;
 }
 .player-summary {
-  flex: 0 0 calc((100% - 32px) / 5);
+  width: 100%;
   align-self: flex-start;
   box-sizing: border-box;
   padding: 8px;
@@ -879,7 +880,7 @@ button:hover {
     padding: 0px;
   }
   .player-summary {
-    flex: 0 0 calc((100% - 32px) / 5);
+    width: 100%;
     padding: 4px;
     min-width: 0;
     display: grid;
