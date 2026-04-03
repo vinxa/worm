@@ -6,6 +6,7 @@ import { setupKeyboardControls } from "./keyboard.js";
 import { createHomeUi } from "./homeUi.js";
 import { showGame, renderGameData, updateNextGameButtonVisibility, clickPlayButton, stepPlaybackRateUi, bindPlaybackButtons } from "./gameUi.js";
 import { setupFilterListeners } from "./gameFilters.js";
+import { setupLogoDance } from "./wormThings.js";
 
 const nextGameBtn = document.querySelector(".next-game-button");
 const { showHome, buildGrid } = createHomeUi({ showGame, updateNextGameButtonVisibility });
@@ -25,6 +26,7 @@ export function initUI() {
     leftNavigationButton.addEventListener("click", () => showHome(state.selectedGame));
 
     bindPlaybackButtons();
+    setupLogoDance();
 
     const rewindButton = document.getElementById("rewindButton");
     rewindButton.addEventListener("click", () => handleSkip(-15));
