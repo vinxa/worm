@@ -2,7 +2,7 @@
 
 // Imports
 import { state } from "./state.js";
-import { showHome, buildGrid, initUI, renderGameData, refreshNextGameButton } from "./ui.js";
+import { showHome, buildGrid, initUI, renderGameData, updateNextGameButtonVisibility } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
 
 const INDEX_REFRESH_MS = 10000;
@@ -87,9 +87,9 @@ function applyGameIndex(list, { fromPoll = false } = {}) {
 
     const latestChanged = state.latestGame?.id && state.latestGame.id !== prevLatestId;
     if (fromPoll && latestChanged) {
-        refreshNextGameButton(true, true);
+        updateNextGameButtonVisibility(true, true);
     } else {
-        refreshNextGameButton(false, false);
+        updateNextGameButtonVisibility(false, false);
     }
 
     const viewingLatest =

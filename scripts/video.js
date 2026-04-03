@@ -103,3 +103,14 @@ export function setupDraggableModal() {
         document.body.style.userSelect = "";
     });
 }
+
+export function toggleYouTubeModal() {
+    const modal = document.getElementById("videoModal");
+    if (!modal) return;
+    const isOpen = modal.style.display === "block";
+    if (isOpen) {
+        modal.style.display = "none";
+        return;
+    }
+    modal.style.display = "block";
+}

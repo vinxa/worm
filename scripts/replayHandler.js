@@ -28,6 +28,71 @@ export function handleSkip(delta) {
     }
 }
 
+export function setPlaybackRate(rate) {
+    state.playbackRate = rate;
+    if (state.isPlaying) {
+        clearTimeouts();
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+    }
+}
+
+export function stepPlaybackRate(direction, options = {}) {
+    const speeds = options.speeds || [0.5, 1, 1.5, 2, 4];
+    const idx = speeds.indexOf(state.playbackRate);
+    const safeIdx = idx === -1 ? 0 : idx;
+    const nextIdx = (safeIdx + direction + speeds.length) % speeds.length;
+    setPlaybackRate(speeds[nextIdx]);
+    return state.playbackRate;
+}
+
+export function goToLatestGame({ showGame } = {}) {
+    if (!state.latestGame || typeof showGame !== "function") return false;
+    state.selectedPlayers = new Set();
+    showGame(state.latestGame);
+    return true;
+}
+
+export function jumpToStart({ loadGameAtIndex } = {}) {
+    const atStart = state.currentTime <= 0.01;
+    if (atStart && typeof loadGameAtIndex === "function") {
+        const games = state.games || [];
+        if (state.selectedGame) {
+            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
+            if (currentIdx !== -1 && loadGameAtIndex(currentIdx + 1)) return;
+        }
+    }
+    jumpTo(0);
+}
+
+export function jumpToEnd({ loadGameAtIndex } = {}) {
+    const duration = getGameDuration();
+    const atEnd = duration > 0 && state.currentTime >= duration - 0.01;
+    if (atEnd && typeof loadGameAtIndex === "function") {
+        const games = state.games || [];
+        if (state.selectedGame) {
+            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
+            if (currentIdx > 0 && loadGameAtIndex(currentIdx - 1)) return;
+        }
+    }
+    jumpTo(duration);
+}
+
+export function togglePlayback() {
+    if (!state.gameData) return null;
+    if (state.currentTime >= getGameDuration()) {
+        seekToTime(0);
+    }
+    if (!state.isPlaying) {
+        state.isPlaying = true;
+        clearTimeouts();
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+        return true;
+    }
+    state.isPlaying = false;
+    clearTimeouts();
+    return false;
+}
+
 export function jumpTo(time) {
     if (!state.gameData) return;
     if (state.isPlaying) clearTimeouts();
