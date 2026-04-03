@@ -242,6 +242,109 @@ export function updatePlayerSeriesDisplay() {
         if (s) s.remove();
         }
     });
+
+    updatePlayerStatusBands();
+}
+
+function updatePlayerStatusBands() {
+    const chart = state.chart;
+    if (!chart) return;
+    const axis = chart.xAxis[0];
+    if (!axis) return;
+
+    if (chart.customPlayerStatusGroup) {
+        chart.customPlayerStatusGroup.destroy();
+        chart.customPlayerStatusGroup = null;
+    }
+    if (chart.customPlayerStatusClip) {
+        chart.customPlayerStatusClip.destroy();
+        chart.customPlayerStatusClip = null;
+    }
+
+    if (!state.selectedPlayers || state.selectedPlayers.size === 0) return;
+
+    const gameEnd = getGameDuration(state.gameData);
+    if (gameEnd <= 0) return;
+
+    const group = chart.renderer.g().attr({ zIndex: 0 }).add(chart.seriesGroup);
+    const plotLeft = chart.plotLeft;
+    const plotTop = chart.plotTop;
+    const plotWidth = chart.plotWidth;
+    const plotHeight = chart.plotHeight;
+    const clip = chart.renderer.clipRect(plotLeft, plotTop, plotWidth, plotHeight);
+    group.clip(clip);
+    const pids = Array.from(state.selectedPlayers);
+    const bandHeight = plotHeight / pids.length;
+    const stripWidth = 4;
+    const deadColor = "rgba(255, 80, 80, 0.18)";
+    const aliveColor = "rgba(80, 255, 140, 0.08)";
+
+    const getPlayerColor = (pid) => {
+        const series = chart.get(`${pid}-player`);
+        if (series && series.color) return series.color;
+        const name = state.gameData?.players?.[pid]?.name || pid || "";
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = (hash * 31 + name.charCodeAt(i)) | 0;
+        }
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue}, 70%, 60%)`;
+    };
+
+    pids.forEach((pid, idx) => {
+        const y = plotTop + idx * bandHeight;
+        const playerColor = getPlayerColor(pid);
+
+        chart.renderer
+            .rect(plotLeft, y, stripWidth, bandHeight)
+            .attr({ fill: playerColor, zIndex: 2 })
+            .add(group);
+        chart.renderer
+            .rect(plotLeft + plotWidth - stripWidth, y, stripWidth, bandHeight)
+            .attr({ fill: playerColor, zIndex: 2 })
+            .add(group);
+
+        const events = (state.playerEvents?.[pid] || [])
+            .filter((ev) => ev.type === "deactivated" || ev.type === "reactivated")
+            .sort((a, b) => a.time - b.time);
+
+        let status = "alive";
+        let lastTime = 0;
+
+        const pushBand = (from, to, color) => {
+            if (to <= from) return;
+            const x1 = axis.toPixels(from, false);
+            const x2 = axis.toPixels(to, false);
+            const width = Math.max(0, x2 - x1);
+            if (width <= 0) return;
+            chart.renderer
+                .rect(x1, y, width, bandHeight)
+                .attr({ fill: color, zIndex: 1 })
+                .add(group);
+        };
+
+        events.forEach((ev) => {
+            const t = ev.time;
+            if (status === "alive" && ev.type === "deactivated") {
+                pushBand(lastTime, t, aliveColor);
+                status = "dead";
+                lastTime = t;
+            } else if (status === "dead" && ev.type === "reactivated") {
+                pushBand(lastTime, t, deadColor);
+                status = "alive";
+                lastTime = t;
+            }
+        });
+
+        if (status === "alive") {
+            pushBand(lastTime, gameEnd, aliveColor);
+        } else {
+            pushBand(lastTime, gameEnd, deadColor);
+        }
+    });
+
+    chart.customPlayerStatusGroup = group;
+    chart.customPlayerStatusClip = clip;
 }
 
 export function updateCursorPosition(sec) {
@@ -334,6 +437,7 @@ export function initLiveChart(data) {
             },
             render: function () {
             drawBaseDestroyOverlays(this);
+            updatePlayerStatusBands();
             },
         },
         },
@@ -492,6 +596,7 @@ export function initLiveChart(data) {
     }
 
     applyTeamSeriesVisibility(state.hiddenTeams);
+    updatePlayerStatusBands();
     return chart;
 }
 

@@ -89,6 +89,30 @@ export function computePlayerStats(pid, t) {
     return { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount };
 }
 
+export function computePlayerUptime(pid, t) {
+    if (!state.gameData || !state.gameData.events) return 1;
+    if (t <= 0) return 1;
+    const events = state.gameData.events
+        .filter((ev) => ev.entity === pid && (ev.type === "deactivated" || ev.type === "reactivated") && ev.time <= t)
+        .sort((a, b) => a.time - b.time);
+    let alive = true;
+    let lastTime = 0;
+    let aliveTime = 0;
+    for (const ev of events) {
+        if (alive && ev.type === "deactivated") {
+            aliveTime += Math.max(0, ev.time - lastTime);
+            alive = false;
+            lastTime = ev.time;
+        } else if (!alive && ev.type === "reactivated") {
+            alive = true;
+            lastTime = ev.time;
+        }
+    }
+    if (alive) {
+        aliveTime += Math.max(0, t - lastTime);
+    }
+    return aliveTime / t;
+}
 /**
  * tags for against between 2 players up to time t
  */

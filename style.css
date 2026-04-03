@@ -493,6 +493,39 @@ button {
   margin-top: 4px;
 }
 
+.detail-left {
+  grid-column: 1;
+  justify-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.detail-right {
+  grid-column: 2;
+  justify-self: start;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-right: 0;
+}
+
+.detail-left p,
+.detail-right p {
+  margin: 0;
+  line-height: 1.2;
+}
+
+
+.detail-bases {
+  grid-row: 1;
+  margin-top: 0;
+  align-self: start;
+}
+
 .base-box {
   width: 20px;
   height: 20px;
@@ -935,8 +968,11 @@ button:hover {
   .detail-tags-label {
     display: none;
   }
+  
+
   .detail-ratio-line,
-  .detail-denies-line {
+  .detail-denies-line,
+  .detail-uptime-line {
     display: none;
   }
   .player-summary-details p {

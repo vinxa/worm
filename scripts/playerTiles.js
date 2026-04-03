@@ -1,5 +1,5 @@
 // playerTiles.js
-import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags } from "./utils.js";
+import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime } from "./utils.js";
 import { showGame } from "./ui.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
@@ -42,6 +42,7 @@ export function updatePlayerTiles(currentTime) {
         const tagsLabelEl = tile.querySelector(".detail-tags-label");
         const ratioEl = tile.querySelector(".detail-ratio");
         const deniesEl = tile.querySelector(".detail-denies");
+        const uptimeEl = tile.querySelector(".detail-uptime");
 
         if (tagsEl) {
         if (focusPid && focusPid !== pid) {
@@ -57,6 +58,11 @@ export function updatePlayerTiles(currentTime) {
         }
         if (ratioEl) ratioEl.textContent = ratioText;
         if (deniesEl) deniesEl.textContent = deniesCount;
+        if (uptimeEl) {
+        const uptime = computePlayerUptime(pid, currentTime);
+        const pct = Math.round(uptime * 100);
+        uptimeEl.textContent = `${pct}%`;
+        }
         const myTeamId = state.gameData.players[pid].team; // e.g. "green"
         const opponents = state.gameData.teams
         .filter((t) => t.id !== myTeamId) // keep only other teams
@@ -111,10 +117,15 @@ export function generatePlayerTiles() {
             <div class="player-score">${stats.score ?? "0"}</div>
         </div>
         <div class="player-summary-details">
-            <p class="detail-tags-line"><span class="detail-tags-label">Tags:</span> <span class="detail-tags">–</span></p>
-            <p class="detail-ratio-line">TR: <span class="detail-ratio">–</span></p>
-            <div class="detail-bases"></div>
-            <p class="detail-denies-line">Denies: <span class="detail-denies">–</span></p>
+            <div class="detail-left">
+                <p class="detail-tags-line"><span class="detail-tags-label">Tags:</span> <span class="detail-tags">–</span></p>
+                <div class="detail-bases"></div>
+            </div>
+            <div class="detail-right">
+                <p class="detail-ratio-line">TR: <span class="detail-ratio">–</span></p>
+                <p class="detail-denies-line">Denies: <span class="detail-denies">–</span></p>
+                <p class="detail-uptime-line">Uptime: <span class="detail-uptime">–</span></p>
+            </div>
         </div>
         `;
 
