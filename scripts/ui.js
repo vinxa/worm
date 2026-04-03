@@ -28,6 +28,40 @@ const headerPlayButton = document.getElementById("headerPlayButton");
 const headerSpeedButton = document.getElementById("headerSpeedButton");
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 
+function applySpeedLabel() {
+    const label = `${state.playbackRate}x`;
+    const speedButton = document.getElementById("speedButton");
+    if (speedButton) speedButton.textContent = label;
+    if (headerSpeedButton) headerSpeedButton.textContent = label;
+}
+
+function setPlaybackRate(next) {
+    state.playbackRate = next;
+    applySpeedLabel();
+    if (state.isPlaying) {
+        clearTimeouts();
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+    }
+}
+
+function stepPlaybackRate(direction) {
+    const idx = SPEED_OPTIONS.indexOf(state.playbackRate);
+    const safeIdx = idx === -1 ? 0 : idx;
+    const nextIdx = (safeIdx + direction + SPEED_OPTIONS.length) % SPEED_OPTIONS.length;
+    setPlaybackRate(SPEED_OPTIONS[nextIdx]);
+}
+
+function openYouTubeModal() {
+    const modal = document.getElementById("videoModal");
+    if (!modal) return;
+    const isOpen = modal.style.display === "block";
+    if (isOpen) {
+        modal.style.display = "none";
+        return;
+    }
+    modal.style.display = "block";
+}
+
 function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
     const shouldShow =
@@ -102,11 +136,46 @@ function keyboardControls(e) {
             break;
         case "ArrowLeft":
             e.preventDefault();
+            if (e.shiftKey) {
+                jumpToStart();
+                break;
+            }
             handleSkip(-15);
             break;
         case "ArrowRight":
             e.preventDefault();
+            if (e.shiftKey) {
+                jumpToEnd();
+                break;
+            }
             handleSkip(+15);
+            break;
+        case "Equal":
+        case "NumpadAdd":
+            if (isTypingField(e.target)) break;
+            e.preventDefault();
+            stepPlaybackRate(1);
+            break;
+        case "Minus":
+        case "NumpadSubtract":
+            if (isTypingField(e.target)) break;
+            e.preventDefault();
+            stepPlaybackRate(-1);
+            break;
+        case "KeyV":
+            if (isTypingField(e.target)) break;
+            e.preventDefault();
+            openYouTubeModal();
+            break;
+        case "KeyL":
+            if (isTypingField(e.target)) break;
+            e.preventDefault();
+            if (nextGameBtn) {
+                nextGameBtn.click();
+            } else if (state.latestGame) {
+                state.selectedPlayers = new Set();
+                showGame(state.latestGame);
+            }
             break;
         case "Backspace":
             if (!isTypingField(e.target)) {
@@ -466,22 +535,13 @@ export function initUI() {
     if (skipEndButton) skipEndButton.addEventListener("click", () => jumpToEnd());
 
     const speedButton = document.getElementById("speedButton");
-    const applySpeedLabel = () => {
-        const label = `${state.playbackRate}x`;
-        if (speedButton) speedButton.textContent = label;
-        if (headerSpeedButton) headerSpeedButton.textContent = label;
-    };
     const bindSpeedButton = (btn) => {
         if (!btn) return;
         btn.addEventListener("click", () => {
         const idx = SPEED_OPTIONS.indexOf(state.playbackRate);
-        const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length];
-        state.playbackRate = next;
-        applySpeedLabel();
-        if (state.isPlaying) {
-            clearTimeouts();
-            playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
-        }
+        const safeIdx = idx === -1 ? 0 : idx;
+        const next = SPEED_OPTIONS[(safeIdx + 1) % SPEED_OPTIONS.length];
+        setPlaybackRate(next);
         });
     };
     applySpeedLabel();

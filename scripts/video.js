@@ -80,8 +80,10 @@ export function setupDraggableModal() {
 
     closeBtn.addEventListener("click", () => {
         modal.style.display = "none";
-        state.player.destroy();
-        state.player = null;
+        if (state.player) {
+            state.player.destroy();
+            state.player = null;
+        }
     });
 
     header.addEventListener("mousedown", (e) => {
