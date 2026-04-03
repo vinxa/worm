@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
-import { formatTime } from "./utils.js";
+import { formatTime, getGameDuration } from "./utils.js";
 
 function updatePlayButtonsLabel(label) {
   const mainBtn = document.getElementById("playButton");
@@ -16,7 +16,7 @@ export function handleSkip(delta) {
     // a) If a replay is running, cancel every scheduled tick:
     if (state.isPlaying) clearTimeouts();
     // b) Compute & clamp the new time:
-    const maxTime = state.gameData.gameDuration ?? Math.max(...state.gameData.events.map((e) => e.time));
+    const maxTime = getGameDuration(state.gameData);
     const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
 
     // c) Seek all UI & chart to newTime:
@@ -28,24 +28,13 @@ export function handleSkip(delta) {
     }
 }
 
-function jumpTo(time) {
+export function jumpTo(time) {
     if (!state.gameData) return;
     if (state.isPlaying) clearTimeouts();
     seekToTime(time);
     if (state.isPlaying) {
         playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
     }
-}
-
-export function jumpToStart() {
-    jumpTo(0);
-}
-
-export function jumpToEnd() {
-    const duration =
-        state.gameData?.gameDuration ??
-        Math.max(0, ...(state.gameData?.events || []).map((e) => e.time));
-    jumpTo(duration);
 }
 
 /**
@@ -60,10 +49,7 @@ export function jumpToEnd() {
  */
 export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   // 1) Compute duration
-  const maxEventTime = data.events.length
-    ? Math.max(...data.events.map((e) => e.time))
-    : 0;
-  const duration = data.gameDuration != null ? data.gameDuration : maxEventTime;
+  const duration = getGameDuration(data);
 
   // 2) Sort events by exact time
   const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
@@ -157,8 +143,7 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
 
 export function seekToTime(sec) {
   if (!state.gameData) return;
-  const duration =
-    state.gameData.gameDuration ?? Math.max(...state.gameData.events.map((e) => e.time));
+  const duration = getGameDuration(state.gameData);
   // clamp
   sec = Math.max(0, Math.min(sec, duration));
   state.currentTime = sec;

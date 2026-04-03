@@ -18,6 +18,13 @@ export function formatTime(sec) {
     return m + ":" + (s < 10 ? "0" + s : s);
 }
 
+export function getGameDuration(data = state.gameData) {
+    if (!data) return 0;
+    if (data.gameDuration != null) return data.gameDuration;
+    const maxEventTime = Math.max(0, ...(data.events || []).map((e) => e.time));
+    return maxEventTime;
+}
+
 
 // Helper to compute a team’s total score at time `t`:
 export function computeTeamTotal(teamId, t) {

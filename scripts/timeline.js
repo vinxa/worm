@@ -1,4 +1,4 @@
-import { hexToRGBA, formatTime } from "./utils.js";
+import { hexToRGBA, formatTime, getGameDuration } from "./utils.js";
 import { playReplay, seekToTime, clearTimeouts } from "./replayHandler.js";
 import { state } from "./state.js";
 
@@ -164,10 +164,7 @@ export function toggleTeamVisibility(teamId = null) {
 
 export function buildPlayerTimelines(data) {
     // 1) Determine duration (in whole seconds)
-    const duration =
-        data.gameDuration != null
-        ? data.gameDuration
-        : Math.max(0, ...data.events.map((e) => Math.floor(e.time)));
+    const duration = Math.floor(getGameDuration(data));
 
     // 2) Bucket all player deltas by second
     const buckets = {};
@@ -351,7 +348,7 @@ export function initLiveChart(data) {
         gridLineWidth: 1,
         gridLineColor: "rgba(136, 136, 136, 0.3)",
         min: 0,
-        max: state.gameData.gameDuration,
+        max: getGameDuration(state.gameData),
         tickInterval: 60,
         minorTickInterval: 0.1,
         minorTickLength: 5,

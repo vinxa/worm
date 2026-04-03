@@ -1,10 +1,10 @@
 // ui.js
 
 import { state } from "./state.js";
-import { playReplay, seekToTime, handleSkip, clearTimeouts, jumpToStart, jumpToEnd } from "./replayHandler.js";
-import { wiggleLogos, setupLogoDance, randomWobble } from "./wormThings.js";
+import { playReplay, seekToTime, handleSkip, clearTimeouts, jumpTo } from "./replayHandler.js";
+import { wiggleLogos, setupLogoDance } from "./wormThings.js";
 import { loadGameData } from "./main.js";
-import { formatGameDatetime, isTypingField } from "./utils.js";
+import { formatGameDatetime, isTypingField, getGameDuration } from "./utils.js";
 import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
 import { generatePlayerTiles, setupTileExpansion, setupPlayerSeriesToggles, colourPlayerNamesFromChart, setupTeamSeriesFilter } from "./playerTiles.js";
 import { setupDraggableModal } from "./video.js";
@@ -51,6 +51,39 @@ function stepPlaybackRate(direction) {
     setPlaybackRate(SPEED_OPTIONS[nextIdx]);
 }
 
+function getSelectedGameIndex() {
+    const games = state.games || [];
+    if (!state.selectedGame) return -1;
+    return games.findIndex((g) => g.id === state.selectedGame.id);
+}
+
+function loadGameAtIndex(idx) {
+    const games = state.games || [];
+    if (idx < 0 || idx >= games.length) return false;
+    state.selectedPlayers = new Set();
+    showGame(games[idx]);
+    return true;
+}
+
+function jumpToStart() {
+    const atStart = state.currentTime <= 0.01;
+    if (atStart) {
+        const currentIdx = getSelectedGameIndex();
+        if (loadGameAtIndex(currentIdx + 1)) return;
+    }
+    jumpTo(0);
+}
+
+function jumpToEnd() {
+    const duration = getGameDuration();
+    const atEnd = duration > 0 && state.currentTime >= duration - 0.01;
+    if (atEnd) {
+        const currentIdx = getSelectedGameIndex();
+        if (currentIdx > 0 && loadGameAtIndex(currentIdx - 1)) return;
+    }
+    jumpTo(duration);
+}
+
 function openYouTubeModal() {
     const modal = document.getElementById("videoModal");
     if (!modal) return;
@@ -92,7 +125,7 @@ function clickPlayButton() {
     const btn = document.getElementById("playButton");
     const headerBtn = document.getElementById("headerPlayButton");
     if (!state.gameData) return;
-    if (state.currentTime >= state.gameData.gameDuration) {
+    if (state.currentTime >= getGameDuration()) {
         seekToTime(0);
     }
     if (!state.isPlaying) {
@@ -129,7 +162,7 @@ function keyboardControls(e) {
     switch (e.code) {
         case "Space":
             e.preventDefault();
-            if (state.currentTime >= state.gameData.gameDuration) {
+            if (state.currentTime >= getGameDuration()) {
                 seekToTime(0);
             }
             document.getElementById("playButton").click();
