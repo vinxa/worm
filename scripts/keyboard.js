@@ -12,7 +12,14 @@ export function setupKeyboardControls({
     onLatestGame,
     onShowHome,
 }) {
+    const isGameViewActive = () => {
+        const header = document.querySelector("body > .app-header");
+        if (!header) return false;
+        return header.style.display !== "none";
+    };
+
     document.addEventListener("keydown", (e) => {
+        if (!state.gameData || !isGameViewActive()) return;
         switch (e.code) {
             case "Space":
                 e.preventDefault();

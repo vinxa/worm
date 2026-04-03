@@ -182,3 +182,45 @@ export function populateFilterOptions(games) {
         }
     }
 }
+
+export function setupFilterListeners({ onFiltersChanged } = {}) {
+    const gameFilter = document.getElementById("gameFilter");
+    const eventFilter = document.getElementById("eventFilter");
+    const dateFilter = document.getElementById("dateFilter");
+    const playerFilter = document.getElementById("playerFilter");
+
+    if (gameFilter) {
+        gameFilter.addEventListener("change", (e) => {
+            state.gameFilter = e.target.value || "all";
+            if (typeof onFiltersChanged === "function") onFiltersChanged();
+        });
+    }
+
+    if (eventFilter) {
+        eventFilter.addEventListener("change", (e) => {
+            state.eventFilter = e.target.value || "none";
+            if (typeof onFiltersChanged === "function") onFiltersChanged();
+        });
+    }
+
+    if (dateFilter) {
+        dateFilter.addEventListener("change", (e) => {
+            state.gameDateFilter = e.target.value || "all";
+            if (typeof onFiltersChanged === "function") onFiltersChanged();
+        });
+    }
+
+    if (playerFilter) {
+        const updatePlayerFilter = (value) => {
+            const trimmed = (value || "").trim();
+            state.gamePlayerFilterText = value || "";
+            state.gamePlayerFilter = trimmed === "" ? "all" : trimmed;
+            if (typeof onFiltersChanged === "function") onFiltersChanged();
+        };
+        playerFilter.addEventListener("change", (e) => updatePlayerFilter(e.target.value));
+        playerFilter.addEventListener("input", (e) => updatePlayerFilter(e.target.value));
+        playerFilter.addEventListener("focus", (e) => {
+            e.target.value = state.gamePlayerFilterText || "";
+        });
+    }
+}
