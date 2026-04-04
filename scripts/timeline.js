@@ -1,4 +1,4 @@
-import { hexToRGBA, formatTime, getGameDuration } from "./utils.js";
+import { hexToRGBA, formatTime, getGameDuration, getPlayerHighlightColor } from "./utils.js";
 import { playReplay, seekToTime, clearTimeouts } from "./replayHandler.js";
 import { state } from "./state.js";
 
@@ -208,6 +208,7 @@ export function updatePlayerSeriesDisplay() {
             id: sid,
             name: state.gameData.players[pid].name,
             data: state.playerTimelines[pid] || [[0, 0]],
+            color: getPlayerHighlightColor(pid),
             dashStyle: "ShortDot",
             marker: { enabled: false },
             zIndex: 4,

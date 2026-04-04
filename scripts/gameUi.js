@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { loadGameData } from "./main.js";
 import { formatGameDatetime } from "./utils.js";
 import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
-import { generatePlayerTiles, setupPlayerSeriesToggles, colourPlayerNamesFromChart, setupTeamSeriesFilter } from "./playerTiles.js";
+import { generatePlayerTiles, setupPlayerSeriesToggles, setupTeamSeriesFilter } from "./playerTiles.js";
 import { setupDraggableModal } from "./video.js";
 import { getGameDisplayTitle, getTeamLabelMapForGame } from "./displayLabels.js";
 import { wiggleLogos } from "./wormThings.js";
@@ -63,7 +63,6 @@ export function renderGameData() {
     generatePlayerTiles();
     applyCurrentGameTeamLabels();
     setupPlayerSeriesToggles();
-    colourPlayerNamesFromChart();
     setupTeamSeriesFilter();
 
     setupDraggableModal();

@@ -1,5 +1,5 @@
 // playerTiles.js
-import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime } from "./utils.js";
+import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, getPlayerHighlightColor } from "./utils.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
 
@@ -133,25 +133,6 @@ export function generatePlayerTiles() {
     });
 }
 
-export function colourPlayerNamesFromChart() {
-    document.querySelectorAll(".player-summary").forEach((tile) => {
-        const pid = tile.dataset.playerId;
-        const player = state.gameData.players[pid];
-        if (!player) return;
-
-        // 1) find that player’s team
-        const teamId = player.team; // e.g. 1, 2, 3
-
-        // 2) grab the live-series for that team
-        const liveSeries = state.chart.get(teamId + "-live");
-
-        if (liveSeries) {
-        // 3) paint the name in the exact same color
-        tile.querySelector(".player-name").style.color = liveSeries.color;
-        }
-    });
-}
-
 export function setupTeamSeriesFilter() {
     const items = document.querySelectorAll(".team-scores li");
     items.forEach((el) => el.classList.remove("active-team-filter"));
@@ -187,14 +168,12 @@ export function updateTeamScoresUI() {
         // update the score text
         span.textContent = score;
 
-        // pull the chart’s live-series color
-        if (state.chart) {
-            const series = state.chart.get(teamId + "-live");
-            const color = series ? series.color : "";
+        // pull team color from game data
+        const team = state.gameData.teams.find(t => t.id === teamId);
+        const color = team ? team.color : "";
 
-            // color the team-name, leave the score in default color
-            name.style.color = color;
-        }
+        // color the team-name, leave the score in default color
+        name.style.color = color;
     });
 
     sortTeamScoresUI();
@@ -386,12 +365,10 @@ export function setupPlayerSeriesToggles() {
             updatePlayerTiles(state.currentTime);
             clickedTile.classList.toggle("selected");
 
-            // if we just expanded, pull the series color and set the border
+            // if selected, set the border to the highlight color
             const isSelected = clickedTile.classList.contains("selected");
             if (isSelected) {
-                const s = state.chart.get(pid + "-player");
-                const c = s ? s.color : "#e2b12a";
-                clickedTile.style.borderColor = c;
+                clickedTile.style.borderColor = getPlayerHighlightColor(pid);
             } else {
                 // collapsed — reset to default
                 clickedTile.style.borderColor = "";

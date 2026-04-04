@@ -18,6 +18,16 @@ export function formatTime(sec) {
     return m + ":" + (s < 10 ? "0" + s : s);
 }
 
+export function getPlayerHighlightColor(pid) {
+    const players = Object.keys(state.gameData.players || {});
+    players.sort(); // sort by pid for consistent ordering
+    const index = players.indexOf(pid);
+    if (index === -1) return "#e2b12a"; // fallback
+    const total = players.length;
+    const hue = (index / total) * 360;
+    return `hsl(${hue}, 70%, 60%)`;
+}
+
 export function getGameDuration(data = state.gameData) {
     if (!data) return 0;
     if (data.gameDuration != null) return data.gameDuration;
