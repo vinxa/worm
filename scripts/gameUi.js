@@ -62,7 +62,6 @@ export function renderGameData() {
 
     generatePlayerTiles();
     applyCurrentGameTeamLabels();
-    setupTileExpansion();
     setupPlayerSeriesToggles();
     colourPlayerNamesFromChart();
     setupTeamSeriesFilter();
