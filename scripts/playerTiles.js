@@ -1,6 +1,5 @@
 // playerTiles.js
-import { formatGameDatetime, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime } from "./utils.js";
-import { showGame } from "./ui.js";
+import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime } from "./utils.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
 
@@ -170,20 +169,6 @@ export function setupTeamSeriesFilter() {
         });
     });
 }
-
-// Expand‐in‐place logic for each tile
-export function setupTileExpansion() {
-    document.querySelectorAll(".player-summary").forEach((tile) => {
-        tile.addEventListener("click", (e) => {
-        const clickedTile = e.currentTarget;
-        const pid = clickedTile.dataset.playerId;
-
-        // toggle graph view
-        const isSelected = clickedTile.classList.toggle("selected");
-        if (!isSelected) return; // collapse: nothing to fill */
-        });
-    });
-} 
 
 /**
  * Write the current teamScores into the HTML.
@@ -385,6 +370,7 @@ export function setupPlayerSeriesToggles() {
     document.querySelectorAll(".player-summary").forEach((tile) => {
         tile.addEventListener("click", (e) => {
             const clickedTile = e.currentTarget;
+
             const pid = clickedTile.dataset.playerId;
             if ( state.isGameLoading || !state.gameData || !state.gameData.players || !state.gameData.players[pid] ) return; // ignore clicks while loading
 
@@ -398,6 +384,7 @@ export function setupPlayerSeriesToggles() {
             // sync chart to only show selected players
             updatePlayerSeriesDisplay();
             updatePlayerTiles(state.currentTime);
+            clickedTile.classList.toggle("selected");
 
             // if we just expanded, pull the series color and set the border
             const isSelected = clickedTile.classList.contains("selected");

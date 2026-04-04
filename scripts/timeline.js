@@ -163,10 +163,9 @@ export function toggleTeamVisibility(teamId = null) {
 }
 
 export function buildPlayerTimelines(data) {
-    // 1) Determine duration (in whole seconds)
     const duration = Math.floor(getGameDuration(data));
 
-    // 2) Bucket all player deltas by second
+    // Bucket all player deltas by second
     const buckets = {};
     Object.keys(data.players).forEach((pid) => (buckets[pid] = {}));
     data.events.forEach((ev) => {
@@ -178,7 +177,7 @@ export function buildPlayerTimelines(data) {
         buckets[pid][sec] = (buckets[pid][sec] || 0) + d;
     });
 
-    // 3) Walk each second, carrying forward each player’s total
+    // Walk each second and build cumulative timeline for each player
     const timelines = {};
     const totals = {};
     Object.keys(data.players).forEach((pid) => {
@@ -197,24 +196,6 @@ export function buildPlayerTimelines(data) {
 
     return timelines;
 }
-
-/* function togglePlayerSeries(pid) {
-    const sid = pid + "-player";
-    const existing = chart.get(sid);
-    if (existing) {
-        existing.remove();
-        return;
-    }
-    const tl = playerTimelines[pid] || [];
-    chart.addSeries({
-        id: sid,
-        name: state.gameData.players[pid].name,
-        data: tl,
-        dashStyle: "ShortDot",
-        marker: { enabled: false },
-        zIndex: 6,
-    });
-} */
 
 export function updatePlayerSeriesDisplay() {
     if (!state.gameData || !state.gameData.players) return;
