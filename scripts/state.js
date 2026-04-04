@@ -1,4 +1,6 @@
 // state.js
+import { S3_BASE_URL } from "./config.js";
+
 export const state = {
     gameData: null,
     playerEvents: {},
@@ -25,5 +27,5 @@ export const state = {
     gameDateFilter: "all",
     gamePlayerFilter: "all",
     gamePlayerFilterText: "",
-    S3_BASE_URL: "https://worm-game-data.s3.ap-southeast-2.amazonaws.com"
+    S3_BASE_URL: S3_BASE_URL,
 };

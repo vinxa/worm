@@ -128,6 +128,14 @@ export function generatePlayerTiles() {
         </div>
         `;
 
+        // player name is team colour
+        const player = state.gameData.players[pid];
+        if (player) {
+            const team = state.gameData.teams.find(t => t.id === player.team);
+            const color = team ? team.color : "";
+            tile.querySelector(".player-name").style.color = color;
+        }
+
         grid.appendChild(tile);
         updatePlayerTiles(tile);
     });

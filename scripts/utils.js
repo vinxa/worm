@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { GAME_TIMEZONE } from "./config.js";
 
 /** Convert hex color "#RRGGBB" to rgba() string with alpha */
 export function hexToRGBA(hex, alpha) {
@@ -145,10 +146,21 @@ export function computeHeadToHeadTags(focusPid, otherPid, t) {
 export function formatGameDatetime(ts) {
     const m = ts.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
     if (!m) return ts;
-    const [,YYYY,MM,DD,hh,mm] = m;
-    const d = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00+08:00`);
-    const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()];
-    return `${dayOfWeek} ${DD}/${MM}/${YYYY}\u00A0${hh}:${mm}`;
+    const [,YYYY,MM,DD,hh,mm] = m;    
+    // Game timestamps are in GAME_TIMEZONE
+    const gameDate = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
+    
+    // Format in user local timezone
+    const options = { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false
+    };
+    return gameDate.toLocaleDateString(undefined, options).replace(',', '');
 }
 
 /**

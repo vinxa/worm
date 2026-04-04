@@ -4,9 +4,7 @@
 import { state } from "./state.js";
 import { showHome, buildGrid, initUI, renderGameData, updateNextGameButtonVisibility } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
-
-const INDEX_REFRESH_MS = 10000;
-const FRESH_WINDOW_MINUTES = 15;
+import { INDEX_REFRESH_MS, GAME_TIMEZONE } from "./config.js";
 
 function getLatestGame(games) {
     if (!games || !games.length) return null;
@@ -34,14 +32,16 @@ function parseGameStart(game) {
     const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
     if (!m) return null;
     const [, YYYY, MM, DD, hh, mm] = m;
-    return new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00+08:00`);
+    return new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
 }
 
 function isFreshGame(game) {
     const start = parseGameStart(game);
     if (!start) return false;
     const now = Date.now();
-    return now - start.getTime() < FRESH_WINDOW_MINUTES * 60 * 1000;
+    // Use game duration as fresh window (in ms), fallback as 15min
+    const durationMs = (game.gameDuration || 15 * 60) * 1000;
+    return now - start.getTime() < durationMs;
 }
 
 async function fetchEventsConfig() {
