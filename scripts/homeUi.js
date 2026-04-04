@@ -3,6 +3,7 @@ import { formatGameDatetime } from "./utils.js";
 import { applyFilter, populateFilterOptions } from "./gameFilters.js";
 import { getEventTeamColourMap, getGameDisplayTitle, getMatchedEventTeamNames } from "./displayLabels.js";
 import { wiggleLogos } from "./wormThings.js";
+import { closeYouTubeModal } from "./video.js";
 
 const gameHeader = document.querySelector("body > .app-header");
 const gameSections = [
@@ -111,6 +112,7 @@ export function createHomeUi({ showGame, updateNextGameButtonVisibility }) {
         if (typeof updateNextGameButtonVisibility === "function") {
             updateNextGameButtonVisibility(false, false);
         }
+        closeYouTubeModal();
         wiggleLogos();
     }
 

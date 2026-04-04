@@ -2,6 +2,7 @@ import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { formatTime, getGameDuration } from "./utils.js";
+import { closeYouTubeModal } from "./video.js";
 
 function updatePlayButtonsLabel(label) {
   const mainBtn = document.getElementById("playButton");
@@ -48,6 +49,7 @@ export function stepPlaybackRate(direction, options = {}) {
 export function goToLatestGame({ showGame } = {}) {
     if (!state.latestGame || typeof showGame !== "function") return false;
     state.selectedPlayers = new Set();
+    closeYouTubeModal();
     showGame(state.latestGame);
     return true;
 }
