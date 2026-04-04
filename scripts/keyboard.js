@@ -14,8 +14,10 @@ export function setupKeyboardControls({
 }) {
     const isGameViewActive = () => {
         const header = document.querySelector("body > .app-header");
-        if (!header) return false;
-        return header.style.display !== "none";
+        const gameViewActive = header && header.style.display !== "none";
+        const videoModal = document.getElementById("videoModal");
+        const modalOpen = videoModal && videoModal.style.display === "block";
+        return gameViewActive || modalOpen;
     };
 
     document.addEventListener("keydown", (e) => {
@@ -73,5 +75,5 @@ export function setupKeyboardControls({
                 }
                 break;
         }
-    });
+    }, true); // Use capture phase to intercept events from iframes
 }

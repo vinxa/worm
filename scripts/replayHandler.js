@@ -4,18 +4,18 @@ import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { formatTime, getGameDuration } from "./utils.js";
 import { closeYouTubeModal } from "./video.js";
 
-function updatePlayButtonsLabel(label) {
+export function updatePlayButtonsLabel(label) {
   const mainBtn = document.getElementById("playButton");
   const headerBtn = document.getElementById("headerPlayButton");
   if (mainBtn) mainBtn.textContent = label;
   if (headerBtn) headerBtn.textContent = label;
 }
 
-
-
 export function handleSkip(delta) {
     // a) If a replay is running, cancel every scheduled tick:
-    if (state.isPlaying) clearTimeouts();
+    if (state.isPlaying) {
+        clearTimeouts();
+    }
     // b) Compute & clamp the new time:
     const maxTime = getGameDuration(state.gameData);
     const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
@@ -92,6 +92,10 @@ export function togglePlayback() {
     }
     state.isPlaying = false;
     clearTimeouts();
+    // pause video
+    if (state.player && typeof state.player.pauseVideo === "function") {
+      state.player.pauseVideo();
+    }
     return false;
 }
 
@@ -198,8 +202,10 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
       if (t >= duration) {
         // we’ve reached (or passed) the end
         state.isPlaying = false;
-        updatePlayButtonsLabel("▶");
-        // clear any leftover timeouts
+        updatePlayButtonsLabel("▶");        // pause video if playing
+        if (state.player && typeof state.player.pauseVideo === "function") {
+          state.player.pauseVideo();
+        }        // clear any leftover timeouts
         clearTimeouts();
       }
     }, delay);
@@ -208,16 +214,22 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   }
 }
 
-export function seekToTime(sec) {
+export function seekToTime(sec, skipVideoSeek = false) {
   if (!state.gameData) return;
   const duration = getGameDuration(state.gameData);
   // clamp
   sec = Math.max(0, Math.min(sec, duration));
   state.currentTime = sec;
 
+  // mark that we just seeked, so sync won't pull us back
+  if (typeof window !== 'undefined' && window.lastProgrammaticSeekAt !== undefined) {
+    window.lastProgrammaticSeekAt = Date.now();
+  }
+
   // sync video
-  if (state.player && typeof state.player.seekTo === "function") {
-    state.player.seekTo(sec, true);
+  if (!skipVideoSeek && state.player && typeof state.player.seekTo === "function") {
+    const offset = parseFloat(document.getElementById("videoOffset")?.value) || 0;
+    state.player.seekTo(sec + offset, true);
   }
 
   // 1) update tiles

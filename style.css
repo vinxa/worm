@@ -392,15 +392,28 @@ button {
   padding: 6px 10px 4px 10px;
   cursor: move;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: flex-start;
   border-radius: 4px 4px 0 0;
+  gap: 8px;
 }
 
 .modal-title {
   color: #eee;
   font-weight: bold;
   font-size: 0.75rem;
+  margin-right: auto;
+}
+
+.modal-header input {
+  margin-left: auto;
+  width: 80px;
+  font-size: 0.7rem;
+  padding: 2px 4px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #444;
+  color: #eee;
 }
 
 .modal-close {
@@ -410,6 +423,13 @@ button {
   font-size: 0.75rem;
   cursor: pointer;
   padding: 0.2rem 0.7rem;
+}
+
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #444;
+  color: #b9b9b9;
+  
 }
 
 .modal-body {

@@ -1,6 +1,10 @@
 // video.js
 import { state } from "./state.js";
-import { playReplay } from "./replayHandler.js";
+import { playReplay, seekToTime, clearTimeouts, updatePlayButtonsLabel } from "./replayHandler.js";
+
+let syncInterval = null;
+let isAdjustingOffset = false;
+let lastProgrammaticSeekAt = 0;
 
 // Helper to extract YouTube ID
 function parseYouTubeId(url) {
@@ -18,12 +22,15 @@ function loadVideo(v) {
         state.replayTimeouts.forEach((id) => clearTimeout(id));
         state.replayTimeouts = [];
     }
+    const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
+    let lastVideoTime;
     const modal = document.getElementById("videoModal");
     modal.style.display = "block";
     modal.style.width = "560px";
     modal.style.height = "355px"; // 315 + 40 for header
     if (state.player) {
         state.player.loadVideoById(v);
+        state.player.seekTo(state.currentTime + offset, true);
     } else {
         state.player = new YT.Player("modalPlayer", {
             height: "315",
@@ -44,12 +51,36 @@ function loadVideo(v) {
                         playerElement.style.width = `${playerWidth}px`;
                         playerElement.style.height = `${playerHeight}px`;
                     }
-                    if (state.player) state.player.setSize(playerWidth, playerHeight);
-                    if (state.player) state.player.seekTo(state.currentTime, true);
+                    if (state.player) {
+                        state.player.setSize(playerWidth, playerHeight);
+                        const originalSeekTo = state.player.seekTo.bind(state.player);
+                        state.player.seekTo = function (seconds, allowSeekAhead) {
+                            lastProgrammaticSeekAt = Date.now();
+                            const clamped = Math.max(0, seconds);
+                            return originalSeekTo(clamped, allowSeekAhead);
+                        };
+                        const videoTime = Math.max(0, state.currentTime + offset);
+                        state.player.seekTo(videoTime, true);
+                        lastVideoTime = videoTime;
+                        syncInterval = setInterval(() => {
+                            if (state.player && !isAdjustingOffset) {
+                                const recentGameSeek = Date.now() - lastProgrammaticSeekAt < 1000;
+                                if (recentGameSeek) return; // skip sync if we just seeked the game
+                                
+                                const currentVideoTime = state.player.getCurrentTime();
+                                const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
+                                const expectedGameTime = currentVideoTime - offset;
+                                if (Math.abs(expectedGameTime - state.currentTime) > 0.5) {
+                                    seekToTime(Math.max(0, expectedGameTime), true);
+                                }
+                            }
+                        }, 500);
+                    }
                 },
                 onStateChange: (e) => {
                     // PLAYING → resume game
                     if (e.data === YT.PlayerState.PLAYING) {
+                        lastVideoTime = state.currentTime + offset;
                         if (!state.isPlaying) {
                             state.isPlaying = true;
                             document.getElementById("playButton").textContent = "❚❚";
@@ -61,6 +92,18 @@ function loadVideo(v) {
                     }
                     // PAUSED → pause game
                     else if (e.data === YT.PlayerState.PAUSED) {
+                        const currentVideoTime = state.player ? state.player.getCurrentTime() : null;
+                        const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
+                        const expectedVideoTime = state.currentTime + offset;
+                        const isLikelySeek =
+                            currentVideoTime != null &&
+                            Math.abs(currentVideoTime - expectedVideoTime) > 0.5;
+                        const recentProgrammaticSeek = Date.now() - lastProgrammaticSeekAt < 500;
+
+                        if (isAdjustingOffset || recentProgrammaticSeek || isLikelySeek) {
+                            // don't treat seeks/resets as a user pause
+                            return;
+                        }
                         if (state.isPlaying) {
                             state.isPlaying = false;
                             document.getElementById("playButton").textContent = "❚❚";
@@ -87,15 +130,41 @@ export function setupDraggableModal() {
     const closeBtn = document.getElementById("modalClose");
     const loadBtn = document.getElementById("loadButton");
     const urlInput = document.getElementById("youtubeUrl");
+    const offsetInput = document.getElementById("videoOffset");
 
     modal.style.display = "none";
     let dragging = false,
         offsetX = 0,
         offsetY = 0;
+    let offsetAdjustTimeout;
 
     loadBtn.addEventListener("click", () => {
         const v = parseYouTubeId(urlInput.value);
         loadVideo(v);
+    });
+
+    offsetInput.addEventListener("input", () => {
+        if (state.player) {
+            isAdjustingOffset = true;
+            // Pause game and video while editing offset
+            if (state.isPlaying) {
+                state.isPlaying = false;
+                clearTimeouts();
+                updatePlayButtonsLabel("▶");
+                if (state.player && typeof state.player.pauseVideo === "function") {
+                    state.player.pauseVideo();
+                }
+            }
+            const offset = parseFloat(offsetInput.value) || 0;
+            const videoTime = state.player.getCurrentTime();
+            const newGameTime = Math.max(0, videoTime - offset);
+            seekToTime(newGameTime, true);
+            // Debounce offset editing state
+            clearTimeout(offsetAdjustTimeout);
+            offsetAdjustTimeout = setTimeout(() => {
+                isAdjustingOffset = false;
+            }, 1000);
+        }
     });
 
     closeBtn.addEventListener("click", () => {
@@ -179,6 +248,10 @@ export function closeYouTubeModal(fullyClose = true) {
     const modal = document.getElementById("videoModal");
     if (modal) {
         modal.style.display = "none";
+    }
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
     }
     if (state.player && fullyClose) {
         state.player.destroy();
