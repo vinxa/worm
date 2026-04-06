@@ -21,6 +21,15 @@ KNOWN_HEADERS = {
 IGNORED_EVENT_TYPES = {"0201", "0500", "0207", "0902"}
 TAG_EVENT_TYPES = {"0206", "0208", "0205"}
 STATIC_BASE_GAMES = {"zltac settings - wapl", "league laserforce", "zltac training - full game"}
+BASE_COLOR_FALLBACKS = {
+    "red": "#FF0000",
+    "blue": "#4060FF",
+    "green": "#40FF00",
+    "pink": "#FF10B0",
+    "yellow": "#FFFF00",
+    "orange": "#FF9000",
+    "white": "#FFFFFF",
+}
 
 def read_tdf(fileobj):
     sections = {key: [] for key in KNOWN_HEADERS}
@@ -156,6 +165,10 @@ def _team_id_from_base_name(name):
     return tokens[0] if tokens else None
 
 
+def _team_color_for(team_id, team_color_by_id):
+    return team_color_by_id.get(team_id) or BASE_COLOR_FALLBACKS.get(team_id) or "#FFFFFF"
+
+
 def build_events(raw_records, players, bases, game_duration):
     events = []
     raw_len = len(raw_records)
@@ -254,9 +267,16 @@ def build_events(raw_records, players, bases, game_duration):
     return events
 
 
-def build_active_bases(raw_records, bases):
+def build_active_bases(raw_records, bases, team_color_by_id):
     active_bases = []
     seen = set()
+
+    def add_active_base(team_id):
+        if not team_id or team_id in seen:
+            return
+        seen.add(team_id)
+        active_bases.append({"id": team_id, "color": _team_color_for(team_id, team_color_by_id)})
+
     for section, event in raw_records:
         if section != "event" or event.get("type") not in {"0203", "0204"}:
             continue
@@ -265,23 +285,28 @@ def build_active_bases(raw_records, bases):
         if not base:
             continue
         base_team = base["team"] if base.get("team") else _team_id_from_base_name(base.get("name"))
-        if not base_team or base_team in seen:
-            continue
-        seen.add(base_team)
-        active_bases.append(base_team)
+        add_active_base(base_team)
+
     return active_bases
 
 
 def build_output(parsed_data, raw_records):
     game_duration = compute_game_duration_seconds(parsed_data)
 
-    teams = build_teams(parsed_data)
-    players, bases = build_players_and_bases(parsed_data, teams)
-    teams = [t for t in teams if t["id"] in {p["team"] for p in players.values() if p.get("team")}]  # remove empty teams
+    all_teams = build_teams(parsed_data)
+    team_color_by_id = {team["id"]: team["color"] for team in all_teams}
+    players, bases = build_players_and_bases(parsed_data, all_teams)
+    teams = [t for t in all_teams if t["id"] in {p["team"] for p in players.values() if p.get("team")}]  # remove empty teams
     events = build_events(raw_records, players, bases, game_duration)
-    active_bases = build_active_bases(raw_records, bases)
-    if parsed_data["mission"]["0"]["desc"].lower() in STATIC_BASE_GAMES:
-        active_bases.update([team["id"] for team in teams])
+    active_bases = build_active_bases(raw_records, bases, team_color_by_id)
+    if parsed_data["mission"][0]["desc"].lower() in STATIC_BASE_GAMES:
+        seen_active_base_ids = {base["id"] for base in active_bases}
+        for team in all_teams:
+            team_id = team["id"]
+            if team_id in seen_active_base_ids:
+                continue
+            active_bases.append({"id": team_id, "color": _team_color_for(team_id, team_color_by_id)})
+            seen_active_base_ids.add(team_id)
 
     output = {
         "gameDuration": game_duration,

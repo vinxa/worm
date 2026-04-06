@@ -62,15 +62,15 @@ export function updatePlayerTiles(currentTime) {
         const pct = Math.round(uptime * 100);
         uptimeEl.textContent = `${pct}%`;
         }
-        const myTeamId = state.gameData.players[pid].team; // e.g. "green"
-        const opponents = state.gameData.teams
-        .filter((t) => t.id !== myTeamId) // keep only other teams
-        .map((t) => ({ id: t.id, color: t.color })); // get their IDs & colors
         const baseStats = computeBaseStats(pid, currentTime);
+        const teamColorById = Object.fromEntries(
+            state.gameData.teams.map((t) => [t.id, t.color])
+        );
+        const activeBases = state.gameData.active_bases || [];
         const container = tile.querySelector(".detail-bases");
 
         if (container) {
-        container.innerHTML = opponents
+        container.innerHTML = activeBases
             .map(({ id, color }) => {
             // stat for this target:
             const stat = baseStats[id] || { count: 0, destroyed: false };
