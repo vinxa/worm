@@ -267,12 +267,10 @@ export function toggleYouTubeModal() {
         closeYouTubeModal(true);
         return;
     }
-    // Opening
+    // Opening: only open when a valid YouTube URL is provided.
     const urlInput = document.getElementById("youtubeUrl");
-    const v = parseYouTubeId(urlInput.value);
+    const v = parseYouTubeId((urlInput?.value || "").trim());
     if (v) {
         loadVideo(v);
-    } else {
-        modal.style.display = "block";
     }
 }
