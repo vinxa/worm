@@ -7,48 +7,40 @@ from urllib.parse import unquote_plus
 
 LOG_WARNINGS = False
 
-def read_tdf(fileobj):
-    known_headers = {
-        "info": ["file-version", "program-version", "centre"],
-        "mission": ["type", "desc", "start", "duration", "penalty"],
-        "team": ["index", "desc", "colour-enum", "colour-desc", "colour-rgb"],
-        "event": ["time", "type", "varies"],
-        "entity-start": [
-            "time",
-            "id",
-            "type",
-            "desc",
-            "team",
-            "level",
-            "category",
-            "battlesuit",
-            "memberId",
-        ],
-        "player-state": ["time", "entity", "state"],
-        "score": ["time", "entity", "old", "delta", "new"],
-        "entity-end": ["time", "id", "type", "score"],
-    }
+KNOWN_HEADERS = {
+    "info": ["file-version", "program-version", "centre"],
+    "mission": ["type", "desc", "start", "duration", "penalty"],
+    "team": ["index", "desc", "colour-enum", "colour-desc", "colour-rgb"],
+    "event": ["time", "type", "varies"],
+    "entity-start": ["time", "id", "type", "desc", "team", "level", "category", "battlesuit", "memberId"],
+    "player-state": ["time", "entity", "state"],
+    "score": ["time", "entity", "old", "delta", "new"],
+    "entity-end": ["time", "id", "type", "score"],
+}
 
-    sections = {key: [] for key in known_headers}
+IGNORED_EVENT_TYPES = {"0201", "0500", "0207", "0902"}
+TAG_EVENT_TYPES = {"0206", "0208", "0205"}
+STATIC_BASE_GAMES = {"zltac settings - wapl", "league laserforce", "zltac training - full game"}
+
+def read_tdf(fileobj):
+    sections = {key: [] for key in KNOWN_HEADERS}
     code_to_section = {}
-    raw_records = []  # preserve file order for cross-section parsing
+    raw_records = []
 
     reader = csv.reader(fileobj, delimiter="\t")
-    sections_local = sections
-    code_lookup = code_to_section
-    append_raw = raw_records.append
     for row in reader:
         if not row:
             continue
-        if row[0].startswith(";"):
-            semicode, rest = row[0][1:].split("/", 1)
+
+        first = row[0]
+        if first.startswith(";"):
+            semicode, rest = first[1:].split("/", 1)
             section = rest.split()[0]
-            if section in known_headers:
-                code_lookup[semicode] = section
+            if section in KNOWN_HEADERS:
+                code_to_section[semicode] = section
             continue
 
-        code = row[0]
-        section = code_lookup.get(code)
+        section = code_to_section.get(first)
         if not section:
             continue
 
@@ -59,12 +51,10 @@ def read_tdf(fileobj):
                 "varies": " ".join(row[3:]).strip(),
             }
         else:
-            data = row[1:]
-            headers = known_headers[section]
-            row_dict = {key: val for key, val in zip(headers, data)}
+            row_dict = dict(zip(KNOWN_HEADERS[section], row[1:]))
 
-        sections_local[section].append(row_dict)
-        append_raw((section, row_dict))
+        sections[section].append(row_dict)
+        raw_records.append((section, row_dict))
 
     return sections, raw_records
 
@@ -77,51 +67,57 @@ def compute_game_duration_seconds(parsed_data):
 
 def build_teams(parsed_data):
     game_type = (parsed_data["mission"][0]["desc"] or "").strip()
-    is_league_laserforce = game_type.lower() == "league laserforce"
+    is_league_laserforce = game_type.lower().startswith("league laserforce")
 
     raw_teams = []
     for team_data in parsed_data["team"]:
         desc = team_data["desc"]
         if "Neutral" in desc:
             continue
+
         if is_league_laserforce and "Yellow" in desc:
-            team = {
-                "id": "green",
-                "index": team_data["index"],
-                "name": "Green Team",
-                "color": "#008140",
-                "_from_yellow": True,
-            }
-        else:
-            team = {
+            raw_teams.append(
+                {
+                    "id": "green",
+                    "index": team_data["index"],
+                    "name": "Green Team",
+                    "color": "#008140",
+                    "_from_yellow": True,
+                }
+            )
+            continue
+
+        raw_teams.append(
+            {
                 "id": desc.lower().split(" ")[0],
                 "index": team_data["index"],
                 "name": desc,
                 "color": team_data["colour-rgb"],
                 "_from_yellow": False,
             }
-        raw_teams.append(team)
+        )
 
     prefer_green_from_yellow = any(
         t["id"] == "green" and t.get("_from_yellow") for t in raw_teams
     )
-    seen_ids = set()
+
     teams = []
+    seen_ids = set()
 
     if prefer_green_from_yellow:
-        for t in raw_teams:
-            if t["id"] == "green" and t.get("_from_yellow"):
-                teams.append({k: v for k, v in t.items() if k != "_from_yellow"})
+        for team in raw_teams:
+            if team["id"] == "green" and team.get("_from_yellow"):
+                teams.append({k: v for k, v in team.items() if k != "_from_yellow"})
                 seen_ids.add("green")
                 break
 
-    for t in raw_teams:
-        team_id = t["id"]
+    for team in raw_teams:
+        team_id = team["id"]
         if team_id in seen_ids:
             continue
-        if prefer_green_from_yellow and team_id == "green" and not t.get("_from_yellow"):
+        if prefer_green_from_yellow and team_id == "green" and not team.get("_from_yellow"):
             continue
-        teams.append({k: v for k, v in t.items() if k != "_from_yellow"})
+        teams.append({k: v for k, v in team.items() if k != "_from_yellow"})
         seen_ids.add(team_id)
 
     return teams
@@ -131,32 +127,39 @@ def build_players_and_bases(parsed_data, teams):
     team_id_by_index = {t["index"]: t["id"] for t in teams}
     players = {}
     bases = {}
+
     for entity in parsed_data["entity-start"]:
+        team_id = team_id_by_index.get(entity["team"])
         if entity["type"] == "player":
             players[entity["id"]] = {
                 "id": entity["id"],
                 "name": entity["desc"],
-                "team": team_id_by_index.get(entity["team"]),
+                "team": team_id,
             }
         elif entity["type"] == "standard-target":
             bases[entity["id"]] = {
                 "id": entity["id"],
                 "name": entity["desc"],
-                "team": team_id_by_index.get(entity["team"]),
+                "team": team_id or _team_id_from_base_name(entity["desc"]),
             }
+
     return players, bases
 
 
-def drop_empty_teams(teams, players):
-    used_team_ids = {p["team"] for p in players.values() if p.get("team")}
-    return [t for t in teams if t["id"] in used_team_ids]
+def _last_token(value):
+    tokens = (value or "").split()
+    return tokens[-1].strip() if tokens else ""
+
+
+def _team_id_from_base_name(name):
+    tokens = (name or "").strip().lower().split()
+    return tokens[0] if tokens else None
 
 
 def build_events(raw_records, players, bases, game_duration):
-    raw_len = len(raw_records)
-    players_set = players
-    bases_map = bases
     events = []
+    raw_len = len(raw_records)
+    players_set = set(players)
 
     def score_event_at(index):
         if 0 <= index < raw_len and raw_records[index][0] == "score":
@@ -164,8 +167,7 @@ def build_events(raw_records, players, bases, game_duration):
         return None
 
     def parse_deac_entities(event):
-        tokens = (event.get("varies") or "").split()
-        ids = [t for t in tokens if t.startswith("#")]
+        ids = [t for t in (event.get("varies") or "").split() if t.startswith("#")]
         if len(ids) >= 2:
             return ids[0], ids[1]
         return None, None
@@ -175,194 +177,111 @@ def build_events(raw_records, players, bases, game_duration):
             entity = event.get("entity")
             if entity not in players_set:
                 continue
-            t = int(event["time"]) / 1000
-            state = event.get("state")
-            if state == "3":
-                events.append(
-                    {
-                        "time": t,
-                        "entity": entity,
-                        "target": "",
-                        "type": "deactivated",
-                        "delta": 0,
-                    }
-                )
-            elif state == "0":
-                events.append(
-                    {
-                        "time": t,
-                        "entity": entity,
-                        "target": "",
-                        "type": "reactivated",
-                        "delta": 0,
-                    }
-                )
+            state_event_type = {"3": "deactivated", "0": "reactivated"}.get(event.get("state"))
+            if state_event_type:
+                events.append({"time": int(event["time"]) / 1000, "entity": entity, "target": "", "type": state_event_type, "delta": 0})
             continue
 
         if section != "event":
             continue
 
         t = int(event["time"]) / 1000
-        event_type = event["type"]
+        event_type = event.get("type")
 
-        match event_type:
-            case "0101":  # game end
-                t_end = max(t, game_duration)
-                for player in players.values():
-                    events.append(
-                        {
-                            "time": t,
-                            "entity": player["id"],
-                            "target": "",
-                            "type": "game end",
-                            "delta": 0,
-                        }
-                    )
-                    events.append(
-                        {
-                            "time": t_end,
-                            "entity": player["id"],
-                            "target": "",
-                            "type": "reactivated",
-                            "delta": 0,
-                        }
-                    )
+        if event_type == "0101":
+            t_end = max(t, game_duration)
+            for player in players.values():
+                events.append({"time": t, "entity": player["id"], "target": "", "type": "game end", "delta": 0})
+                events.append({"time": t_end, "entity": player["id"], "target": "", "type": "reactivated", "delta": 0})
+            continue
 
-            case "0100":  # game start
-                for player in players.values():
-                    events.append(
-                        {
-                            "time": t,
-                            "entity": player["id"],
-                            "target": "",
-                            "type": "game start",
-                            "delta": 0,
-                        }
-                    )
+        if event_type == "0100":
+            for player in players.values():
+                events.append({"time": t, "entity": player["id"], "target": "", "type": "game start", "delta": 0})
+            continue
 
-            case "0201" | "0500" | "0207" | "0902":
+        if event_type in IGNORED_EVENT_TYPES:
+            continue
+
+        if event_type in TAG_EVENT_TYPES:
+            tagger_score = score_event_at(i - 2)
+            tagged_score = score_event_at(i - 1)
+            tagger_id, tagged_id = parse_deac_entities(event)
+
+            tagger_entity = tagger_score.get("entity") if tagger_score else tagger_id
+            tagged_entity = tagged_score.get("entity") if tagged_score else tagged_id
+
+            if event_type == "0208" and tagger_entity not in players_set:
+                if LOG_WARNINGS:
+                    print(f"base shot someone {event}")
                 continue
 
-            case "0206" | "0208" | "0205":  # deacs or stuns
-                tagger_score = score_event_at(i - 2)
-                tagged_score = score_event_at(i - 1)
-                tagger_id, tagged_id = parse_deac_entities(event)
-
-                tagger_entity = tagger_score.get("entity") if tagger_score else tagger_id
-                tagged_entity = tagged_score.get("entity") if tagged_score else tagged_id
-
-                # weird exception where reloaders tag people.
-                if event_type == "0208" and tagger_entity not in players_set:
-                    if LOG_WARNINGS:
-                        print(f"base shot someone {event}")
-                    continue
-
-                if not tagger_entity or not tagged_entity:
-                    if LOG_WARNINGS:
-                        print(f"weird event parse issue: {event}")
-                    continue
-
-                tagtype = "stun" if event_type == "0205" else "tag"
-                taggedtype = "stunned" if event_type == "0205" else "tagged"
-
-                events.append(
-                    {
-                        "time": t,
-                        "entity": tagger_entity,
-                        "target": tagged_entity,
-                        "type": tagtype,
-                        "delta": int(tagger_score["delta"]) if tagger_score else 0,
-                    }
-                )
-                events.append(
-                    {
-                        "time": t,
-                        "entity": tagged_entity,
-                        "target": tagger_entity,
-                        "type": taggedtype,
-                        "delta": int(tagged_score["delta"]) if tagged_score else 0,
-                    }
-                )
-
-            case "0203":  # shoot base
-                score_event = raw_records[i - 1][1]
-                base_id = event["varies"].split()[-1].strip()
-                if base_id not in bases_map:
-                    if LOG_WARNINGS:
-                        print("WARN base id not found", {"base_id": base_id, "event": event})
-                    continue
-                events.append(
-                    {
-                        "time": t,
-                        "entity": score_event["entity"],
-                        "delta": int(score_event["delta"]),
-                        "type": "base hit",
-                        "target": bases_map[base_id]["team"],
-                    }
-                )
-
-
-            case "0204":  # destroy base
-                score_event = raw_records[i - 1][1]
-                base_id = event["varies"].split()[-1].strip()
-                if base_id not in bases_map:
-                    if LOG_WARNINGS:
-                        print("WARN base id not found", {"base_id": base_id, "event": event})
-                    continue
-                events.append(
-                    {
-                        "time": t,
-                        "entity": score_event["entity"],
-                        "delta": int(score_event["delta"]),
-                        "type": "base destroy",
-                        "target": bases_map[base_id]["team"],
-                    }
-                )
-
-            case "0B01" | "0B02":  # deny
-                score_event = raw_records[i - 1][1]
-                denied = event["varies"].split()[-1].strip()
-                events.append(
-                    {
-                        "time": t,
-                        "entity": score_event["entity"],
-                        "target": denied,
-                        "type": "deny",
-                        "delta": int(score_event["delta"]),
-                    }
-                )
-                events.append(
-                    {
-                        "time": t,
-                        "entity": denied,
-                        "target": score_event["entity"],
-                        "type": "denied",
-                        "delta": 0,
-                    }
-                )
-
-            case "0600":  # penalty
-                events.append(
-                    {
-                        "time": t,
-                        "entity": event["varies"].split()[0].strip(),
-                        "delta": int(raw_records[i - 1][1]["delta"]),
-                        "type": "penalty",
-                        "target": "",
-                    }
-                )
-
-            case _:
-                if event.get("entity") not in players:
-                    if LOG_WARNINGS:
-                        print(f"Unknown event: {event}")
+            if not tagger_entity or not tagged_entity:
+                if LOG_WARNINGS:
+                    print(f"weird event parse issue: {event}")
                 continue
+
+            is_stun = event_type == "0205"
+            events.append({"time": t, "entity": tagger_entity, "target": tagged_entity, "type": "stun" if is_stun else "tag", "delta": int(tagger_score["delta"]) if tagger_score else 0})
+            events.append({"time": t, "entity": tagged_entity, "target": tagger_entity, "type": "stunned" if is_stun else "tagged", "delta": int(tagged_score["delta"]) if tagged_score else 0})
+            continue
+
+        if event_type in {"0203", "0204"}:
+            score_event = raw_records[i - 1][1]
+            base_id = _last_token(event.get("varies"))
+            if base_id not in bases:
+                if LOG_WARNINGS:
+                    print("WARN base id not found", {"base_id": base_id, "event": event})
+                continue
+            events.append({"time": t, "entity": score_event["entity"], "target": bases[base_id]["team"], "type": "base hit" if event_type == "0203" else "base destroy", "delta": int(score_event["delta"])})
+            continue
+
+        if event_type in {"0B01", "0B02"}:
+            score_event = raw_records[i - 1][1]
+            denied = _last_token(event.get("varies"))
+            events.append({"time": t, "entity": score_event["entity"], "target": denied, "type": "deny", "delta": int(score_event["delta"])})
+            events.append({"time": t, "entity": denied, "target": score_event["entity"], "type": "denied", "delta": 0})
+            continue
+
+        if event_type == "0600":
+            penalty_entity = (event.get("varies") or "").split()
+            events.append({"time": t, "entity": penalty_entity[0].strip() if penalty_entity else "", "target": "", "type": "penalty", "delta": int(raw_records[i - 1][1]["delta"])})
+            continue
+
+        if event.get("entity") not in players and LOG_WARNINGS:
+            print(f"Unknown event: {event}")
 
     return events
 
 
+def build_active_bases(raw_records, bases):
+    active_bases = []
+    seen = set()
+    for section, event in raw_records:
+        if section != "event" or event.get("type") not in {"0203", "0204"}:
+            continue
+        base_id = _last_token(event.get("varies"))
+        base = bases.get(base_id)
+        if not base:
+            continue
+        base_team = base["team"] if base.get("team") else _team_id_from_base_name(base.get("name"))
+        if not base_team or base_team in seen:
+            continue
+        seen.add(base_team)
+        active_bases.append(base_team)
+    return active_bases
+
+
 def build_output(parsed_data, raw_records):
     game_duration = compute_game_duration_seconds(parsed_data)
+
+    teams = build_teams(parsed_data)
+    players, bases = build_players_and_bases(parsed_data, teams)
+    teams = [t for t in teams if t["id"] in {p["team"] for p in players.values() if p.get("team")}]  # remove empty teams
+    events = build_events(raw_records, players, bases, game_duration)
+    active_bases = build_active_bases(raw_records, bases)
+    if parsed_data["mission"]["0"]["desc"].lower() in STATIC_BASE_GAMES:
+        active_bases.update([team["id"] for team in teams])
 
     output = {
         "gameDuration": game_duration,
@@ -371,39 +290,27 @@ def build_output(parsed_data, raw_records):
             parsed_data["mission"][0]["start"], "%Y%m%d%H%M%S"
         ).strftime("%Y-%m-%d %H:%M"),
         "gameType": parsed_data["mission"][0]["desc"],
-        "teams": [],
-        "players": {},
-        "events": [],
+        "teams": teams,
+        "players": players,
+        "active_bases": active_bases,
+        "events": events,
     }
-
-    teams = build_teams(parsed_data)
-    players, bases = build_players_and_bases(parsed_data, teams)
-    teams = drop_empty_teams(teams, players)
-
-    output["teams"] = teams
-    output["players"] = players
-    output["events"] = build_events(raw_records, players, bases, game_duration)
 
     output_filename = (
         f"games/{parsed_data['mission'][0]['start']}@"
         f"{parsed_data['mission'][0]['desc'].replace(' ', '_')}.json"
     )
-
     return output, output_filename
 
 
-def parse_tdf_bytes(body):
-    text_stream = StringIO(body.decode("utf-16-le"))
-    return read_tdf(text_stream)
-
-
 def process_tdf_bytes(body):
-    parsed_data, raw_records = parse_tdf_bytes(body)
+    parsed_data, raw_records = read_tdf(StringIO(body.decode("utf-16-le")))
     return build_output(parsed_data, raw_records)
 
 
 def lambda_handler(event, context):
     import boto3
+
     s3 = boto3.client("s3")
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
     key = unquote_plus(event["Records"][0]["s3"]["object"]["key"])
@@ -412,9 +319,7 @@ def lambda_handler(event, context):
         print(f"Skipping non-tdf file: {key}")
         return {"status": "skipped"}
 
-    obj = s3.get_object(Bucket=bucket, Key=key)
-    body = obj["Body"].read()
-
+    body = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     output, output_filename = process_tdf_bytes(body)
 
     s3.put_object(
@@ -428,35 +333,35 @@ def lambda_handler(event, context):
     return {"status": "ok", "output": output_filename}
 
 
-# Local helper
-#
-# import argparse
-# from pathlib import Path
-#
-# def parse_args():
-#     p = argparse.ArgumentParser(description="Convert .tdf to game JSON")
-#     p.add_argument("input", help="Path to .tdf file")
-#     p.add_argument("-o", "--output", help="Path to output JSON")
-#     p.add_argument("--compact", action="store_true", help="Minified JSON")
-#     return p.parse_args()
-#
-# def main():
-#     args = parse_args()
-#     tdf_path = Path(args.input)
-#     body = tdf_path.read_bytes()
-#     output, output_filename = process_tdf_bytes(body)
-#
-#     if args.output:
-#         out_path = Path(args.output)
-#     else:
-#         out_path = tdf_path.with_suffix(".json")
-#
-#     if args.compact:
-#         out_path.write_text(json.dumps(output, ensure_ascii=False))
-#     else:
-#         out_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
-#
-#     print(f"Wrote {out_path} (source: {output_filename})")
-#
-# if __name__ == "__main__":
-#     main()
+# Local Helper
+""" import argparse
+from pathlib import Path
+
+def parse_args():
+    p = argparse.ArgumentParser(description="Convert .tdf to game JSON")
+    p.add_argument("input", help="Path to .tdf file")
+    p.add_argument("-o", "--output", help="Path to output JSON")
+    p.add_argument("--compact", action="store_true", help="Minified JSON")
+    return p.parse_args()
+
+def main():
+    args = parse_args()
+    tdf_path = Path(args.input)
+    body = tdf_path.read_bytes()
+    output, output_filename = process_tdf_bytes(body)
+
+    if args.output:
+        out_path = Path(args.output)
+    else:
+        out_path = tdf_path.with_suffix(".json")
+
+    if args.compact:
+        out_path.write_text(json.dumps(output, ensure_ascii=False))
+    else:
+        out_path.write_text(json.dumps(output, indent=2, ensure_ascii=False))
+
+    print(f"Wrote {out_path} (source: {output_filename})")
+
+if __name__ == "__main__":
+    main()
+ """
