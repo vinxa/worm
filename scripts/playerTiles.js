@@ -21,16 +21,16 @@ function resetBaseHitFlashState() {
     });
 }
 
-function flashPlayerTile(pid, tile, color, durationMs) {
+function flashPlayerTile(pid, tile, color, durationMs, className) {
     tile.style.setProperty("--flash-color", color);
     const rate = state.playbackRate || 1;
-    const flashDuration = Math.max(120, durationMs / rate);
+    const flashDuration = Math.max(90, durationMs / rate);
     tile.style.setProperty("--flash-duration", `${flashDuration}ms`);
-    tile.classList.add("flash-base-hit");
+    tile.classList.add(className);
     const existing = baseHitFlashTimeouts.get(pid);
     if (existing) clearTimeout(existing);
     const timeoutId = setTimeout(() => {
-        tile.classList.remove("flash-base-hit");
+        tile.classList.remove(className);
         tile.style.removeProperty("--flash-color");
         tile.style.removeProperty("--flash-duration");
         baseHitFlashTimeouts.delete(pid);
@@ -155,7 +155,11 @@ export function updatePlayerTiles(currentTime) {
                 latestBaseEvent.type === "base destroy"
                     ? BASE_DESTROY_FLASH_MS
                     : BASE_HIT_FLASH_MS;
-            flashPlayerTile(pid, tile, baseColor, durationMs);
+            const className =
+                latestBaseEvent.type === "base destroy"
+                    ? "flash-base-destroy"
+                    : "flash-base-hit";
+            flashPlayerTile(pid, tile, baseColor, durationMs, className);
         }
     });
 
