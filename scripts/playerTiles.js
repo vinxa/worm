@@ -5,8 +5,50 @@ import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
 
 const FAST_SORT_MIN_INTERVAL = 2; // seconds of game time
 let lastTileSortGameTime = -Infinity;
+const BASE_HIT_FLASH_MS = 500;
+const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
+const baseHitFlashTimeouts = new Map();
+let lastTileUpdateTime = -Infinity;
+
+function resetBaseHitFlashState() {
+    baseHitFlashTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+    baseHitFlashTimeouts.clear();
+    lastTileUpdateTime = -Infinity;
+    document.querySelectorAll(".player-summary.flash-base-hit").forEach((tile) => {
+        tile.classList.remove("flash-base-hit");
+        tile.style.removeProperty("--flash-color");
+        tile.style.removeProperty("--flash-duration");
+    });
+}
+
+function flashPlayerTile(pid, tile, color, durationMs) {
+    tile.style.setProperty("--flash-color", color);
+    const rate = state.playbackRate || 1;
+    const flashDuration = Math.max(120, durationMs / rate);
+    tile.style.setProperty("--flash-duration", `${flashDuration}ms`);
+    tile.classList.add("flash-base-hit");
+    const existing = baseHitFlashTimeouts.get(pid);
+    if (existing) clearTimeout(existing);
+    const timeoutId = setTimeout(() => {
+        tile.classList.remove("flash-base-hit");
+        tile.style.removeProperty("--flash-color");
+        tile.style.removeProperty("--flash-duration");
+        baseHitFlashTimeouts.delete(pid);
+    }, flashDuration);
+    baseHitFlashTimeouts.set(pid, timeoutId);
+}
 
 export function updatePlayerTiles(currentTime) {
+    if (!state.isPlaying) {
+        resetBaseHitFlashState();
+    }
+    const timeJump =
+        lastTileUpdateTime !== -Infinity &&
+        Math.abs(currentTime - lastTileUpdateTime) > 1.5;
+    const flashWindowStart =
+        lastTileUpdateTime === -Infinity || !state.isPlaying || timeJump
+            ? currentTime
+            : lastTileUpdateTime;
     const focusPid =
         state.selectedPlayers && state.selectedPlayers.size === 1
         ? Array.from(state.selectedPlayers)[0]
@@ -18,12 +60,24 @@ export function updatePlayerTiles(currentTime) {
         const events = state.playerEvents[pid] || [];
         let score = 0;
         let isActive = true;
+        let latestBaseEvent = null;
         for (let ev of events) {
         if (ev.time <= currentTime) {
             // sum the playerDelta (fallback to ev.delta if needed)
             score += ev.playerDelta ?? ev.delta ?? 0;
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
+            if (ev.type === "base hit" || ev.type === "base destroy") {
+                if (
+                    !latestBaseEvent ||
+                    ev.time > latestBaseEvent.time ||
+                    (ev.time === latestBaseEvent.time &&
+                        ev.type === "base destroy" &&
+                        latestBaseEvent.type !== "base destroy")
+                ) {
+                    latestBaseEvent = ev;
+                }
+            }
         } else {
             break;
         }
@@ -90,6 +144,19 @@ export function updatePlayerTiles(currentTime) {
             })
             .join("");
         }
+
+        if (state.isPlaying && latestBaseEvent && latestBaseEvent.time > flashWindowStart) {
+            const baseTeamId = (latestBaseEvent.target || "").toLowerCase();
+            const baseColor =
+                teamColorById[baseTeamId] ||
+                activeBases.find((b) => b.id && b.id.toLowerCase() === baseTeamId)?.color ||
+                "#e2b12a";
+            const durationMs =
+                latestBaseEvent.type === "base destroy"
+                    ? BASE_DESTROY_FLASH_MS
+                    : BASE_HIT_FLASH_MS;
+            flashPlayerTile(pid, tile, baseColor, durationMs);
+        }
     });
 
     const fastRate = state.playbackRate && state.playbackRate > 1.25;
@@ -100,6 +167,7 @@ export function updatePlayerTiles(currentTime) {
         sortTiles(durationMs);
         lastTileSortGameTime = currentTime;
     }
+    lastTileUpdateTime = currentTime;
 }
 
 export function generatePlayerTiles() {
@@ -141,7 +209,7 @@ export function generatePlayerTiles() {
         }
 
         grid.appendChild(tile);
-        updatePlayerTiles(tile);
+        updatePlayerTiles(state.currentTime);
     });
 }
 

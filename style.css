@@ -809,9 +809,13 @@ button {
   animation: flash-border 0.7s ease-in-out infinite;
 }
 
+.flash-base-hit {
+  animation: flash-border var(--flash-duration, 0.7s) ease-in-out 1;
+}
+
 @keyframes flash-border {
   0%, 100% { border-color: #444; box-shadow: 0 0 0 rgba(226,177,42,0); }
-  50% { border-color: #e2b12a; box-shadow: 0 0 14px rgba(226,177,42,0.45); }
+  50% { border-color: var(--flash-color, #e2b12a); box-shadow: 0 0 14px color-mix(in srgb, var(--flash-color, #e2b12a) 45%, transparent); }
 }
 
 .game-tile > span:first-child {
