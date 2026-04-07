@@ -8,7 +8,7 @@ from tdf_parser import TDFStreamState
 # CONFIG
 # -------------------------------------------------------------------
 
-TDF_FILE = r"/Users/gabby/Downloads/1-26-20250223183301-ZLTAC-Training-Full-Game.tdf"
+TDF_FILE = r"/Users/gabby/Downloads/1-26 20260401210336 - Force Field Competition.tdf"
 WS_URL   = "wss://1km1prnds5.execute-api.ap-southeast-2.amazonaws.com/production"
 
 # Playback speed multiplier:
