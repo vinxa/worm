@@ -65,6 +65,7 @@ export function connectLiveUpdates() {
         console.log("Live WS connection established");
         // Ask server to replay cached metadata/events in case we joined mid-game
         state.liveReplayRequested = true;
+        state.liveLastSeq = 0;
         ws.send(JSON.stringify({ action: "replay" }));
     };
     ws.onmessage = (event) => {
@@ -95,8 +96,16 @@ export function disconnectLiveUpdates() {
 function handleLiveMetadata(meta) {
     if (!meta || typeof meta !== "object") return;
 
+    const sameGame = state.liveGameMeta &&
+        state.liveGameMeta.startTime === meta.startTime &&
+        state.liveGameMeta.gameType === meta.gameType;
+    const shouldReset = state.liveGameMeta && (!sameGame || state.liveGameHasEnded);
+
     state.liveGameMeta = meta;
-    state.liveGameEvents = [];
+    if (shouldReset) {
+        state.liveGameEvents = [];
+        state.liveLastSeq = 0;
+    }
     state.liveGameHasEnded = false;
 
     console.log("[live] metadata received:", meta);
@@ -114,11 +123,10 @@ function handleLiveMetadata(meta) {
                     .slice()
                     .sort((a, b) => (a.time || 0) - (b.time || 0))
                     .forEach((ev) => {
-                        if (!Array.isArray(state.gameData.events)) {
-                            state.gameData.events = [];
+                        if (typeof ev.seq === "number") {
+                            state.liveLastSeq = Math.max(state.liveLastSeq || 0, ev.seq);
                         }
-                        state.gameData.events.push(ev);
-                        applyEventToScores(ev);
+                        applyLiveEventToGame(ev);
                     });
             }
         });
@@ -161,40 +169,29 @@ function handleLiveMessage(event) {
     }
 
     if (msg.action === "event") {
-        let ev;
-        try {
-            if (typeof msg.data === "string") {
-                ev = JSON.parse(msg.data);
-            } else {
-                ev = msg.data;
-            }
-        } catch (e) {
-            console.warn("Received non-JSON event payload", msg.data);
-            return;
-        }
+        const ev = _parseEvent(msg.data);
+        if (ev) ingestLiveEvent(ev);
+        return;
+    }
 
-        if (!ev || typeof ev !== "object") return;
-
-        // Track events for the current live game
-        if (!Array.isArray(state.liveGameEvents)) {
+    if (msg.action === "batch" || msg.action === "snapshot") {
+        const data = msg.data || {};
+        if (msg.action === "snapshot" && data.isFirst) {
             state.liveGameEvents = [];
+            state.liveLastSeq = 0;
+            state.liveGameHasEnded = false;
         }
-        state.liveGameEvents.push(ev);
-
-        // If we're currently showing the live game, also apply it to the
-        // scoreboard in real time.
-        if (state.gameData && isCurrentGameLiveContext()) {
-            if (!Array.isArray(state.gameData.events)) {
-                state.gameData.events = [];
-            }
-            state.gameData.events.push(ev);
-            applyEventToScores(ev);
+        if (msg.action === "snapshot" && data.meta) {
+            handleLiveMetadata(data.meta);
         }
-
-        if (ev.type === "game end") {
+        const events = Array.isArray(data.events) ? data.events : [];
+        events.forEach((ev) => ingestLiveEvent(ev));
+        if (data.final) {
             state.liveGameHasEnded = true;
         }
-
+        if (typeof data.lastSeq === "number") {
+            state.liveLastSeq = Math.max(state.liveLastSeq || 0, data.lastSeq);
+        }
         return;
     }
 
@@ -203,6 +200,50 @@ function handleLiveMessage(event) {
         // If we started receiving events before metadata, request a replay once.
         state.liveReplayRequested = true;
         state.liveWS.send(JSON.stringify({ action: "replay" }));
+    }
+}
+
+function _parseEvent(data) {
+    try {
+        if (typeof data === "string") {
+            return JSON.parse(data);
+        }
+        return data;
+    } catch (e) {
+        console.warn("Received non-JSON event payload", data);
+        return null;
+    }
+}
+
+function ingestLiveEvent(ev) {
+    if (!ev || typeof ev !== "object") return;
+
+    if (typeof ev.seq === "number") {
+        if (state.liveLastSeq && ev.seq <= state.liveLastSeq) {
+            return;
+        }
+        state.liveLastSeq = Math.max(state.liveLastSeq || 0, ev.seq);
+    }
+
+    if (!Array.isArray(state.liveGameEvents)) {
+        state.liveGameEvents = [];
+    }
+    state.liveGameEvents.push(ev);
+
+    applyLiveEventToGame(ev);
+
+    if (ev.type === "game end") {
+        state.liveGameHasEnded = true;
+    }
+}
+
+function applyLiveEventToGame(ev) {
+    if (state.gameData && isCurrentGameLiveContext()) {
+        if (!Array.isArray(state.gameData.events)) {
+            state.gameData.events = [];
+        }
+        state.gameData.events.push(ev);
+        applyEventToScores(ev);
     }
 }
 

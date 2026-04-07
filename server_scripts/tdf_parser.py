@@ -149,6 +149,7 @@ class TDFStreamState:
         start = f"{raw[0:4]}-{raw[4:6]}-{raw[6:8]} {raw[8:10]}:{raw[10:12]}"
 
         metadata = {
+            "gameId": raw,
             "gameDuration": int(int(m["duration"]) / 1000),
             "penalty": int(m["penalty"]),
             "startTime": start,

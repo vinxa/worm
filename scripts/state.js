@@ -23,5 +23,6 @@ export const state = {
     watchIntervalId: null,
     liveReplayRequested: false, // whether we've asked the server to replay cached state
     liveReconnectTimeoutId: null, // timer id for WS reconnect
+    liveLastSeq: 0,            // last seen seq for live events (dedupe)
 
 };

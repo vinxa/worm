@@ -14,6 +14,10 @@ WS_URL   = "wss://1km1prnds5.execute-api.ap-southeast-2.amazonaws.com/production
 # Playback speed multiplier:
 SPEED = 10
 
+# Batch events to reduce WebSocket messages
+BATCH_SIZE = 50
+BATCH_INTERVAL = 1.0
+
 # -------------------------------------------------------------------
 # HELPERS
 # -------------------------------------------------------------------
@@ -40,6 +44,12 @@ def send_event(ws, event):
     ws.send(json.dumps(payload))
     print(">>> EVENT:", event)
 
+def send_event_batch(ws, events):
+    if not events:
+        return
+    payload = {"action": "event_batch", "data": events}
+    ws.send(json.dumps(payload))
+    print(f">>> EVENT BATCH: {len(events)}")
 
 # -------------------------------------------------------------------
 # MAIN SIMULATOR
@@ -53,15 +63,26 @@ def simulate_live_stream():
     parser = TDFStreamState()
 
     last_time = None
+    event_buffer = []
+    last_flush = time.time()
 
     for line in raw:
         items = parser.process_line(line)
         for item in items:
             if "__meta__" in item:
+                if event_buffer:
+                    send_event_batch(ws, event_buffer)
+                    event_buffer = []
+                    last_flush = time.time()
                 send_metadata(ws, item["__meta__"])
             else:
                 ev = item
-                send_event(ws, ev)
+                event_buffer.append(ev)
+                now = time.time()
+                if len(event_buffer) >= BATCH_SIZE or (now - last_flush) >= BATCH_INTERVAL:
+                    send_event_batch(ws, event_buffer)
+                    event_buffer = []
+                    last_flush = now
 
                 # Simulate timing between events
                 # Using "time" field inside events for realism
@@ -70,6 +91,9 @@ def simulate_live_stream():
                     if dt > 0:
                         time.sleep(dt / SPEED)
                 last_time = ev["time"]
+
+    if event_buffer:
+        send_event_batch(ws, event_buffer)
 
     print("=== Simulation Complete ===")
     ws.close()

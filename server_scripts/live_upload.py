@@ -20,6 +20,10 @@ FILE_EXT  = ".tdf"
 # Time (seconds) with no file writes before we assume the game is over
 IDLE_GAME_TIMEOUT = 10
 
+# Batch events to reduce WebSocket message count
+BATCH_SIZE = 50
+BATCH_INTERVAL = 1.0
+
 
 # -------------------------------------------------------------------
 # WEBSOCKET HANDLING
@@ -45,6 +49,19 @@ def send_event(ws, event: dict):
     payload = {
         "action": "event",
         "data": json.dumps(event, ensure_ascii=False)
+    }
+    ws.send(json.dumps(payload))
+
+def send_event_batch(ws, events: list[dict]):
+    """
+    Send a batch of gameplay events:
+      { action: "event_batch", data: [ {...}, {...} ] }
+    """
+    if not events:
+        return
+    payload = {
+        "action": "event_batch",
+        "data": events,
     }
     ws.send(json.dumps(payload))
 
@@ -88,6 +105,9 @@ def newest_tdf():
 def tail_file(ws, path: str):
     print(f"Streaming game file: {path}")
     state = TDFStreamState()
+
+    event_buffer: list[dict] = []
+    last_flush = time.time()
 
     fh = open(path, "r", encoding="utf-16-le", errors="ignore")
     fh.seek(0, os.SEEK_END)
@@ -134,16 +154,34 @@ def tail_file(ws, path: str):
                     for item in items:
                         try:
                             if "__meta__" in item:
+                                if event_buffer:
+                                    send_event_batch(ws, event_buffer)
+                                    event_buffer.clear()
+                                    last_flush = time.time()
                                 send_metadata(ws, item["__meta__"])
                             else:
-                                send_event(ws, item)
+                                event_buffer.append(item)
+                                now = time.time()
+                                if len(event_buffer) >= BATCH_SIZE or (now - last_flush) >= BATCH_INTERVAL:
+                                    send_event_batch(ws, event_buffer)
+                                    event_buffer.clear()
+                                    last_flush = now
                         except Exception:
                             print("WebSocket send failed, reconnecting...")
                             ws = connect_ws()
                             if "__meta__" in item:
+                                if event_buffer:
+                                    send_event_batch(ws, event_buffer)
+                                    event_buffer.clear()
+                                    last_flush = time.time()
                                 send_metadata(ws, item["__meta__"])
                             else:
-                                send_event(ws, item)
+                                event_buffer.append(item)
+                                now = time.time()
+                                if len(event_buffer) >= BATCH_SIZE or (now - last_flush) >= BATCH_INTERVAL:
+                                    send_event_batch(ws, event_buffer)
+                                    event_buffer.clear()
+                                    last_flush = now
                     line = fh.readline()
 
         if got_new_data:
@@ -151,6 +189,10 @@ def tail_file(ws, path: str):
         else:
             # If file has been idle for a while, consider game over and switch
             if time.time() - last_activity > IDLE_GAME_TIMEOUT:
+                if event_buffer:
+                    send_event_batch(ws, event_buffer)
+                    event_buffer.clear()
+                    last_flush = time.time()
                 latest = newest_tdf()
                 if latest and latest != path:
                     print("Game idle; switching to new file:", latest)
