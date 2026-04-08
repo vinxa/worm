@@ -1,0 +1,27 @@
+{
+  "name": "Worm",
+  "short_name": "Worm",
+  "description": "Worm laser tag game analysis app",
+  "icons": [
+    {
+      "src": "images/worm.png",
+      "type": "image/png",
+      "sizes": "1024x1024"
+    },
+    {
+      "src": "images/worm-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "images/worm-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
+  "start_url": "/worm/",
+  "scope": "/worm/",
+  "display": "standalone",
+  "background_color": "#1e1e1e",
+  "theme_color": "#1e1e1e"
+}

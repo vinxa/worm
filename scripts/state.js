@@ -1,4 +1,6 @@
 // state.js
+import { S3_BASE_URL } from "./config.js";
+
 export const state = {
     gameData: null,
     playerEvents: {},
@@ -11,10 +13,21 @@ export const state = {
     teamFullTimeline: {},
     playerTimelines: {},
     selectedPlayers: new Set(),
+    hiddenTeams: null, // null = all teams visible; otherwise Set of hidden team IDs
     selectedGame: null,
+    playbackRate: 1,
     isGameLoading: false,
     loadingStart: 0,
-    S3_BASE_URL: "https://worm-game-data.s3.ap-southeast-2.amazonaws.com",
+    gameSignatures: {},
+    games: [],
+    events: [],
+    latestGame: null,
+    gameFilter: "all",
+    eventFilter: "none",
+    gameDateFilter: "all",
+    gamePlayerFilter: "all",
+    gamePlayerFilterText: "",
+    S3_BASE_URL: S3_BASE_URL,
     liveWS: null,             // current WebSocket connection for live
     liveGameMeta: null,       // last metadata packet from the live stream
     liveGameEvents: [],       // live events received for the current live game

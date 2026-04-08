@@ -1,15 +1,23 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
-import { formatTime } from "./utils.js";
+import { formatTime, getGameDuration } from "./utils.js";
+import { closeYouTubeModal } from "./video.js";
 
-
+export function updatePlayButtonsLabel(label) {
+  const mainBtn = document.getElementById("playButton");
+  const headerBtn = document.getElementById("headerPlayButton");
+  if (mainBtn) mainBtn.textContent = label;
+  if (headerBtn) headerBtn.textContent = label;
+}
 
 export function handleSkip(delta) {
     // a) If a replay is running, cancel every scheduled tick:
-    if (state.isPlaying) clearTimeouts();
+    if (state.isPlaying) {
+        clearTimeouts();
+    }
     // b) Compute & clamp the new time:
-    const maxTime = state.gameData.gameDuration ?? Math.max(...state.gameData.events.map((e) => e.time));
+    const maxTime = getGameDuration(state.gameData);
     const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
 
     // c) Seek all UI & chart to newTime:
@@ -17,7 +25,86 @@ export function handleSkip(delta) {
 
     // d) If we were playing, start a fresh replay from newTime
     if (state.isPlaying) {
-        playReplay(state.chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+    }
+}
+
+export function setPlaybackRate(rate) {
+    state.playbackRate = rate;
+    if (state.isPlaying) {
+        clearTimeouts();
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+    }
+}
+
+export function stepPlaybackRate(direction, options = {}) {
+    const speeds = options.speeds || [0.5, 1, 1.5, 2, 4];
+    const idx = speeds.indexOf(state.playbackRate);
+    const safeIdx = idx === -1 ? 0 : idx;
+    const nextIdx = (safeIdx + direction + speeds.length) % speeds.length;
+    setPlaybackRate(speeds[nextIdx]);
+    return state.playbackRate;
+}
+
+export function goToLatestGame({ showGame } = {}) {
+    if (!state.latestGame || typeof showGame !== "function") return false;
+    state.selectedPlayers = new Set();
+    closeYouTubeModal();
+    showGame(state.latestGame);
+    return true;
+}
+
+export function jumpToStart({ loadGameAtIndex } = {}) {
+    const atStart = state.currentTime <= 0.01;
+    if (atStart && typeof loadGameAtIndex === "function") {
+        const games = state.games || [];
+        if (state.selectedGame) {
+            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
+            if (currentIdx !== -1 && loadGameAtIndex(currentIdx + 1)) return;
+        }
+    }
+    jumpTo(0);
+}
+
+export function jumpToEnd({ loadGameAtIndex } = {}) {
+    const duration = getGameDuration();
+    const atEnd = duration > 0 && state.currentTime >= duration - 0.01;
+    if (atEnd && typeof loadGameAtIndex === "function") {
+        const games = state.games || [];
+        if (state.selectedGame) {
+            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
+            if (currentIdx > 0 && loadGameAtIndex(currentIdx - 1)) return;
+        }
+    }
+    jumpTo(duration);
+}
+
+export function togglePlayback() {
+    if (!state.gameData) return null;
+    if (state.currentTime >= getGameDuration()) {
+        seekToTime(0);
+    }
+    if (!state.isPlaying) {
+        state.isPlaying = true;
+        clearTimeouts();
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
+        return true;
+    }
+    state.isPlaying = false;
+    clearTimeouts();
+    // pause video
+    if (state.player && typeof state.player.pauseVideo === "function") {
+      state.player.pauseVideo();
+    }
+    return false;
+}
+
+export function jumpTo(time) {
+    if (!state.gameData) return;
+    if (state.isPlaying) clearTimeouts();
+    seekToTime(time);
+    if (state.isPlaying) {
+        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
     }
 }
 
@@ -33,10 +120,7 @@ export function handleSkip(delta) {
  */
 export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   // 1) Compute duration
-  const maxEventTime = data.events.length
-    ? Math.max(...data.events.map((e) => e.time))
-    : 0;
-  const duration = data.gameDuration != null ? data.gameDuration : maxEventTime;
+  const duration = getGameDuration(data);
 
   // 2) Sort events by exact time
   const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
@@ -118,8 +202,10 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
       if (t >= duration) {
         // we’ve reached (or passed) the end
         state.isPlaying = false;
-        document.getElementById("playButton").textContent = "▶";
-        // clear any leftover timeouts
+        updatePlayButtonsLabel("▶");        // pause video if playing
+        if (state.player && typeof state.player.pauseVideo === "function") {
+          state.player.pauseVideo();
+        }        // clear any leftover timeouts
         clearTimeouts();
       }
     }, delay);
@@ -128,17 +214,22 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   }
 }
 
-export function seekToTime(sec) {
+export function seekToTime(sec, skipVideoSeek = false) {
   if (!state.gameData) return;
-  const duration =
-    state.gameData.gameDuration ?? Math.max(...state.gameData.events.map((e) => e.time));
+  const duration = getGameDuration(state.gameData);
   // clamp
   sec = Math.max(0, Math.min(sec, duration));
   state.currentTime = sec;
 
+  // mark that we just seeked, so sync won't pull us back
+  if (typeof window !== 'undefined' && window.lastProgrammaticSeekAt !== undefined) {
+    window.lastProgrammaticSeekAt = Date.now();
+  }
+
   // sync video
-  if (state.player && typeof state.player.seekTo === "function") {
-    state.player.seekTo(sec, true);
+  if (!skipVideoSeek && state.player && typeof state.player.seekTo === "function") {
+    const offset = parseFloat(document.getElementById("videoOffset")?.value) || 0;
+    state.player.seekTo(sec + offset, true);
   }
 
   // 1) update tiles

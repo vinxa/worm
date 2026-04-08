@@ -5,21 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WORM Analyser</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="shortcut icon" href="assets\favicon.ico" type="image/x-icon">
-  <script src="assets/highcharts.js"></script>
-  <script src="assets/accessibility.js"></script>
+  <link rel="shortcut icon" href="static/images/favicon.ico" type="image/x-icon">
+  <link rel="canonical" href="https://vinxa.github.io/worm/" />
+  <link rel="manifest" href="static/manifest.webmanifest" />
+  <script src="static/vendor/highcharts.js"></script>
+  <script src="static/vendor/accessibility.js"></script>
 </head>
 <body>
-
   <!-- Home View -->
 <section id="home-view" class="home-section">
+  <a class="global-github-link" href="https://github.com/vinxa/worm" target="_blank" rel="noopener noreferrer">
+    <img class="global-github-logo" src="static/images/GitHub_Invertocat_White_Clearspace.svg" alt="GitHub"/>
+  </a>
   <header class="app-header">
-    <img src="assets/worm.png" alt="WORM logo" class="app-logo" />
+    <span class="home-mascot">
+      <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
+      <a href="https://web.extension.illinois.edu/worms/facts/" target="_blank" rel="noopener noreferrer">
+        <span class="worm-speech-bubble">
+          <span class="worm-speech-bubble-date">1-2 apr:</span>
+          <span class="worm-speech-bubble-event">deacs, bug fixes, stun scoring, keybinds, video<br />
+          </span>
+        </span>
+      </a>
+    </span>
 
     <span class="app-name">WORM</span>
   </header>
 
-  <div id="gamesGrid" class="games-grid"></div>
+  <div class="filter-bar">
+    <div class="filter-row">
+      <label for="gameFilter">Game:</label>
+      <select id="gameFilter">
+        <option value="all">All</option>
+      </select>
+      <label for="eventFilter">Event:</label>
+      <select id="eventFilter">
+        <option value="none">None</option>
+      </select>
+    </div>
+    <div class="filter-row">
+      <label for="dateFilter">Date:</label>
+      <select id="dateFilter">
+        <option value="all">All</option>
+      </select>
+    <div class="player-filter">
+      <label for="playerFilter">Player:</label>
+      <input id="playerFilter" type="text" list="playerOptions" placeholder="Type a player name" />
+      <datalist id="playerOptions"></datalist>
+    </div>
+    </div>
+  </div>
+
+	  <div id="gamesGrid" class="games-grid"></div>
 </section>
 
 
@@ -30,13 +67,16 @@
       <button class="nav-button left" style="display:none;">&lt;</button>
       <span class="app-name">WORM</span>
       
-    <img src="assets/worm.png" alt="WORM logo" class="app-logo" />
+    <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
     </div>
     <div class="title">GAME 3 - 12/03/2025</div>
     <div class="header-right">
+      <button class="next-game-button" title="Latest game (L)">Latest game</button>
       <div class="youtube-input-container">
-      <input id="youtubeUrl" type="text" placeholder="https://www.youtube.com/watch?v=pjf1uhUrc4M"/>
-      <button id="loadButton">►</button>
+      <button id="headerPlayButton" class="header-play-button">▶</button>
+      <button id="headerSpeedButton" class="header-speed-button" title="Change playback speed (+/-)">1x</button>
+      <input id="youtubeUrl" type="text" placeholder="YouTube URL (https://www.youtube.com/watch?v=pjf1uhUrc4M)"/>
+      <button id="loadButton" title="Load YouTube video (V to toggle)">►</button>
       </div>
     </div>
   </header>
@@ -45,6 +85,7 @@
   <div id="videoModal" class="video-modal">
     <div class="modal-header">
       <span class="modal-title">YouTube Player</span>
+      <input id="videoOffset" type="number" placeholder="Offset (sec)" min="0" title="Video start offset in seconds"/>
       <button id="modalClose" class="modal-close">✕</button>
     </div>
 <div class="modal-body">
@@ -67,7 +108,7 @@
 
   <div class="top-section" style="display:none;">
     <section class="results-section">
-      <h2>RESULTS</h2>
+      <!-- <h2>RESULTS</h2> -->
   <div class="results-content">
     <!-- Left: the tile grid -->
     <div class="grid-container">
@@ -77,27 +118,15 @@
     <!-- Right: the team-scores column -->
     <div class="scores-sidebar">
       <ul class="team-scores">
-        <li data-team-id="red">
-          <span class="team-name">Red Team</span>
-          <span class="team-score">0</span>
-        </li>
-        <li data-team-id="blue">
-          <span class="team-name">Blue Team</span>
-          <span class="team-score">0</span>
-        </li>
-        <li data-team-id="green">
-          <span class="team-name">Green Team</span>
-          <span class="team-score">0</span>
-        </li>
       </ul>
     </div>
   </div>
 </section>
 
-    <section class="map-section">
+<!--     <section class="map-section">
       <h2>MAP</h2>
       <div class="map-placeholder">[Map Placeholder]</div>
-    </section>
+    </section> -->
 
     <!-- Detail overlay remains unchanged -->
     <div id="detail-overlay" class="overlay hidden">
@@ -119,14 +148,28 @@
   </div>
 
   <section class="timeline-section" style="display: none;">
-    <h2>TIMELINE</h2>
+    <!-- <h2>TIMELINE</h2> -->
     <div id="scoreChart"></div>
     <div class="chart-controls">
-      <button id="rewindButton">&lt;</button>
-      <button id="playButton">▶</button>
-      <button id="forwardButton">&gt;</button>
+      <button id="skipStartButton" title="Jump to start (Shift+←)"><<</button>
+      <button id="rewindButton" title="Skip back 15s (←)">&lt;</button>
+      <button id="playButton" title="Play / Pause (Space)">▶</button>
+      <button id="forwardButton" title="Skip forward 15s (→)">&gt;</button>
+      <button id="skipEndButton" title="Jump to end (Shift+→)">>></button>
+      <button id="speedButton" title="Change playback speed (+/-)">1x</button>
     </div>
   </section>
+
+  <button id="installButton" style="display:none">Install</button>
+
   <script type="module" src="scripts/main.js"></script>
+  <script>
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.register (
+          '/worm/sw.js',
+          {scope: '/worm/'}
+        )
+    }
+  </script>
 </body>
 </html>

@@ -1,15 +1,171 @@
-import { hexToRGBA, formatTime } from "./utils.js";
+import { hexToRGBA, formatTime, getGameDuration, getPlayerHighlightColor } from "./utils.js";
 import { playReplay, seekToTime, clearTimeouts } from "./replayHandler.js";
 import { state } from "./state.js";
 
-export function buildPlayerTimelines(data) {
-    // 1) Determine duration (in whole seconds)
-    const duration =
-        data.gameDuration != null
-        ? data.gameDuration
-        : Math.max(0, ...data.events.map((e) => Math.floor(e.time)));
+const BASE_MARKER_OFFSET = 12;
+const BASE_MARKER_SIZE = 8;
 
-    // 2) Bucket all player deltas by second
+function buildBaseDestroyPoints(data) {
+    const totals = {};
+    const teamsById = {};
+    data.teams.forEach((t) => {
+        totals[t.id] = 0;
+        teamsById[t.id] = t;
+    });
+
+    const sortedEvents = [...data.events].sort((a, b) => a.time - b.time);
+
+    return sortedEvents.reduce((acc, ev) => {
+        const player = data.players[ev.entity];
+        if (!player) return acc;
+
+        const teamId = player.team;
+        if (!(teamId in totals)) return acc;
+
+        const delta = ev.delta ?? 0;
+        totals[teamId] += delta;
+
+        if (ev.type === "base destroy") {
+            const attackerTeam = teamsById[teamId];
+            const targetId = (ev.target || "").toLowerCase();
+            const targetTeam = teamsById[targetId];
+            const attackerName = attackerTeam?.name || teamId;
+            const targetName = targetTeam?.name || ev.target || "";
+            const targetLabel = (targetName.trim() || "?").charAt(0).toUpperCase();
+            const targetColor = targetTeam?.color || "#ffffff";
+
+            acc.push({
+                x: ev.time,
+                y: totals[teamId],
+                color: attackerTeam?.color || "#ffffff",
+                attackerTeamId: teamId,
+                playerName: player.name || player.id || ev.entity,
+                attackerTeamName: attackerName,
+                targetTeamName: targetName,
+                teamLabel: targetLabel,
+                targetColor,
+            });
+        }
+
+        return acc;
+    }, []);
+}
+
+function drawBaseDestroyOverlays(chart) {
+    const series = chart.get("base-destroys");
+    if (!series) return;
+
+    if (chart.baseDestroyOverlayGroup) chart.baseDestroyOverlayGroup.destroy();
+
+    const g = chart.renderer.g().attr({ zIndex: 7 }).add();
+    g.element.style.pointerEvents = "auto";
+
+    const addTooltipHandlers = (el, point) => {
+        if (!el || !el.element) return;
+        el.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
+        el.element.addEventListener("mouseleave", () => chart.tooltip.hide());
+    };
+
+    series.points.forEach((pt) => {
+        const { plotX, plotY, color = "#ffffff", teamLabel = "", targetColor = "#ffffff" } = pt;
+        if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
+        const x = chart.plotLeft + plotX;
+        const y = chart.plotTop + plotY;
+        const endY = y - BASE_MARKER_OFFSET;
+        const labelColor = targetColor;
+
+        const stem = chart.renderer
+        .path(["M", x, y, "L", x, endY])
+        .attr({
+            stroke: color,
+            "stroke-width": 1,
+            "stroke-opacity": 0.6,
+        })
+        .add(g);
+
+        const tri = chart.renderer
+        .symbol(
+            "triangle",
+            x - BASE_MARKER_SIZE / 2,
+            endY - BASE_MARKER_SIZE / 2,
+            BASE_MARKER_SIZE,
+            BASE_MARKER_SIZE
+        )
+        .attr({
+            fill: color,
+            stroke: "#111",
+            "stroke-width": 1,
+        })
+        .add(g);
+
+        const lbl = chart.renderer
+        .text(teamLabel, x, endY - 6)
+        .attr({ align: "center", zIndex: 8 })
+        .css({ color: labelColor, fontSize: "12px", fontWeight: "bold", textOutline: "1px #000" })
+        .add(g);
+
+        addTooltipHandlers(stem, pt);
+        addTooltipHandlers(tri, pt);
+        addTooltipHandlers(lbl, pt);
+    });
+
+    chart.baseDestroyOverlayGroup = g;
+}
+
+function filterBaseDestroySeries(selectedSet, chart = state.chart) {
+    if (!chart) return;
+    const series = state.chart.get("base-destroys");
+    if (!series) return;
+    const allPoints = state.chart.baseDestroyAllPoints || [];
+    const filtered =
+        selectedSet && selectedSet.size
+        ? allPoints.filter((pt) => !selectedSet.has(pt.attackerTeamId))
+        : allPoints;
+    // clone objects
+    const payload = filtered.map((pt) => ({ ...pt }));
+    series.setData(payload, false);
+}
+
+function applyTeamSeriesVisibility(selectedSet) {
+    const chart = state.chart;
+    const gameData = state.gameData;
+    if (!chart || !gameData) return;
+    const showAll = !selectedSet || selectedSet.size === 0;
+    gameData.teams.forEach((team) => {
+        const live = chart.get(`${team.id}-live`);
+        const ghost = chart.get(`${team.id}-ghost`);
+        const hidden = selectedSet ? selectedSet.has(team.id) : false;
+        const visible = showAll || !hidden;
+        if (live) live.setVisible(visible, false);
+        if (ghost) ghost.setVisible(visible, false);
+    });
+    filterBaseDestroySeries(selectedSet, chart);
+    chart.redraw();
+}
+
+export function toggleTeamVisibility(teamId = null) {
+    if (!state.hiddenTeams) state.hiddenTeams = new Set();
+
+    if (!teamId) {
+        state.hiddenTeams.clear();
+        state.hiddenTeams = null;
+    } else {
+        if (state.hiddenTeams.has(teamId)) {
+        state.hiddenTeams.delete(teamId);
+        } else {
+        state.hiddenTeams.add(teamId);
+        }
+        if (state.hiddenTeams.size === 0) {
+        state.hiddenTeams = null; // fall back to show all
+        }
+    }
+    applyTeamSeriesVisibility(state.hiddenTeams);
+}
+
+export function buildPlayerTimelines(data) {
+    const duration = Math.floor(getGameDuration(data));
+
+    // Bucket all player deltas by second
     const buckets = {};
     Object.keys(data.players).forEach((pid) => (buckets[pid] = {}));
     data.events.forEach((ev) => {
@@ -21,7 +177,7 @@ export function buildPlayerTimelines(data) {
         buckets[pid][sec] = (buckets[pid][sec] || 0) + d;
     });
 
-    // 3) Walk each second, carrying forward each player’s total
+    // Walk each second and build cumulative timeline for each player
     const timelines = {};
     const totals = {};
     Object.keys(data.players).forEach((pid) => {
@@ -41,24 +197,6 @@ export function buildPlayerTimelines(data) {
     return timelines;
 }
 
-/* function togglePlayerSeries(pid) {
-    const sid = pid + "-player";
-    const existing = chart.get(sid);
-    if (existing) {
-        existing.remove();
-        return;
-    }
-    const tl = playerTimelines[pid] || [];
-    chart.addSeries({
-        id: sid,
-        name: state.gameData.players[pid].name,
-        data: tl,
-        dashStyle: "ShortDot",
-        marker: { enabled: false },
-        zIndex: 6,
-    });
-} */
-
 export function updatePlayerSeriesDisplay() {
     if (!state.gameData || !state.gameData.players) return;
     // 1) Add missing series for every selected pid
@@ -70,6 +208,7 @@ export function updatePlayerSeriesDisplay() {
             id: sid,
             name: state.gameData.players[pid].name,
             data: state.playerTimelines[pid] || [[0, 0]],
+            color: getPlayerHighlightColor(pid),
             dashStyle: "ShortDot",
             marker: { enabled: false },
             zIndex: 4,
@@ -85,6 +224,109 @@ export function updatePlayerSeriesDisplay() {
         if (s) s.remove();
         }
     });
+
+    updatePlayerStatusBands();
+}
+
+function updatePlayerStatusBands() {
+    const chart = state.chart;
+    if (!chart) return;
+    const axis = chart.xAxis[0];
+    if (!axis) return;
+
+    if (chart.customPlayerStatusGroup) {
+        chart.customPlayerStatusGroup.destroy();
+        chart.customPlayerStatusGroup = null;
+    }
+    if (chart.customPlayerStatusClip) {
+        chart.customPlayerStatusClip.destroy();
+        chart.customPlayerStatusClip = null;
+    }
+
+    if (!state.selectedPlayers || state.selectedPlayers.size === 0) return;
+
+    const gameEnd = getGameDuration(state.gameData);
+    if (gameEnd <= 0) return;
+
+    const group = chart.renderer.g().attr({ zIndex: 0 }).add(chart.seriesGroup);
+    const plotLeft = chart.plotLeft;
+    const plotTop = chart.plotTop;
+    const plotWidth = chart.plotWidth;
+    const plotHeight = chart.plotHeight;
+    const clip = chart.renderer.clipRect(plotLeft, plotTop, plotWidth, plotHeight);
+    group.clip(clip);
+    const pids = Array.from(state.selectedPlayers);
+    const bandHeight = plotHeight / pids.length;
+    const stripWidth = 4;
+    const deadColor = "rgba(255, 80, 80, 0.18)";
+    const aliveColor = "rgba(80, 255, 140, 0.08)";
+
+    const getPlayerColor = (pid) => {
+        const series = chart.get(`${pid}-player`);
+        if (series && series.color) return series.color;
+        const name = state.gameData?.players?.[pid]?.name || pid || "";
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = (hash * 31 + name.charCodeAt(i)) | 0;
+        }
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue}, 70%, 60%)`;
+    };
+
+    pids.forEach((pid, idx) => {
+        const y = plotTop + idx * bandHeight;
+        const playerColor = getPlayerColor(pid);
+
+        chart.renderer
+            .rect(plotLeft, y, stripWidth, bandHeight)
+            .attr({ fill: playerColor, zIndex: 2 })
+            .add(group);
+        chart.renderer
+            .rect(plotLeft + plotWidth - stripWidth, y, stripWidth, bandHeight)
+            .attr({ fill: playerColor, zIndex: 2 })
+            .add(group);
+
+        const events = (state.playerEvents?.[pid] || [])
+            .filter((ev) => ev.type === "deactivated" || ev.type === "reactivated")
+            .sort((a, b) => a.time - b.time);
+
+        let status = "alive";
+        let lastTime = 0;
+
+        const pushBand = (from, to, color) => {
+            if (to <= from) return;
+            const x1 = axis.toPixels(from, false);
+            const x2 = axis.toPixels(to, false);
+            const width = Math.max(0, x2 - x1);
+            if (width <= 0) return;
+            chart.renderer
+                .rect(x1, y, width, bandHeight)
+                .attr({ fill: color, zIndex: 1 })
+                .add(group);
+        };
+
+        events.forEach((ev) => {
+            const t = ev.time;
+            if (status === "alive" && ev.type === "deactivated") {
+                pushBand(lastTime, t, aliveColor);
+                status = "dead";
+                lastTime = t;
+            } else if (status === "dead" && ev.type === "reactivated") {
+                pushBand(lastTime, t, deadColor);
+                status = "alive";
+                lastTime = t;
+            }
+        });
+
+        if (status === "alive") {
+            pushBand(lastTime, gameEnd, aliveColor);
+        } else {
+            pushBand(lastTime, gameEnd, deadColor);
+        }
+    });
+
+    chart.customPlayerStatusGroup = group;
+    chart.customPlayerStatusClip = clip;
 }
 
 export function updateCursorPosition(sec) {
@@ -102,7 +344,13 @@ export function updateCursorPosition(sec) {
 
 // Empty chart for live replay
 export function initLiveChart(data) {
+    if (state.chart) {
+        state.chart.destroy();
+        state.chart = null;
+    }
+
     const fullTimeline = buildTeamTimeline(data);
+    const baseDestroyPoints = buildBaseDestroyPoints(data);
     const liveSeries = data.teams.map((t) => ({
         name: t.name,
         id: t.id + "-live",
@@ -119,11 +367,42 @@ export function initLiveChart(data) {
         showInLegend: false,
         zIndex: 1,
     }));
+    const baseDestroySeries = {
+        id: "base-destroys",
+        type: "scatter",
+        name: "Base destroyed",
+        data: baseDestroyPoints,
+        color: "#ffffff",
+        marker: {
+            enabled: true,
+            symbol: "circle",
+            radius: 6,
+            lineWidth: 0,
+            fillOpacity: 0,
+            fillColor: "rgba(0,0,0,0)",
+            lineColor: "rgba(0,0,0,0)",
+            states: {
+                hover: {
+                    enabled: true,
+                    radius: 7,
+                    lineWidth: 0,
+                    fillOpacity: 0,
+                    fillColor: "rgba(0,0,0,0)",
+                    lineColor: "rgba(0,0,0,0)",
+                    halo: false,
+                },
+            },
+        },
+        dataLabels: { enabled: false },
+        showInLegend: false,
+        enableMouseTracking: true,
+        zIndex: 7,
+    };
 
     const chart = Highcharts.chart("scoreChart", {
         chart: {
         type: "line",
-        backgroundColor: "#2a2a2a",
+        backgroundColor: "#1E1E1E",
         events: {
             click: function (e) {
             // 1) figure out the clicked time (in seconds)
@@ -135,8 +414,12 @@ export function initLiveChart(data) {
             // 3) if we're currently playing, restart playback from there
             if (state.isPlaying) {
                 clearTimeouts();
-                playReplay(chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
+                playReplay(chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
             }
+            },
+            render: function () {
+            drawBaseDestroyOverlays(this);
+            updatePlayerStatusBands();
             },
         },
         },
@@ -151,7 +434,7 @@ export function initLiveChart(data) {
         gridLineWidth: 1,
         gridLineColor: "rgba(136, 136, 136, 0.3)",
         min: 0,
-        max: state.gameData.gameDuration,
+        max: getGameDuration(state.gameData),
         tickInterval: 60,
         minorTickInterval: 0.1,
         minorTickLength: 5,
@@ -181,7 +464,7 @@ export function initLiveChart(data) {
             },
         ],
         },
-        series: [...ghostSeries, ...liveSeries],
+        series: [...ghostSeries, ...liveSeries, baseDestroySeries],
         credits: { enabled: false },
         legend: { enabled: false, itemStyle: { color: "#eee" } },
         plotOptions: {
@@ -196,8 +479,19 @@ export function initLiveChart(data) {
         snap: 5,
         shared: false,
         formatter: function () {
-            const sec = this.x;
             const id = this.series.options.id || "";
+            if (id === "base-destroys") {
+            const target = this.point.targetTeamName
+                ? ` on ${this.point.targetTeamName} base`
+                : "";
+            return (
+                `<span style="color:${this.point.color}">\u25B2</span> ` +
+                `${formatTime(this.x)} — ` +
+                `<b>${this.point.playerName}</b> (${this.point.attackerTeamName})${target}`
+            );
+            }
+
+            const sec = this.x;
             const isLive = id.endsWith("-live");
             const isGhost = id.endsWith("-ghost");
 
@@ -215,6 +509,8 @@ export function initLiveChart(data) {
         },
     });
 
+    // keep an immutable copy for filtering toggles
+    chart.baseDestroyAllPoints = baseDestroyPoints.map((pt) => ({ ...pt }));
     // grab chart internals for positioning
     const left = chart.plotLeft;
     const top = chart.plotTop;
@@ -242,43 +538,47 @@ export function initLiveChart(data) {
 
     chart.customCursorGroup = cursorGroup;
 
-    // HOVER LINE
-    const hoverGroup = chart.renderer.g().attr({ zIndex: 6 }).add();
-    const hoverLine = chart.renderer
-        .path(["M", left, top, "L", left, top + height])
-        .attr({
-        stroke: "rgba(136, 136, 136, 0.5)", // more transparent
-        "stroke-width": 2,
-        dashstyle: "Dash",
-        zIndex: 4,
-        })
-        .add(hoverGroup);
-    const hoverLabel = chart.renderer
-        .text("", left, top - 5)
-        .attr({ align: "center", zIndex: 7 })
-        .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
-        .add(hoverGroup);
-    hoverGroup.hide();
-
-    chart.container.addEventListener("mousemove", (e) => {
-        const cbb = chart.container.getBoundingClientRect();
-        const chartX = e.clientX - cbb.left;
-        const t = chart.xAxis[0].toValue(chartX);
-        const x = chart.xAxis[0].toPixels(t);
-
-        if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
-        hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
-        hoverLabel.attr({ text: formatTime(t), x: x, y: top + 10 });
-        hoverGroup.show();
-        } else {
+    // HOVER LINE (desktop only)
+    if (window.matchMedia("(pointer:fine)").matches) {
+        const hoverGroup = chart.renderer.g().attr({ zIndex: 6 }).add();
+        const hoverLine = chart.renderer
+            .path(["M", left, top, "L", left, top + height])
+            .attr({
+            stroke: "rgba(136, 136, 136, 0.5)", // more transparent
+            "stroke-width": 2,
+            dashstyle: "Dash",
+            zIndex: 4,
+            })
+            .add(hoverGroup);
+        const hoverLabel = chart.renderer
+            .text("", left, top - 5)
+            .attr({ align: "center", zIndex: 7 })
+            .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
+            .add(hoverGroup);
         hoverGroup.hide();
-        }
-    });
 
-    chart.container.addEventListener("mouseleave", () => {
-        hoverGroup.hide();
-    });
+        chart.container.addEventListener("mousemove", (e) => {
+            const cbb = chart.container.getBoundingClientRect();
+            const chartX = e.clientX - cbb.left;
+            const t = chart.xAxis[0].toValue(chartX);
+            const x = chart.xAxis[0].toPixels(t);
 
+            if (x >= chart.plotLeft && x <= chart.plotLeft + chart.plotWidth) {
+            hoverLine.attr({ d: ["M", x, top, "L", x, top + height] });
+            hoverLabel.attr({ text: formatTime(t), x: x, y: top + 10 });
+            hoverGroup.show();
+            } else {
+            hoverGroup.hide();
+            }
+        });
+
+        chart.container.addEventListener("mouseleave", () => {
+            hoverGroup.hide();
+        });
+    }
+
+    applyTeamSeriesVisibility(state.hiddenTeams);
+    updatePlayerStatusBands();
     return chart;
 }
 

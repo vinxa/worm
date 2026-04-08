@@ -1,152 +1,32 @@
 // ui.js
 
 import { state } from "./state.js";
-import { playReplay, seekToTime, handleSkip, clearTimeouts } from "./replayHandler.js";
-import { wiggleLogos, setupLogoDance, randomWobble } from "./wormThings.js";
-import { loadGameData } from "./main.js";
-import { formatGameDatetime, isTypingField } from "./utils.js";
-import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
-import { generatePlayerTiles, setupTileExpansion, setupPlayerSeriesToggles, colourPlayerNamesFromChart } from "./playerTiles.js";
-import { setupDraggableModal } from "./video.js";
+import { handleSkip, jumpToStart, jumpToEnd, goToLatestGame } from "./replayHandler.js";
+import { setupKeyboardControls } from "./keyboard.js";
+import { createHomeUi } from "./homeUi.js";
+import { showGame, renderGameData, updateNextGameButtonVisibility, clickPlayButton, stepPlaybackRateUi, bindPlaybackButtons } from "./gameUi.js";
+import { setupFilterListeners } from "./gameFilters.js";
+import { setupLogoDance } from "./wormThings.js";
 
-// Shared UI elements
-const gameHeader = document.querySelector("body > .app-header");
-const gameSections = [
-    document.querySelector(".top-section"),
-    document.querySelector(".timeline-section"),
-];
-const homeView = document.getElementById("home-view");
-const leftBtn = document.querySelector(".nav-button.left");
+const nextGameBtn = document.querySelector(".next-game-button");
+const { showHome, buildGrid } = createHomeUi({ showGame, updateNextGameButtonVisibility });
 
-function clickPlayButton() {
-    // Hook the Play button to start the replay
-    const btn = document.getElementById("playButton");
-    if (!state.gameData) return;
-    if (state.currentTime >= state.gameData.gameDuration) {
-        seekToTime(0);
-    }
-    if (!state.isPlaying) {
-        state.isPlaying = true;
-        btn.textContent = "❚❚";
-        // clear old timeouts
-        clearTimeouts();
-        // start replay, passing array to fill with timeout IDs
-        playReplay(
-        state.chart,
-        state.gameData,
-        1,
-        state.replayTimeouts,
-        state.currentTime
-        );
-        if (state.player && typeof state.player.playVideo === "function") {
-        state.player.playVideo();
-        }
-    } else {
-        state.isPlaying = false;
-        btn.textContent = "▶"; // back to play icon
-        clearTimeouts();
-        if (state.player && typeof state.player.pauseVideo === "function") {
-        state.player.pauseVideo();
-        }
-        // cancel pending events
-        clearTimeouts();
-    }
+function loadGameAtIndex(idx) {
+    const games = state.games || [];
+    if (idx < 0 || idx >= games.length) return false;
+    state.selectedPlayers = new Set();
+    showGame(games[idx]);
+    return true;
 }
 
-function keyboardControls(e) {
-    switch (e.code) {
-        case "Space":
-            e.preventDefault();
-            if (state.currentTime >= state.gameData.gameDuration) {
-                seekToTime(0);
-            }
-            document.getElementById("playButton").click();
-            break;
-        case "ArrowLeft":
-            e.preventDefault();
-            handleSkip(-15);
-            break;
-        case "ArrowRight":
-            e.preventDefault();
-            handleSkip(+15);
-            break;
-        case "Backspace":
-            if (!isTypingField(e.target)) {
-                e.preventDefault();
-                showHome();
-                break;
-            }
-    }
-}
-
-export function showHome() {
-    if (!homeView) {
-        console.warn("showHome skipped: #home-view not found");
-        return;
-    }
-    homeView.style.display = "block";
-    if (leftBtn) leftBtn.style.display = "none";
-    if (gameHeader) gameHeader.style.display = "none";
-    gameSections.filter(Boolean).forEach((s) => (s.style.display = "none"));
-    wiggleLogos();
-}
-
-export function showGame(game) {
-    const homeView = document.getElementById("home-view");
-    state.selectedGame = game;
-    // hide home
-    if (homeView) homeView.style.display = "none";
-    // show game UI
-    if (leftBtn) leftBtn.style.display = "inline-block";
-    if (gameHeader) gameHeader.style.display = "flex";
-    gameSections.filter(Boolean).forEach((s) => (s.style.display = ""));
-    // load existing data
-    loadGameData(game.dataPath);
-    wiggleLogos();
-}
-
-// build the grid of tiles on index page
-export function buildGrid(games) {
-    const grid = document.getElementById("gamesGrid");
-    if (!grid) {
-        console.warn("buildGrid skipped: #gamesGrid not found");
-        return;
-    }
-    grid.innerHTML = ""; // clear any old tiles
-    games.forEach((game) => {
-        const tile = document.createElement("div");
-        tile.classList.add("game-tile");
-        const raw = game.title || "";
-
-        const gameLine = document.createElement("span");
-        gameLine.textContent = formatGameDatetime(game.id);
-
-        const rawLine = document.createElement("span");
-        rawLine.textContent = raw;
-
-        tile.appendChild(gameLine);
-        tile.appendChild(rawLine);
-        tile.addEventListener("click", () => showGame(game));
-        grid.appendChild(tile);
-    });
-}
+export { showHome, showGame, buildGrid, renderGameData, updateNextGameButtonVisibility };
 
 export function initUI() {
     const leftNavigationButton = document.querySelector(".nav-button.left");
-    if (leftNavigationButton) {
-        leftNavigationButton.addEventListener("click", () =>
-            showHome(state.selectedGame)
-        );
-    } else {
-        console.warn("initUI: .nav-button.left not found");
-    }
+    leftNavigationButton.addEventListener("click", () => showHome(state.selectedGame));
 
-    const playButton = document.getElementById("playButton");
-    if (playButton) {
-        playButton.addEventListener("click", clickPlayButton);
-    } else {
-        console.warn("initUI: #playButton not found");
-    }
+    bindPlaybackButtons();
+    setupLogoDance();
 
     const rewindButton = document.getElementById("rewindButton");
     if (rewindButton) {
@@ -156,37 +36,26 @@ export function initUI() {
     }
 
     const forwardButton = document.getElementById("forwardButton");
-    if (forwardButton) {
-        forwardButton.addEventListener("click", () => handleSkip(+15));
-    } else {
-        console.warn("initUI: #forwardButton not found");
+    forwardButton.addEventListener("click", () => handleSkip(+15));
+
+    const skipStartButton = document.getElementById("skipStartButton");
+    if (skipStartButton) skipStartButton.addEventListener("click", () => jumpToStart({ loadGameAtIndex }));
+
+    const skipEndButton = document.getElementById("skipEndButton");
+    if (skipEndButton) skipEndButton.addEventListener("click", () => jumpToEnd({ loadGameAtIndex }));
+
+    if (nextGameBtn) {
+        nextGameBtn.addEventListener("click", () => goToLatestGame({ showGame }));
     }
+    setupFilterListeners({ onFiltersChanged: () => buildGrid(state.games || []) });
 
-    document.addEventListener("keydown", (e) => keyboardControls(e));
-    
-    setupLogoDance();
-}
-
-export function renderGameData() {
-    // Timeline
-    state.chart = initLiveChart(state.gameData);
-    state.teamFullTimeline = buildTeamTimeline(state.gameData);
-    state.playerTimelines = buildPlayerTimelines(state.gameData);
-
-    // Player tiles
-    generatePlayerTiles();
-    setupTileExpansion();
-    setupPlayerSeriesToggles();
-    colourPlayerNamesFromChart();
-
-    // YouTube modal
-    setupDraggableModal();
-    seekToTime(state.currentTime);
-
-    // Header title
-    if (state.selectedGame && state.gameData.gameType) {
-        const pretty = formatGameDatetime(state.selectedGame.id);
-        document.querySelector('.title').textContent =
-            `${pretty}    |    ${state.gameData.gameType}`;
-    }
+    setupKeyboardControls({
+        onTogglePlay: clickPlayButton,
+        onJumpToStart: () => jumpToStart({ loadGameAtIndex }),
+        onJumpToEnd: () => jumpToEnd({ loadGameAtIndex }),
+        onSpeedUp: () => stepPlaybackRateUi(1),
+        onSpeedDown: () => stepPlaybackRateUi(-1),
+        onLatestGame: () => goToLatestGame({ showGame }),
+        onShowHome: showHome,
+    });
 }

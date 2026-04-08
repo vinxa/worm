@@ -2,15 +2,131 @@
 
 // Imports
 import { state } from "./state.js";
-import { showHome, buildGrid, initUI, renderGameData } from "./ui.js";
+import { showHome, buildGrid, initUI, renderGameData, updateNextGameButtonVisibility } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
+import { INDEX_REFRESH_MS, GAME_TIMEZONE } from "./config.js";
 
-export async function loadGameData(dataPath) {
+function getLatestGame(games) {
+    if (!games || !games.length) return null;
+    return [...games].sort((a, b) => b.id.localeCompare(a.id))[0];
+}
+
+function computeGameSignature(data) {
+    if (!data) return "";
+    const explicit =
+        data.lastUpdated ||
+        data.updatedAt ||
+        data.timestamp ||
+        data.generatedAt;
+    if (explicit) return String(explicit);
+
+    const events = Array.isArray(data.events) ? data.events : [];
+    const last = events[events.length - 1] || {};
+    const lastTime = last.time ?? "";
+    const lastDelta = last.playerDelta ?? last.teamDelta ?? last.delta ?? "";
+    return `${events.length}|${lastTime}|${lastDelta}|${data.gameDuration ?? ""}`;
+}
+
+function parseGameStart(game) {
+    if (!game || !game.id) return null;
+    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const [, YYYY, MM, DD, hh, mm] = m;
+    return new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
+}
+
+function isFreshGame(game) {
+    const start = parseGameStart(game);
+    if (!start) return false;
+    const now = Date.now();
+    // Use game duration as fresh window (in ms), fallback as 15min
+    const durationMs = (game.gameDuration || 15 * 60) * 1000;
+    return now - start.getTime() < durationMs;
+}
+
+async function fetchEventsConfig() {
+    try {
+        const res = await fetch("static/events/events.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("Couldn't fetch events config");
+        const list = await res.json();
+        state.events = Array.isArray(list) ? list : [];
+    } catch (err) {
+        state.events = [];
+        console.error("Failed to load events config:", err);
+    } finally {
+        if (state.games && state.games.length) {
+            buildGrid(state.games);
+        }
+    }
+}
+
+async function fetchGamesIndex(fromPoll = false) {
+    try {
+        const res = await fetch(state.S3_BASE_URL + "/index.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("Couldn't fetch games index");
+        const list = await res.json();
+        applyGameIndex(list, { fromPoll });
+    } catch (err) {
+        console.error("Failed to refresh games index:", err);
+    }
+}
+
+function applyGameIndex(list, { fromPoll = false } = {}) {
+    if (!Array.isArray(list)) return;
+    const prevGames = state.games || [];
+    const prevIds = new Set(prevGames.map((g) => g.id));
+    const prevLatestId = state.latestGame?.id;
+
+    state.games = list;
+    state.latestGame = getLatestGame(list);
+
+    const newGameIds = fromPoll
+        ? list.filter((g) => !prevIds.has(g.id)).map((g) => g.id)
+        : [];
+    buildGrid(list, newGameIds);
+
+    const latestChanged = state.latestGame?.id && state.latestGame.id !== prevLatestId;
+    if (fromPoll && latestChanged) {
+        updateNextGameButtonVisibility(true, true);
+    } else {
+        updateNextGameButtonVisibility(false, false);
+    }
+
+    const viewingLatest =
+        fromPoll &&
+        state.selectedGame &&
+        state.latestGame &&
+        state.selectedGame.id === state.latestGame.id;
+    if (viewingLatest && isFreshGame(state.latestGame) && !state.isGameLoading) {
+        loadGameData(state.latestGame.dataPath, {
+            skipIfSignatureUnchanged: true,
+            showSpinner: false,
+        });
+    }
+}
+
+export async function loadGameData(dataPath, options = {}) {
+    const {
+        skipIfSignatureUnchanged = false,
+        showSpinner = true,
+        prefetchedData = null,
+    } = options;
     try {
         state.isGameLoading = true;
-        showLoadingIndicator();
-        const res = await fetch(dataPath);
-        state.gameData = await res.json();
+        if (showSpinner) showLoadingIndicator();
+
+        const data = prefetchedData
+            ? prefetchedData
+            : await (await fetch(dataPath, { cache: "no-store" })).json();
+
+        const sigKey = state.selectedGame?.id || data.id || dataPath;
+        const newSig = computeGameSignature(data);
+        const prevSig = state.gameSignatures[sigKey];
+        if (skipIfSignatureUnchanged && prevSig && prevSig === newSig) {
+            return;
+        }
+        state.gameSignatures[sigKey] = newSig;
+        state.gameData = data;
 
         // Index player events
         state.playerEvents = {};
@@ -27,7 +143,8 @@ export async function loadGameData(dataPath) {
         const maxEvent = state.gameData.events.length
         ? Math.max(...state.gameData.events.map((e) => e.time))
         : 0;
-        state.gameData.gameDuration = state.gameData.gameDuration ?? maxEvent;
+        const baseDuration = state.gameData.gameDuration ?? 0;
+        state.gameData.gameDuration = Math.max(baseDuration, maxEvent);
         state.currentTime = state.gameData.gameDuration;
 
         // Final scores for each player
@@ -44,15 +161,17 @@ export async function loadGameData(dataPath) {
         state.gameData.teams.forEach((t) => {
             state.teamScores[t.id] = 0;
         });
+        state.hiddenTeams = null;
 
         renderGameData();
 
     } catch (err) {
         console.error("Failed to load game data:", err);
         
+    } finally {
+        state.isGameLoading = false;
+        if (showSpinner) hideLoadingIndicator();
     }
-    state.isGameLoading = false;
-    hideLoadingIndicator();
 }
 
 function showLoadingIndicator() {
@@ -70,20 +189,36 @@ function hideLoadingIndicator() {
     wiggleLogos();
 }
 
-// Load list of games
-let games = [];
-fetch(state.S3_BASE_URL + "/index.json").then(res => {
-    if (!res.ok) throw new Error("Couldn't fetch games index");
-    return res.json();
-})
-.then(list => { 
-    games = list;
-    buildGrid(games);
-})
-.catch(err => console.error(err));
+function PWAinstallPrompt() {
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installButton').style.display = 'block';
+    });
+
+    document.getElementById('installButton').addEventListener('click', () => {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+        } else {
+        console.log('User dismissed the install prompt');
+        }
+        deferredPrompt = null;
+    });
+    });
+}
+
+// Load list of games initially and start polling
+fetchEventsConfig();
+fetchGamesIndex(false);
+setInterval(() => fetchGamesIndex(true), INDEX_REFRESH_MS);
 
 
 document.addEventListener("DOMContentLoaded", () => {
     initUI();
     showHome();
+    PWAinstallPrompt();
 });
