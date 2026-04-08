@@ -30,9 +30,9 @@ FINAL_GAMES_PREFIX = os.environ.get("FINAL_GAMES_PREFIX", "games/")
 
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "200"))
 FLUSH_INTERVAL_MS = int(os.environ.get("FLUSH_INTERVAL_MS", "1500"))
-REPLAY_CHUNK_SIZE = int(os.environ.get("REPLAY_CHUNK_SIZE", "200"))
 IDLE_TIMEOUT_SECONDS = int(os.environ.get("IDLE_TIMEOUT_SECONDS", "30"))
 GAME_END_GRACE_SECONDS = int(os.environ.get("GAME_END_GRACE_SECONDS", "10"))
+MAX_SNAPSHOT_BYTES = int(os.environ.get("MAX_SNAPSHOT_BYTES", "28000"))
 
 CACHE: Dict[str, Any] = {
     "meta": None,
@@ -170,8 +170,8 @@ def _ingest_events(event: Dict[str, Any], events: Iterable[Dict[str, Any]], now:
         if ev.get("type") == "game end":
             CACHE["saw_game_end"] = True
 
-    if _should_flush(now):
-        _flush_pending(event, now)
+    # Live feed takes priority: flush newly received events immediately.
+    _flush_pending(event, now)
 
     if CACHE.get("saw_game_end"):
         _finalize_after_grace(event, now)
@@ -238,6 +238,10 @@ def _maybe_finalize_idle(event: Dict[str, Any], now: float) -> None:
     if not last_event:
         return
     if now - last_event > IDLE_TIMEOUT_SECONDS:
+        # Avoid finalizing an empty cache with no end signal.
+        if not CACHE.get("events") and not CACHE.get("saw_game_end"):
+            logger.info("Idle timeout reached but no events; skipping finalization.")
+            return
         _finalize_game(event, reason="idle_timeout")
 
 
@@ -291,6 +295,9 @@ def _persist_snapshot(final: bool = False) -> None:
     meta = CACHE.get("meta")
     if not meta:
         return
+    if (final or CACHE.get("final")) and not CACHE.get("events"):
+        logger.warning("Skipping snapshot write: final state has no events")
+        return
 
     snapshot = {
         "gameId": CACHE.get("game_id"),
@@ -312,6 +319,9 @@ def _persist_snapshot(final: bool = False) -> None:
 
 def _load_snapshot() -> Optional[Dict[str, Any]]:
     if CACHE.get("meta") or CACHE.get("events"):
+        if CACHE.get("final") and not CACHE.get("events"):
+            # If we finalized without events, try S3 as a fallback.
+            _refresh_snapshot_from_s3()
         return {
             "meta": CACHE.get("meta"),
             "events": CACHE.get("events", []),
@@ -334,11 +344,7 @@ def _load_snapshot() -> Optional[Dict[str, Any]]:
         logger.exception("Failed to parse snapshot body")
         return None
 
-    # Warm the cache to reduce further S3 reads.
-    CACHE["meta"] = parsed.get("meta")
-    CACHE["events"] = parsed.get("events", [])
-    CACHE["last_seq"] = parsed.get("lastSeq", 0)
-    CACHE["final"] = parsed.get("final", False)
+    _apply_snapshot_to_cache(parsed)
     return {
         "meta": CACHE.get("meta"),
         "events": CACHE.get("events", []),
@@ -375,23 +381,30 @@ def _replay_state_to_connection(event: Dict[str, Any], connection_id: str) -> No
         _safe_post(client, connection_id, payload)
         return
 
-    chunks = list(_chunk_events(events, REPLAY_CHUNK_SIZE))
-    for idx, chunk in enumerate(chunks):
-        payload = {
-            "action": "snapshot",
-            "data": {
-                "meta": meta if idx == 0 else None,
-                "events": chunk,
-                "seqStart": chunk[0].get("seq"),
-                "seqEnd": chunk[-1].get("seq"),
-                "lastSeq": last_seq,
-                "final": final,
-                "isFirst": idx == 0,
-                "isLast": idx == len(chunks) - 1,
-            },
-        }
-        if not _safe_post(client, connection_id, payload):
+    # Try to send full snapshot in one message (fast catch-up) if under size limit.
+    full_payload = {
+        "action": "snapshot",
+        "data": {
+            "meta": meta,
+            "events": events,
+            "seqStart": events[0].get("seq"),
+            "seqEnd": events[-1].get("seq"),
+            "lastSeq": last_seq,
+            "final": final,
+            "isFirst": True,
+            "isLast": True,
+        },
+    }
+    full_size = len(json.dumps(full_payload, separators=(",", ":")).encode("utf-8"))
+    if full_size <= MAX_SNAPSHOT_BYTES:
+        if _safe_post(client, connection_id, full_payload):
             return
+        logger.warning(
+            "Single snapshot send failed (bytes=%d). Falling back to chunked replay.",
+            full_size,
+        )
+    if not _send_snapshot_chunked(client, connection_id, meta, events, last_seq, final):
+        return
 
 
 def _broadcast(event: Dict[str, Any], payload: Dict[str, Any]) -> None:
@@ -461,3 +474,186 @@ def _safe_title(value: str) -> str:
     cleaned = re.sub(r"\s+", "_", value.strip())
     cleaned = re.sub(r"[^A-Za-z0-9_\-]", "", cleaned)
     return cleaned or "Game"
+
+
+def _snapshot_payload(
+    meta: Optional[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    last_seq: int,
+    final: bool,
+    is_first: bool,
+    is_last: bool,
+) -> Dict[str, Any]:
+    return {
+        "action": "snapshot",
+        "data": {
+            "meta": meta,
+            "events": events,
+            "seqStart": events[0].get("seq") if events else None,
+            "seqEnd": events[-1].get("seq") if events else None,
+            "lastSeq": last_seq,
+            "final": final,
+            "isFirst": is_first,
+            "isLast": is_last,
+        },
+    }
+
+
+def _payload_size(payload: Dict[str, Any]) -> int:
+    return len(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+
+def _best_chunk_end(
+    meta: Optional[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    start: int,
+    last_seq: int,
+    final: bool,
+    is_first: bool,
+) -> int:
+    low = start + 1
+    high = len(events)
+    best = start
+    while low <= high:
+        mid = (low + high) // 2
+        payload = _snapshot_payload(
+            meta=meta,
+            events=events[start:mid],
+            last_seq=last_seq,
+            final=final,
+            is_first=is_first,
+            is_last=False,
+        )
+        if _payload_size(payload) <= MAX_SNAPSHOT_BYTES:
+            best = mid
+            low = mid + 1
+        else:
+            high = mid - 1
+    return best
+
+
+def _send_snapshot_chunked(
+    client,
+    connection_id: str,
+    meta: Optional[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    last_seq: int,
+    final: bool,
+) -> bool:
+    start = 0
+    first = True
+    total = len(events)
+
+    while start < total:
+        include_meta = meta if first else None
+        end = _best_chunk_end(
+            meta=include_meta,
+            events=events,
+            start=start,
+            last_seq=last_seq,
+            final=final,
+            is_first=first,
+        )
+
+        if end == start and first:
+            # Metadata is too large to fit with even one event. Send metadata-only,
+            # then continue with event-only chunks.
+            meta_only = _snapshot_payload(
+                meta=meta,
+                events=[],
+                last_seq=last_seq,
+                final=final,
+                is_first=True,
+                is_last=False,
+            )
+            if not _safe_post(client, connection_id, meta_only):
+                return False
+            first = False
+            continue
+
+        if end == start:
+            # Single event exceeded limit unexpectedly. Try sending one event anyway
+            # to avoid stalling replay.
+            end = start + 1
+
+        payload = _snapshot_payload(
+            meta=include_meta,
+            events=events[start:end],
+            last_seq=last_seq,
+            final=final,
+            is_first=first,
+            is_last=(end == total),
+        )
+        if not _safe_post(client, connection_id, payload):
+            return False
+        start = end
+        first = False
+
+    return True
+
+
+def _ensure_seq(events: List[Dict[str, Any]]) -> int:
+    last_seq = 0
+    for idx, ev in enumerate(events, start=1):
+        if not isinstance(ev, dict):
+            continue
+        if isinstance(ev.get("seq"), int):
+            last_seq = max(last_seq, ev["seq"])
+        else:
+            ev = dict(ev)
+            ev["seq"] = idx
+            events[idx - 1] = ev
+            last_seq = idx
+    return last_seq
+
+
+def _apply_snapshot_to_cache(parsed: Dict[str, Any]) -> None:
+    meta = parsed.get("meta")
+    events = parsed.get("events", []) or []
+    last_seq = parsed.get("lastSeq", 0)
+    if events:
+        last_seq = _ensure_seq(events) if not last_seq else last_seq
+    CACHE["meta"] = meta
+    CACHE["events"] = events
+    CACHE["last_seq"] = last_seq
+    CACHE["final"] = parsed.get("final", False)
+
+    if CACHE.get("final") and not CACHE.get("events") and meta:
+        _recover_events_from_final_game(meta)
+
+
+def _refresh_snapshot_from_s3() -> None:
+    try:
+        obj = s3.get_object(Bucket=LIVE_BUCKET, Key=LIVE_SNAPSHOT_KEY)
+        body = obj["Body"].read().decode("utf-8")
+        parsed = json.loads(body)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+            return
+        logger.exception("Failed to refresh snapshot from S3")
+        return
+    except Exception:
+        logger.exception("Failed to refresh snapshot from S3")
+        return
+    _apply_snapshot_to_cache(parsed)
+
+
+def _recover_events_from_final_game(meta: Dict[str, Any]) -> None:
+    game_id = _derive_game_id(meta)
+    title = _safe_title(meta.get("gameType", "Game"))
+    key = f"{FINAL_GAMES_PREFIX}{game_id}@{title}.json"
+    try:
+        obj = s3.get_object(Bucket=LIVE_BUCKET, Key=key)
+        body = obj["Body"].read().decode("utf-8")
+        parsed = json.loads(body)
+        events = parsed.get("events", []) or []
+        if events:
+            CACHE["events"] = events
+            CACHE["last_seq"] = _ensure_seq(CACHE["events"])
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+            logger.info("No final game file found for recovery: %s", key)
+            return
+        logger.exception("Failed to recover events from final game file")
+    except Exception:
+        logger.exception("Failed to recover events from final game file")

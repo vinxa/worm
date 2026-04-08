@@ -20,9 +20,9 @@ FILE_EXT  = ".tdf"
 # Time (seconds) with no file writes before we assume the game is over
 IDLE_GAME_TIMEOUT = 10
 
-# Batch events to reduce WebSocket message count
-BATCH_SIZE = 50
-BATCH_INTERVAL = 1.0
+# Prioritize immediacy for live viewers.
+BATCH_SIZE = 1
+BATCH_INTERVAL = 0.0
 
 
 # -------------------------------------------------------------------

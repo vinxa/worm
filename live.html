@@ -6,6 +6,8 @@
   <title>WORM Live Game</title>
   <link rel="stylesheet" href="style.css">
   <link rel="shortcut icon" href="assets/favicon.ico" type="image/x-icon">
+  <script src="assets/highcharts.js"></script>
+  <script src="assets/accessibility.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -23,10 +25,23 @@
       <h2>RESULTS</h2>
       <div class="results-content">
         <div class="grid-container">
-          <div id="livePlayerGrid" class="players-grid"></div>
+          <div id="playerGrid" class="players-grid"></div>
         </div>
         <div class="scores-sidebar">
-          <ul id="liveTeamScores" class="team-scores"></ul>
+          <ul class="team-scores">
+            <li data-team-id="red">
+              <span class="team-name">Red Team</span>
+              <span class="team-score">0</span>
+            </li>
+            <li data-team-id="blue">
+              <span class="team-name">Blue Team</span>
+              <span class="team-score">0</span>
+            </li>
+            <li data-team-id="green">
+              <span class="team-name">Green Team</span>
+              <span class="team-score">0</span>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
@@ -36,6 +51,12 @@
     </section>
   </section>
 
+  <div id="scoreChart" style="position:absolute; left:-9999px; top:-9999px; width:300px; height:150px;"></div>
+
   <script type="module" src="live_scoreboard/live.js"></script>
+  <script type="module">
+    import { watchCurrentLiveGame } from "./live_scoreboard/live.js";
+    watchCurrentLiveGame();
+  </script>
 </body>
 </html>

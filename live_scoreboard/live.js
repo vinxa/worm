@@ -96,6 +96,8 @@ export function disconnectLiveUpdates() {
 function handleLiveMetadata(meta) {
     if (!meta || typeof meta !== "object") return;
 
+    ensureTeamScoreList(meta);
+
     const sameGame = state.liveGameMeta &&
         state.liveGameMeta.startTime === meta.startTime &&
         state.liveGameMeta.gameType === meta.gameType;
@@ -134,6 +136,35 @@ function handleLiveMetadata(meta) {
 
     // You might also want to update any "current live game" tile on the
     // index page; see markLiveGames() below for that.
+}
+
+function ensureTeamScoreList(meta) {
+    const ul = document.querySelector(".team-scores");
+    if (!ul || !Array.isArray(meta?.teams)) return;
+
+    const existing = new Set(
+        Array.from(ul.querySelectorAll("li[data-team-id]")).map((li) => li.dataset.teamId)
+    );
+
+    if (existing.size === meta.teams.length) return;
+
+    ul.innerHTML = "";
+    meta.teams.forEach((team) => {
+        const li = document.createElement("li");
+        li.dataset.teamId = team.id;
+
+        const name = document.createElement("span");
+        name.className = "team-name";
+        name.textContent = team.name || team.id;
+
+        const score = document.createElement("span");
+        score.className = "team-score";
+        score.textContent = "0";
+
+        li.appendChild(name);
+        li.appendChild(score);
+        ul.appendChild(li);
+    });
 }
 
 /**
@@ -408,7 +439,7 @@ export function watchCurrentLiveGame() {
     }
 
     // If we already have metadata, initialise immediately
-    if (state.liveGameMeta && !state.liveGameHasEnded) {
+    if (state.liveGameMeta) {
         initialiseLiveGameFromMetadata(state.liveGameMeta);
     }
 

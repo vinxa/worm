@@ -10,13 +10,16 @@ function parseYouTubeId(url) {
 
 // Draggable YouTube modal setup
 export function setupDraggableModal() {
-    
+    const modal = document.getElementById("videoModal");
+    if (!modal) {
+        return;
+    }
+
 // Load the YouTube IFrame API
     const ytTag = document.createElement("script");
     ytTag.src = "https://www.youtube.com/iframe_api";
     document.head.appendChild(ytTag);
 
-    const modal = document.getElementById("videoModal");
     const header = modal.querySelector(".modal-header");
     const closeBtn = document.getElementById("modalClose");
     const loadBtn = document.getElementById("loadButton");

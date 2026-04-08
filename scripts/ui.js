@@ -80,10 +80,14 @@ function keyboardControls(e) {
 }
 
 export function showHome() {
+    if (!homeView) {
+        console.warn("showHome skipped: #home-view not found");
+        return;
+    }
     homeView.style.display = "block";
-    leftBtn.style.display = "none";
-    gameHeader.style.display = "none";
-    gameSections.forEach((s) => (s.style.display = "none"));
+    if (leftBtn) leftBtn.style.display = "none";
+    if (gameHeader) gameHeader.style.display = "none";
+    gameSections.filter(Boolean).forEach((s) => (s.style.display = "none"));
     wiggleLogos();
 }
 
@@ -91,11 +95,11 @@ export function showGame(game) {
     const homeView = document.getElementById("home-view");
     state.selectedGame = game;
     // hide home
-    homeView.style.display = "none";
+    if (homeView) homeView.style.display = "none";
     // show game UI
-    leftBtn.style.display = "inline-block";
-    gameHeader.style.display = "flex";
-    gameSections.forEach((s) => (s.style.display = ""));
+    if (leftBtn) leftBtn.style.display = "inline-block";
+    if (gameHeader) gameHeader.style.display = "flex";
+    gameSections.filter(Boolean).forEach((s) => (s.style.display = ""));
     // load existing data
     loadGameData(game.dataPath);
     wiggleLogos();
@@ -104,6 +108,10 @@ export function showGame(game) {
 // build the grid of tiles on index page
 export function buildGrid(games) {
     const grid = document.getElementById("gamesGrid");
+    if (!grid) {
+        console.warn("buildGrid skipped: #gamesGrid not found");
+        return;
+    }
     grid.innerHTML = ""; // clear any old tiles
     games.forEach((game) => {
         const tile = document.createElement("div");
@@ -125,18 +133,34 @@ export function buildGrid(games) {
 
 export function initUI() {
     const leftNavigationButton = document.querySelector(".nav-button.left");
-    leftNavigationButton.addEventListener("click", () =>
-        showHome(state.selectedGame)
-    );
+    if (leftNavigationButton) {
+        leftNavigationButton.addEventListener("click", () =>
+            showHome(state.selectedGame)
+        );
+    } else {
+        console.warn("initUI: .nav-button.left not found");
+    }
 
     const playButton = document.getElementById("playButton");
-    playButton.addEventListener("click", clickPlayButton);
+    if (playButton) {
+        playButton.addEventListener("click", clickPlayButton);
+    } else {
+        console.warn("initUI: #playButton not found");
+    }
 
     const rewindButton = document.getElementById("rewindButton");
-    rewindButton.addEventListener("click", () => handleSkip(-15));
+    if (rewindButton) {
+        rewindButton.addEventListener("click", () => handleSkip(-15));
+    } else {
+        console.warn("initUI: #rewindButton not found");
+    }
 
     const forwardButton = document.getElementById("forwardButton");
-    forwardButton.addEventListener("click", () => handleSkip(+15));
+    if (forwardButton) {
+        forwardButton.addEventListener("click", () => handleSkip(+15));
+    } else {
+        console.warn("initUI: #forwardButton not found");
+    }
 
     document.addEventListener("keydown", (e) => keyboardControls(e));
     

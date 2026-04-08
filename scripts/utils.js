@@ -21,14 +21,20 @@ export function formatTime(sec) {
 
 // Helper to compute a team’s total score at time `t`:
 export function computeTeamTotal(teamId, t) {
+    if (!state.gameData || !state.gameData.events) return 0;
     return state.gameData.events
-        .filter(
-        (ev) =>
-            ev.time <= t &&
-            /* event affects this team */ ((ev.teamDelta != null &&
-            ev.entity === teamId) ||
-            (ev.delta != null && state.gameData.players[ev.entity].team === teamId))
-        )
+        .filter((ev) => {
+            if (!ev || ev.time > t) return false;
+            if (ev.teamDelta != null) {
+                return ev.entity === teamId;
+            }
+            if (ev.delta != null) {
+                const player = state.gameData.players?.[ev.entity];
+                if (!player) return false;
+                return player.team === teamId;
+            }
+            return false;
+        })
         .reduce((sum, ev) => sum + (ev.teamDelta ?? ev.delta ?? 0), 0);
 }
 

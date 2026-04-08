@@ -163,9 +163,16 @@ function updateTeamScoresForTime(sec) {
   // 2) scan every event ≤ sec and add its teamDelta/delta
   state.gameData.events.forEach((ev) => {
     if (ev.time <= sec) {
-      const teamId =
-        ev.teamDelta != null ? ev.entity : state.gameData.players[ev.entity].team;
-      state.teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+      let teamId = null;
+      if (ev.teamDelta != null) {
+        teamId = ev.entity;
+      } else if (ev.delta != null) {
+        const player = state.gameData.players?.[ev.entity];
+        if (!player) return;
+        teamId = player.team;
+      }
+      if (!teamId) return;
+      state.teamScores[teamId] = (state.teamScores[teamId] || 0) + (ev.teamDelta ?? ev.delta ?? 0);
     }
   });
 

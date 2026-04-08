@@ -14,9 +14,9 @@ WS_URL   = "wss://1km1prnds5.execute-api.ap-southeast-2.amazonaws.com/production
 # Playback speed multiplier:
 SPEED = 10
 
-# Batch events to reduce WebSocket messages
-BATCH_SIZE = 50
-BATCH_INTERVAL = 1.0
+# Prioritize immediacy for live viewers.
+BATCH_SIZE = 1
+BATCH_INTERVAL = 0.0
 
 # -------------------------------------------------------------------
 # HELPERS
