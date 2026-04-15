@@ -7,8 +7,28 @@ const FAST_SORT_MIN_INTERVAL = 2; // seconds of game time
 let lastTileSortGameTime = -Infinity;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
+const BASE_TEXT_CONTRAST_THRESHOLD = 186;
 const baseHitFlashTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
+
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+    return result
+        ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16),
+        }
+        : null;
+}
+
+function getContrastTextColor(hexColor, threshold = BASE_TEXT_CONTRAST_THRESHOLD) {
+    const rgb = hexToRgb(hexColor);
+    if (!rgb) return "#ffffff";
+    return rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114 > threshold
+        ? "#000000"
+        : "#ffffff";
+}
 
 function resetBaseHitFlashState() {
     baseHitFlashTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
@@ -132,11 +152,12 @@ export function updatePlayerTiles(currentTime) {
             const baseColor = color || teamColorById[id] || id;
             // stat for this target:
             const stat = baseStats[id] || { count: 0, destroyed: false };
+            const textColor = getContrastTextColor(baseColor);
             return `
         <div class="base-box${stat.destroyed ? " filled" : ""}"
             style="
                 border-color: ${baseColor};
-                ${stat.destroyed ? `background:${baseColor}` : ""}
+                ${stat.destroyed ? `background:${baseColor}; color:${textColor};` : ""}
             ">
             ${stat.count}
         </div>

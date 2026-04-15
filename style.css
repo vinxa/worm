@@ -425,13 +425,6 @@ button {
   padding: 0.2rem 0.7rem;
 }
 
-  border: 1px solid #555;
-  border-radius: 3px;
-  background: #444;
-  color: #b9b9b9;
-  
-}
-
 .modal-body {
   display: flex;
   justify-content: center;
@@ -573,10 +566,11 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8em;
+  font-size: 0.9em;
   line-height: 1;
   background: transparent;
-  border-radius: 3px;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 .base-box.filled {
