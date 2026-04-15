@@ -8,9 +8,19 @@ const BASE_MARKER_SIZE = 8;
 function buildBaseDestroyPoints(data) {
     const totals = {};
     const teamsById = {};
+    const baseColorsById = {};
+
+    const normalizeId = (value) => (value || "").toString().trim().toLowerCase();
+
     data.teams.forEach((t) => {
         totals[t.id] = 0;
-        teamsById[t.id] = t;
+        teamsById[normalizeId(t.id)] = t;
+    });
+
+    (data.active_bases || []).forEach((base) => {
+        const id = normalizeId(base?.id);
+        if (!id) return;
+        if (base?.color) baseColorsById[id] = base.color;
     });
 
     const sortedEvents = [...data.events].sort((a, b) => a.time - b.time);
@@ -20,19 +30,19 @@ function buildBaseDestroyPoints(data) {
         if (!player) return acc;
 
         const teamId = player.team;
+        const normalizedTeamId = normalizeId(teamId);
         if (!(teamId in totals)) return acc;
 
         const delta = ev.delta ?? 0;
         totals[teamId] += delta;
 
         if (ev.type === "base destroy") {
-            const attackerTeam = teamsById[teamId];
-            const targetId = (ev.target || "").toLowerCase();
-            const targetTeam = teamsById[targetId];
+            const attackerTeam = teamsById[normalizedTeamId];
+            const targetId = normalizeId(ev.target).trim();
             const attackerName = attackerTeam?.name || teamId;
-            const targetName = targetTeam?.name || ev.target || "";
-            const targetLabel = (targetName.trim() || "?").charAt(0).toUpperCase();
-            const targetColor = targetTeam?.color || "#ffffff";
+            const targetBase = (targetId || "?").charAt(0).toUpperCase() + targetId.slice(1)
+            const targetLabel = targetBase.charAt(0);
+            const targetColor = baseColorsById[targetId] || "#ffffff";
 
             acc.push({
                 x: ev.time,
@@ -41,8 +51,8 @@ function buildBaseDestroyPoints(data) {
                 attackerTeamId: teamId,
                 playerName: player.name || player.id || ev.entity,
                 attackerTeamName: attackerName,
-                targetTeamName: targetName,
-                teamLabel: targetLabel,
+                targetBaseName: targetBase,
+                targetBaseLabel: targetLabel,
                 targetColor,
             });
         }
@@ -67,7 +77,7 @@ function drawBaseDestroyOverlays(chart) {
     };
 
     series.points.forEach((pt) => {
-        const { plotX, plotY, color = "#ffffff", teamLabel = "", targetColor = "#ffffff" } = pt;
+        const { plotX, plotY, color = "#ffffff", targetBaseLabel = "", targetColor = "#ffffff" } = pt;
         if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
         const x = chart.plotLeft + plotX;
         const y = chart.plotTop + plotY;
@@ -99,7 +109,7 @@ function drawBaseDestroyOverlays(chart) {
         .add(g);
 
         const lbl = chart.renderer
-        .text(teamLabel, x, endY - 6)
+        .text(targetBaseLabel, x, endY - 6)
         .attr({ align: "center", zIndex: 8 })
         .css({ color: labelColor, fontSize: "12px", fontWeight: "bold", textOutline: "1px #000" })
         .add(g);
@@ -481,8 +491,8 @@ export function initLiveChart(data) {
         formatter: function () {
             const id = this.series.options.id || "";
             if (id === "base-destroys") {
-            const target = this.point.targetTeamName
-                ? ` on ${this.point.targetTeamName} base`
+            const target = this.point.targetBaseName
+                ? ` on ${this.point.targetBaseName} base`
                 : "";
             return (
                 `<span style="color:${this.point.color}">\u25B2</span> ` +
