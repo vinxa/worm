@@ -80,11 +80,11 @@
             }
         ],
         "teams": {
-            "Team 1": ["Artemissed You","Basilisk","CaptainEmmerica","Gaza","Gripsy","Method"],
-            "Team 2": ["Arbel","Banksy","Brodihzzle","DeanLogan1","Jette","Muffin"],
-            "Team 3": ["Commander-Snake","Cowie","Jacko","Sawdust","TechDeck205"],
-            "Team 4": ["Aqua","Fluffo","Gooby","Best5InTheState","Serenity","Webe"],
-            "Team 5": ["Dorky","Drayke","John Wick","Keirlos3","Shaniarenee7","Stinky"]
+            "Cheddar Than the Rest": ["Artemissed You","Basilisk","CaptainEmmerica","Gaza","Gripsy","Method"],
+            "Swiss-ly Taking Your Base": ["Arbel","Banksy","Brodihzzle","DeanLogan1","Jette","Muffin"],
+            "Halou-mi Take Your Base Now": ["Commander-Snake","Cowie","Jacko","Sawdust","TechDeck205"],
+            "Brie really need a base": ["Aqua","Fluffo","Gooby","Best5InTheState","Serenity","Webe"],
+            "Cheese Fun-due": ["Dorky","Drayke","John Wick","Keirlos3","Shaniarenee7","Stinky"]
         },
         "game-type": "Zltac Settings - Wapl"
     }
