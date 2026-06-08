@@ -108,7 +108,7 @@ export function updatePlayerTiles(currentTime) {
         tile.classList.toggle("_negative", score < 0);
         tile.classList.toggle("is-deactivated", !isActive);
 
-        const { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount } =
+        const { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount, teamKillsFor, teamKillsAgainst } =
         computePlayerStats(pid, currentTime);
 
         const tagsEl = tile.querySelector(".detail-tags");
@@ -119,14 +119,17 @@ export function updatePlayerTiles(currentTime) {
 
         if (tagsEl) {
         if (focusPid && focusPid !== pid) {
+            // Show head to head stats for other players if we have a focused player.
             const headToHead = computeHeadToHeadTags(focusPid, pid, currentTime);
             tagsEl.innerHTML =
             `${tagsFor} – ${tagsAgainst} ` +
             `<span class="detail-tags-h2h">(${headToHead.tagsFor} – ${headToHead.tagsAgainst})</span>`; // using thin spaces
             if (tagsLabelEl) tagsLabelEl.textContent = "Tags:";
         } else {
-            tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
-            if (tagsLabelEl) tagsLabelEl.textContent = "Tags:";
+            tagsEl.innerHTML =
+            `${tagsFor} – ${tagsAgainst} ` +
+            `<span class="detail-tags-teamKills">(${teamKillsFor} – ${teamKillsAgainst})</span>`;
+            //tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
         }
         }
         if (ratioEl) ratioEl.textContent = ratioText;

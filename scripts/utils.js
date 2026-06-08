@@ -83,10 +83,18 @@ export function computePlayerStats(pid, t) {
     let tagsFor = 0,
         tagsAgainst = 0,
         baseCount = 0,
-        deniesCount = 0;
+        deniesCount = 0,
+        teamKillsFor = 0,
+        teamKillsAgainst = 0;
     evs.forEach((ev) => {
-        if (ev.type === "tag") tagsFor++;
-        else if (ev.type === "tagged") tagsAgainst++;
+        if (ev.type === "tag") {
+            tagsFor++;
+            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) teamKillsFor++;
+        } 
+        else if (ev.type === "tagged") {
+            tagsAgainst++;
+            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) teamKillsAgainst++;
+        }
         else if (ev.type === "base destroy") baseCount++;
         else if (ev.type === "deny") {
             if (ev.delta == 500) deniesCount+=2;
@@ -97,7 +105,7 @@ export function computePlayerStats(pid, t) {
     // ratio
     const ratioText =
         tagsAgainst > 0 ? Math.round((tagsFor / tagsAgainst) * 100) + "%" : "∞";
-    return { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount };
+    return { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount, teamKillsFor, teamKillsAgainst};
 }
 
 export function computePlayerUptime(pid, t) {

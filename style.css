@@ -252,6 +252,11 @@ button {
   color: #9a9a9a;
 }
 
+.detail-tags-teamKills {
+  font-size: 0.85em;
+  color: #a02a2a;
+}
+
 .player-name {
   font-size: 1rem;
   font-weight: bold;
@@ -1033,6 +1038,10 @@ button:hover {
   .detail-tags-h2h {
     font-size: 0.85em;
     color: #9a9a9a;
+  }
+  .detail-tags-teamKills {
+    font-size: 0.85em;
+    color: #880f0f;
   }
   .detail-tags-label {
     display: none;
