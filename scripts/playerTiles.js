@@ -73,7 +73,6 @@ export function updatePlayerTiles(currentTime) {
         state.selectedPlayers && state.selectedPlayers.size === 1
         ? Array.from(state.selectedPlayers)[0]
         : null;
-    const focusName = focusPid ? state.gameData.players[focusPid]?.name || "Player" : "";
 
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
@@ -81,10 +80,9 @@ export function updatePlayerTiles(currentTime) {
         let score = 0;
         let isActive = true;
         let latestBaseEvent = null;
-        for (let ev of events) {
-        if (ev.time <= currentTime) {
-            // sum the playerDelta (fallback to ev.delta if needed)
-            score += ev.playerDelta ?? ev.delta ?? 0;
+        for (const ev of events) {
+            if (ev.time > currentTime) break;
+            score += ev.delta ?? 0;
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
             if (ev.type === "base hit" || ev.type === "base destroy") {
@@ -98,9 +96,6 @@ export function updatePlayerTiles(currentTime) {
                     latestBaseEvent = ev;
                 }
             }
-        } else {
-            break;
-        }
         }
         // update the tile
         const scoreEl = tile.querySelector(".player-score");
@@ -247,14 +242,14 @@ export function setupTeamSeriesFilter() {
     items.forEach((li) => {
         li.style.cursor = "pointer";
         li.addEventListener("click", () => {
-        const teamId = li.dataset.teamId;
-        if (!teamId) return;
-        toggleTeamVisibility(teamId);
-        const activeSet = state.hiddenTeams || new Set();
-        items.forEach((el) => {
-            const inactive = activeSet.has(el.dataset.teamId);
-            el.classList.toggle("inactive-team-filter", inactive);
-        });
+            const teamId = li.dataset.teamId;
+            if (!teamId) return;
+            toggleTeamVisibility(teamId);
+            const activeSet = state.hiddenTeams || new Set();
+            items.forEach((el) => {
+                const inactive = activeSet.has(el.dataset.teamId);
+                el.classList.toggle("inactive-team-filter", inactive);
+            });
         });
     });
 }

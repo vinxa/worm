@@ -89,16 +89,8 @@ export function renderGameData() {
     }
 }
 
-export function applySpeedLabel() {
-    const label = `${state.playbackRate}x`;
-    const speedButton = document.getElementById("speedButton");
-    if (speedButton) speedButton.textContent = label;
-    if (headerSpeedButton) headerSpeedButton.textContent = label;
-}
-
 export function stepPlaybackRateUi(direction) {
     stepPlaybackRate(direction, { speeds: SPEED_OPTIONS });
-    applySpeedLabel();
 }
 
 export function clickPlayButton() {
@@ -134,13 +126,12 @@ export function bindPlaybackButtons() {
             const safeIdx = idx === -1 ? 0 : idx;
             const next = SPEED_OPTIONS[(safeIdx + 1) % SPEED_OPTIONS.length];
             setPlaybackRate(next);
-            applySpeedLabel();
         });
     };
-    applySpeedLabel();
     bindSpeedButton(speedButton);
     bindSpeedButton(headerSpeedButton);
 }
+
 
 function applyCurrentGameTeamLabels() {
     const ul = document.querySelector(".team-scores");
@@ -154,6 +145,7 @@ function applyCurrentGameTeamLabels() {
     const defaultNames = Object.fromEntries(
         (state.gameData?.teams || []).map((t) => [t.id, t.name])
     );
+
     ul.innerHTML = "";
     (state.gameData?.teams || []).forEach((team) => {
         const li = document.createElement("li");
@@ -173,6 +165,7 @@ function applyCurrentGameTeamLabels() {
         const score = document.createElement("span");
         score.className = "team-score";
         score.textContent = "0";
+
         li.appendChild(nameEl);
         li.appendChild(tags);
         li.appendChild(score);

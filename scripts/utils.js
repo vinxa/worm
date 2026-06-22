@@ -36,6 +36,15 @@ export function getGameDuration(data = state.gameData) {
     return maxEventTime;
 }
 
+export function parseGameStart(game, timezone = GAME_TIMEZONE) {
+    if (!game || !game.id) return null;
+    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    if (!m) return null;
+    const [, YYYY, MM, DD, hh, mm] = m;
+    const parsed = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${timezone}`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 
 // Helper to compute a team’s total score at time `t`:
 export function computeTeamTotal(teamId, t) {
@@ -43,11 +52,18 @@ export function computeTeamTotal(teamId, t) {
         .filter(
         (ev) =>
             ev.time <= t &&
-            /* event affects this team */ ((ev.teamDelta != null &&
-            ev.entity === teamId) ||
-            (ev.delta != null && state.gameData.players[ev.entity].team === teamId))
+            /* event affects this team */ (ev.delta != null &&
+            state.gameData.players[ev.entity].team === teamId)
         )
-        .reduce((sum, ev) => sum + (ev.teamDelta ?? ev.delta ?? 0), 0);
+        .reduce((sum, ev) => sum + (ev.delta ?? 0), 0);
+}
+
+export function initTeamScores(teams) {
+    const scores = {};
+    (teams || []).forEach((t) => {
+        scores[t.id] = { score: 0, tagsFor: 0, tagsAgainst: 0 };
+    });
+    return scores;
 }
 
 export function computeBaseStats(pid, t) {
@@ -184,9 +200,8 @@ export function bucketTeamDeltas(data) {
     data.teams.forEach((t) => (buckets[t.id] = {}));
 
     data.events.forEach((ev) => {
-        const teamId =
-        ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-        const d = ev.teamDelta ?? ev.delta ?? 0;
+        const teamId = data.players[ev.entity].team;
+        const d = ev.delta ?? 0;
         buckets[teamId][ev.time] = (buckets[teamId][ev.time] || 0) + d;
     });
 

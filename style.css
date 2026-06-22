@@ -878,11 +878,6 @@ button {
   word-break: break-word;
 }
 
-.game-title-text--display {
-  font-size: clamp(0.6rem, 1vw, 0.78rem);
-  line-height: 1.15;
-}
-
 .title-game--display {
   font-size: clamp(0.8rem, 1.1vw, 1rem);
 }

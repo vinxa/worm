@@ -4,7 +4,8 @@
 import { state } from "./state.js";
 import { showHome, buildGrid, initUI, renderGameData, updateNextGameButtonVisibility } from "./ui.js";
 import { wiggleLogos } from "./wormThings.js";
-import { INDEX_REFRESH_MS, GAME_TIMEZONE } from "./config.js";
+import { INDEX_REFRESH_MS } from "./config.js";
+import { parseGameStart, initTeamScores } from "./utils.js";
 
 function getLatestGame(games) {
     if (!games || !games.length) return null;
@@ -23,16 +24,8 @@ function computeGameSignature(data) {
     const events = Array.isArray(data.events) ? data.events : [];
     const last = events[events.length - 1] || {};
     const lastTime = last.time ?? "";
-    const lastDelta = last.playerDelta ?? last.teamDelta ?? last.delta ?? "";
+    const lastDelta = last.delta ?? "";
     return `${events.length}|${lastTime}|${lastDelta}|${data.gameDuration ?? ""}`;
-}
-
-function parseGameStart(game) {
-    if (!game || !game.id) return null;
-    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
-    if (!m) return null;
-    const [, YYYY, MM, DD, hh, mm] = m;
-    return new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
 }
 
 function isFreshGame(game) {
@@ -157,10 +150,7 @@ export async function loadGameData(dataPath, options = {}) {
             state.gameData.playerStats[pid] = {name: info.name, score: finalScore};
         });
 
-        state.teamScores = {};
-        state.gameData.teams.forEach((t) => {
-            state.teamScores[t.id] = {"score":0,"tagsFor":0,"tagsAgainst":0};
-        });
+        state.teamScores = initTeamScores(state.gameData.teams);
         state.hiddenTeams = null;
 
         renderGameData();

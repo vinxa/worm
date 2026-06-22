@@ -1,19 +1,10 @@
 // displayLabels.js
 // these are for the display names & team names for games in an event. sorry idk what else to call it
 
-import { GAME_TIMEZONE } from "./config.js";
+import { parseGameStart } from "./utils.js";
 
 function normaliseText(value) {
     return String(value || "").trim().toLowerCase();
-}
-
-function parseGameStart(game) {
-    if (!game || !game.id) return null;
-    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
-    if (!m) return null;
-    const [, YYYY, MM, DD, hh, mm] = m;
-    const parsed = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function isGameInEventRange(game, event) {

@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { formatGameDatetime } from "./utils.js";
+import { parseGameStart, formatGameDatetime } from "./utils.js";
 
 function gameDateLabel(game) {
     return formatGameDatetime(game.id);
@@ -17,15 +17,6 @@ function matchesType(game, typeValue) {
 function matchesDate(game, dateValue) {
     if (dateValue === "all") return true;
     return gameDateKey(game) === dateValue;
-}
-
-function parseGameStart(game) {
-    if (!game || !game.id) return null;
-    const m = game.id.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
-    if (!m) return null;
-    const [, YYYY, MM, DD, hh, mm] = m;
-    const parsed = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00+08:00`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function eventKey(event) {

@@ -183,7 +183,7 @@ export function buildPlayerTimelines(data) {
         if (!(pid in buckets)) return;
         // floor to whole‐second bucket:
         const sec = Math.floor(ev.time);
-        const d = ev.playerDelta ?? ev.delta ?? 0;
+        const d = ev.delta ?? 0;
         buckets[pid][sec] = (buckets[pid][sec] || 0) + d;
     });
 

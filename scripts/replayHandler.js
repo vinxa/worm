@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
-import { formatTime, getGameDuration } from "./utils.js";
+import { formatTime, getGameDuration, initTeamScores } from "./utils.js";
 import { closeYouTubeModal } from "./video.js";
 
 export function updatePlayButtonsLabel(label) {
@@ -108,6 +108,19 @@ export function jumpTo(time) {
     }
 }
 
+function applyTeamScoreEvent(teamScores, ev, players) {
+    const teamId = players?.[ev.entity]?.team;
+    if (!teamId || !teamScores[teamId]) return;
+
+    teamScores[teamId].score += ev.delta ?? 0;
+    const targetTeam = players?.[ev.target]?.team;
+    if (ev.type === "tag" && targetTeam !== teamId) {
+        teamScores[teamId].tagsFor++;
+    } else if (ev.type === "tagged" && targetTeam !== teamId) {
+        teamScores[teamId].tagsAgainst++;
+    }
+}
+
 /**
  * Play back the game in real time, resuming from `startSec`.
  * Fires every 0.5s, updates both the chart and the team‐score UI.
@@ -128,22 +141,12 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
 
   // 3) Initialize global teamScores up to startSec
   //    (assumes teamScores = {} declared at top and populated in loadGameData)
-  data.teams.forEach((t) => {
-    state.teamScores[t.id] = {"score":0,"tagsFor":0,"tagsAgainst":0};
-  });
+  state.teamScores = initTeamScores(data.teams);
   while (
     eventIdx < sortedEvents.length &&
     sortedEvents[eventIdx].time < startSec
   ) {
-    const ev = sortedEvents[eventIdx++];
-    const teamId =
-      ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-    state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
-    if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsFor++;
-    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsAgainst++;
-    }
+    applyTeamScoreEvent(state.teamScores, sortedEvents[eventIdx++], data.players);
   }
 
   // 4) Reset the live‐series to match startSec
@@ -172,15 +175,7 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
         eventIdx < sortedEvents.length &&
         sortedEvents[eventIdx].time <= t
       ) {
-        const ev = sortedEvents[eventIdx++];
-        const teamId =
-          ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-        state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
-        if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsFor++;
-    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsAgainst++;
-    }
+        applyTeamScoreEvent(state.teamScores, sortedEvents[eventIdx++], data.players);
       }
 
       // b) draw a point for each team at time = t
@@ -257,21 +252,12 @@ export function seekToTime(sec, skipVideoSeek = false) {
 
 function updateTeamScoresForTime(sec) {
   // 1) zero out every team
-  state.gameData.teams.forEach((t) => {
-    state.teamScores[t.id].score = 0;
-  });
+  state.teamScores = initTeamScores(state.gameData.teams);
 
-  // 2) scan every event ≤ sec and add its teamDelta/delta
+  // 2) scan every event ≤ sec and add its delta
   state.gameData.events.forEach((ev) => {
     if (ev.time <= sec) {
-      const teamId =
-        ev.teamDelta != null ? ev.entity : state.gameData.players[ev.entity].team;
-      state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
-      if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsFor++;
-    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
-      state.teamScores[teamId].tagsAgainst++;
-    }
+      applyTeamScoreEvent(state.teamScores, ev, state.gameData.players);
     }
   });
 

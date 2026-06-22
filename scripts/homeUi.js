@@ -13,7 +13,7 @@ const gameSections = [
 const homeView = document.getElementById("home-view");
 const leftBtn = document.querySelector(".nav-button.left");
 
-function setGridTitleContent(titleEl, game, displayTitle) {
+function renderGameTitle(titleEl, game, displayTitle) {
     const matchedTeams = getMatchedEventTeamNames(game, state.events || []);
     const teamColourMap = getEventTeamColourMap(game, state.events || []);
     if (!matchedTeams.length) {
@@ -31,36 +31,35 @@ function setGridTitleContent(titleEl, game, displayTitle) {
     titleEl.appendChild(prefix);
 
     matchedTeams.forEach((teamName, idx) => {
-        const teamSpan = document.createElement("div");
-        teamSpan.className = `game-title-team game-title-team--${idx % 3}`;
+        const teamNameLine = document.createElement("div");
+        teamNameLine.className = `game-title-team game-title-team--${idx % 3}`;
         const trimmed = String(teamName || "").trim();
         const shortName = trimmed.length > 20 ? `${trimmed.slice(0, 20)}...` : trimmed;
-        teamSpan.textContent = shortName;
+        teamNameLine.textContent = shortName;
         if (teamColourMap[teamName]) {
-            teamSpan.style.color = teamColourMap[teamName];
+            teamNameLine.style.color = teamColourMap[teamName];
         }
         if (shortName !== trimmed) {
-            teamSpan.title = trimmed;
+            teamNameLine.title = trimmed;
         }
-        titleEl.appendChild(teamSpan);
+        titleEl.appendChild(teamNameLine);
     });
-}
-
-function fitDisplayTitleToTile(titleEl, enabled) {
-    titleEl.style.fontSize = "";
-    if (!enabled) return;
 
     requestAnimationFrame(() => {
         let sizePx = 12.5;
         const minSizePx = 6;
         const stepPx = 0.5;
+        const maxIterations = 30;
+        let iterations = 0;
         titleEl.style.fontSize = `${sizePx}px`;
-
-        let guard = 0;
-        while (titleEl.scrollHeight > titleEl.clientHeight + 0.5 && sizePx > minSizePx && guard < 30) {
+        while (
+            titleEl.scrollHeight > titleEl.clientHeight + 0.5 &&
+            sizePx > minSizePx &&
+            iterations < maxIterations
+        ) {
             sizePx -= stepPx;
             titleEl.style.fontSize = `${sizePx}px`;
-            guard += 1;
+            iterations++;
         }
     });
 }
@@ -76,21 +75,17 @@ export function createHomeUi({ showGame, updateNextGameButtonVisibility }) {
         filtered.forEach((game) => {
             const tile = document.createElement("div");
             tile.classList.add("game-tile");
-            const originalTitle = game?.title || "";
             const raw = getGameDisplayTitle(game, state.events || []);
-            const isDisplayTitle = raw !== originalTitle;
 
             const gameLine = document.createElement("span");
             gameLine.textContent = formatGameDatetime(game.id);
 
             const rawLine = document.createElement("span");
             rawLine.classList.add("game-title-text");
-            if (isDisplayTitle) rawLine.classList.add("game-title-text--display");
-            setGridTitleContent(rawLine, game, raw);
+            renderGameTitle(rawLine, game, raw);
 
             tile.appendChild(gameLine);
             tile.appendChild(rawLine);
-            fitDisplayTitleToTile(rawLine, isDisplayTitle);
             tile.addEventListener("click", () => {
                 if (typeof showGame === "function") showGame(game);
             });
