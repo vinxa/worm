@@ -159,7 +159,7 @@ export async function loadGameData(dataPath, options = {}) {
 
         state.teamScores = {};
         state.gameData.teams.forEach((t) => {
-            state.teamScores[t.id] = 0;
+            state.teamScores[t.id] = {"score":0,"tagsFor":0,"tagsAgainst":0};
         });
         state.hiddenTeams = null;
 

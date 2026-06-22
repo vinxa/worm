@@ -88,12 +88,17 @@ export function computePlayerStats(pid, t) {
         teamKillsAgainst = 0;
     evs.forEach((ev) => {
         if (ev.type === "tag") {
-            tagsFor++;
-            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) teamKillsFor++;
+            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) {teamKillsFor++;}
+            else {
+                tagsFor++;
+            }
         } 
         else if (ev.type === "tagged") {
-            tagsAgainst++;
-            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) teamKillsAgainst++;
+            if (state.gameData.players[ev.target].team === state.gameData.players[pid].team) {
+                teamKillsAgainst++;
+            } else {
+                tagsAgainst++;
+            }
         }
         else if (ev.type === "base destroy") baseCount++;
         else if (ev.type === "deny") {

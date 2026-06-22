@@ -129,7 +129,7 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   // 3) Initialize global teamScores up to startSec
   //    (assumes teamScores = {} declared at top and populated in loadGameData)
   data.teams.forEach((t) => {
-    state.teamScores[t.id] = 0;
+    state.teamScores[t.id] = {"score":0,"tagsFor":0,"tagsAgainst":0};
   });
   while (
     eventIdx < sortedEvents.length &&
@@ -138,7 +138,12 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
     const ev = sortedEvents[eventIdx++];
     const teamId =
       ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-    state.teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+    state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
+    if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsFor++;
+    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsAgainst++;
+    }
   }
 
   // 4) Reset the live‐series to match startSec
@@ -170,14 +175,19 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
         const ev = sortedEvents[eventIdx++];
         const teamId =
           ev.teamDelta != null ? ev.entity : data.players[ev.entity].team;
-        state.teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+        state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
+        if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsFor++;
+    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsAgainst++;
+    }
       }
 
       // b) draw a point for each team at time = t
       const offset = data.teams.length; // ghost series first
       data.teams.forEach((team, idx) => {
         chart.series[offset + idx].addPoint(
-          [t, state.teamScores[team.id]],
+          [t, state.teamScores[team.id].score],
           idx === data.teams.length - 1,
           false
         );
@@ -248,7 +258,7 @@ export function seekToTime(sec, skipVideoSeek = false) {
 function updateTeamScoresForTime(sec) {
   // 1) zero out every team
   state.gameData.teams.forEach((t) => {
-    state.teamScores[t.id] = 0;
+    state.teamScores[t.id].score = 0;
   });
 
   // 2) scan every event ≤ sec and add its teamDelta/delta
@@ -256,7 +266,12 @@ function updateTeamScoresForTime(sec) {
     if (ev.time <= sec) {
       const teamId =
         ev.teamDelta != null ? ev.entity : state.gameData.players[ev.entity].team;
-      state.teamScores[teamId] += ev.teamDelta ?? ev.delta ?? 0;
+      state.teamScores[teamId].score += ev.teamDelta ?? ev.delta ?? 0;
+      if (ev.type === "tag" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsFor++;
+    } else if (ev.type === "tagged" && state.gameData.players[ev.target].team !== teamId) {
+      state.teamScores[teamId].tagsAgainst++;
+    }
     }
   });
 

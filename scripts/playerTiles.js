@@ -104,7 +104,7 @@ export function updatePlayerTiles(currentTime) {
         }
         // update the tile
         const scoreEl = tile.querySelector(".player-score");
-        if (scoreEl) scoreEl.textContent = score;
+        if (scoreEl) scoreEl.textContent = score.toLocaleString();
         tile.classList.toggle("_negative", score < 0);
         tile.classList.toggle("is-deactivated", !isActive);
 
@@ -265,16 +265,19 @@ export function setupTeamSeriesFilter() {
 export function updateTeamScoresUI() {
     if (!state.chart) return;
 
-    Object.entries(state.teamScores).forEach(([teamId, score]) => {
+    Object.entries(state.teamScores).forEach(([teamId, stats]) => {
         const li = document.querySelector(
         `.team-scores li[data-team-id="${teamId}"]`
         );
         const name = li?.querySelector(".team-name");
-        const span = li?.querySelector(".team-score");
-        if (!name || !span) return;
+        const scoreSpan = li?.querySelector(".team-score");
+        const tagsSpan = li?.querySelector(".team-tags")
+        if (!name || !scoreSpan) return;
 
         // update the score text
-        span.textContent = score;
+        scoreSpan.textContent = stats.score.toLocaleString();
+        tagsSpan.textContent = `${stats.tagsFor} - ${stats.tagsAgainst}`;
+        // update team tags text
 
         // pull team color from game data
         const team = state.gameData.teams.find(t => t.id === teamId);
@@ -331,8 +334,8 @@ function sortTiles(transitionMs = 300) {
     sortedTeamIds.forEach((teamId) => {
         const arr = byTeam[teamId] || [];
         arr.sort((a, b) => {
-        const sa = +a.querySelector(".player-score").textContent;
-        const sb = +b.querySelector(".player-score").textContent;
+        const sa = +a.querySelector(".player-score").textContent.replace(/[^0-9]/g,"");
+        const sb = +b.querySelector(".player-score").textContent.replace(/[^0-9]/g,"");
         return sb - sa;
         });
     });

@@ -166,10 +166,15 @@ function applyCurrentGameTeamLabels() {
         nameEl.textContent = shortName;
         nameEl.title = fullName;
 
+        const tags = document.createElement("span");
+        tags.className = "team-tags";
+        tags.textContent = "0-0";
+
         const score = document.createElement("span");
         score.className = "team-score";
         score.textContent = "0";
         li.appendChild(nameEl);
+        li.appendChild(tags);
         li.appendChild(score);
         ul.appendChild(li);
     });
