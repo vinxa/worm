@@ -213,7 +213,11 @@ export function computePlayerStats(pid, t) {
         teamKillsAgainst: 0,
     };
     evs.forEach((ev) => {
-        if (ev.type === "tag") {
+        if (ev.type === "team-kill") {
+            stats.teamKillsFor++;
+        } else if (ev.type === "team-killed") {
+            stats.teamKillsAgainst++;
+        } else if (ev.type === "tag") {
             stats[sameTeam(ev.target) ? "teamKillsFor" : "tagsFor"]++;
         } else if (ev.type === "tagged") {
             stats[sameTeam(ev.target) ? "teamKillsAgainst" : "tagsAgainst"]++;
