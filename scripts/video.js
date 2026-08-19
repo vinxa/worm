@@ -5,11 +5,58 @@ import { playReplay, seekToTime, clearTimeouts, updatePlayButtonsLabel } from ".
 let syncInterval = null;
 let isAdjustingOffset = false;
 let lastProgrammaticSeekAt = 0;
+let modalSetup = false;
+let pendingVideoId = null;
+let youtubeReadyPoll = null;
+let youtubeReadyPollAttempts = 0;
 
 // Helper to extract YouTube ID
-function parseYouTubeId(url) {
-    const m = url.match(/(?:v=|\.be\/)([\w\-]{11})/);
+export function parseYouTubeId(url) {
+    const m = String(url || "").match(/(?:v=|\.be\/)([\w\-]{11})/);
     return m ? m[1] : null;
+}
+
+export function getShareableYouTubeUrl(url) {
+    const value = String(url || "").trim();
+    return parseYouTubeId(value) ? value : "";
+}
+
+function isYouTubeApiReady() {
+    return typeof window !== "undefined" &&
+        window.YT &&
+        typeof window.YT.Player === "function";
+}
+
+export function loadYouTubeUrl(url) {
+    const value = getShareableYouTubeUrl(url);
+    const urlInput = document.getElementById("youtubeUrl");
+    if (urlInput) urlInput.value = value || String(url || "").trim();
+    if (!value) return false;
+    const videoId = parseYouTubeId(value);
+    if (isYouTubeApiReady()) {
+        pendingVideoId = null;
+        loadVideo(videoId);
+        return true;
+    }
+
+    pendingVideoId = videoId;
+    if (youtubeReadyPoll !== null) return true;
+    youtubeReadyPollAttempts = 0;
+    youtubeReadyPoll = window.setInterval(() => {
+        youtubeReadyPollAttempts += 1;
+        if (!isYouTubeApiReady() && youtubeReadyPollAttempts < 400) return;
+        window.clearInterval(youtubeReadyPoll);
+        youtubeReadyPoll = null;
+        youtubeReadyPollAttempts = 0;
+        if (!isYouTubeApiReady()) {
+            pendingVideoId = null;
+            return;
+        }
+        const readyVideoId = pendingVideoId;
+        pendingVideoId = null;
+        if (readyVideoId) loadVideo(readyVideoId);
+    }, 50);
+    return true;
 }
 
 // Load video by ID, pausing game if playing
@@ -18,12 +65,10 @@ function loadVideo(v) {
     // Pause game replay if running.
     if (state.isPlaying) {
         state.isPlaying = false;
-        document.getElementById("playButton").textContent = "▶";
-        state.replayTimeouts.forEach((id) => clearTimeout(id));
-        state.replayTimeouts = [];
+        updatePlayButtonsLabel("▶");
+        clearTimeouts();
     }
     const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
-    let lastVideoTime;
     const modal = document.getElementById("videoModal");
     modal.style.display = "block";
     modal.style.width = "560px";
@@ -53,6 +98,9 @@ function loadVideo(v) {
                     }
                     if (state.player) {
                         state.player.setSize(playerWidth, playerHeight);
+                        if (typeof state.player.setPlaybackRate === "function") {
+                            state.player.setPlaybackRate(state.playbackRate);
+                        }
                         const originalSeekTo = state.player.seekTo.bind(state.player);
                         state.player.seekTo = function (seconds, allowSeekAhead) {
                             lastProgrammaticSeekAt = Date.now();
@@ -61,11 +109,10 @@ function loadVideo(v) {
                         };
                         const videoTime = Math.max(0, state.currentTime + offset);
                         state.player.seekTo(videoTime, true);
-                        lastVideoTime = videoTime;
                         syncInterval = setInterval(() => {
                             if (state.player && !isAdjustingOffset) {
                                 const recentGameSeek = Date.now() - lastProgrammaticSeekAt < 1000;
-                                if (recentGameSeek) return; // skip sync if we just seeked the game
+                                if (recentGameSeek) return;
                                 
                                 const currentVideoTime = state.player.getCurrentTime();
                                 const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
@@ -80,14 +127,19 @@ function loadVideo(v) {
                 onStateChange: (e) => {
                     // PLAYING → resume game
                     if (e.data === YT.PlayerState.PLAYING) {
-                        lastVideoTime = state.currentTime + offset;
                         if (!state.isPlaying) {
                             state.isPlaying = true;
-                            document.getElementById("playButton").textContent = "❚❚";
+                            updatePlayButtonsLabel("❚❚");
                             // restart replay from state.currentTime
                             state.replayTimeouts.forEach((id) => clearTimeout(id));
                             state.replayTimeouts = [];
-                            playReplay(state.chart, state.gameData, 1, state.replayTimeouts, state.currentTime);
+                            playReplay(
+                                state.chart,
+                                state.gameData,
+                                state.playbackRate,
+                                state.replayTimeouts,
+                                state.currentTime
+                            );
                         }
                     }
                     // PAUSED → pause game
@@ -106,9 +158,8 @@ function loadVideo(v) {
                         }
                         if (state.isPlaying) {
                             state.isPlaying = false;
-                            document.getElementById("playButton").textContent = "❚❚";
-                            state.replayTimeouts.forEach((id) => clearTimeout(id));
-                            state.replayTimeouts = [];
+                            updatePlayButtonsLabel("▶");
+                            clearTimeouts();
                         }
                     }
                 },
@@ -117,13 +168,17 @@ function loadVideo(v) {
     }
 }
 
-// Draggable YouTube modal setup
 export function setupDraggableModal() {
-    
-// Load the YouTube IFrame API
-    const ytTag = document.createElement("script");
-    ytTag.src = "https://www.youtube.com/iframe_api";
-    document.head.appendChild(ytTag);
+    if (modalSetup) return;
+    modalSetup = true;
+
+    if (!document.querySelector('script[data-youtube-iframe-api="true"]')) {
+        const ytTag = document.createElement("script");
+        ytTag.src = "https://www.youtube.com/iframe_api";
+        ytTag.async = true;
+        ytTag.dataset.youtubeIframeApi = "true";
+        document.head.appendChild(ytTag);
+    }
 
     const modal = document.getElementById("videoModal");
     const header = modal.querySelector(".modal-header");
@@ -139,8 +194,7 @@ export function setupDraggableModal() {
     let offsetAdjustTimeout;
 
     loadBtn.addEventListener("click", () => {
-        const v = parseYouTubeId(urlInput.value);
-        loadVideo(v);
+        loadYouTubeUrl(urlInput.value);
     });
 
     offsetInput.addEventListener("input", () => {
@@ -210,7 +264,6 @@ export function setupDraggableModal() {
         if (!resizing) return;
         const dx = e.clientX - resizeStartX;
         const dy = e.clientY - resizeStartY;
-        //const ratio = resizeStartWidth / resizeStartHeight;
         const ratio = 16 / 9;
         let newWidth, newHeight;
         if (Math.abs(dx) > Math.abs(dy)) {
@@ -257,6 +310,14 @@ export function closeYouTubeModal(fullyClose = true) {
         state.player.destroy();
         state.player = null;
     }
+    if (fullyClose) {
+        pendingVideoId = null;
+        if (youtubeReadyPoll !== null) {
+            window.clearInterval(youtubeReadyPoll);
+            youtubeReadyPoll = null;
+            youtubeReadyPollAttempts = 0;
+        }
+    }
 }
 
 export function toggleYouTubeModal() {
@@ -269,8 +330,9 @@ export function toggleYouTubeModal() {
     }
     // Opening: only open when a valid YouTube URL is provided.
     const urlInput = document.getElementById("youtubeUrl");
-    const v = parseYouTubeId((urlInput?.value || "").trim());
-    if (v) {
-        loadVideo(v);
+    if (!urlInput?.value.trim()) {
+        urlInput?.focus();
+        return;
     }
+    loadYouTubeUrl(urlInput?.value || "");
 }

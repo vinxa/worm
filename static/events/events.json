@@ -7,7 +7,17 @@
                 "end": "2026-08-24T01:00:00+08:00"
             }
         ],
-        "teams": {},
+        "teams": {
+            "Morange Juice": ["Beans","Dart","50 Cint","Phynnn","Mvffin"],
+            "Laserfourth": ["Gaza","Bubbles","Gooby","Webe","Cowie","Holmes"],
+            "ArRoSawDeFfo": ["Arbel","Rogue","Sawdust","TechDeck205","Fluffo"],
+            "Potential Tidal Wave": ["Shaniarenee7","Exile","Dorky","Big Chungo","Slime"],
+            "Get Stanky With It": ["Stinky","Mooshu","Gravey","Serenity","Trill"],
+            "Less points than a triangle": ["Noobz316","DeanLogan1","Deathstalker","Keirlos3","Jacko"],
+            "Blue Flames TWK": ["Brodizzle","Inny","WazzyWoo","Lilbo","CmdrSnake"],
+            "IDGAD": ["Gripsy","thebmw","Nitro","Wolfie","Banksy","Aqua"],
+            "Quolls": ["Pendragon","Artemis","Basilisk","Elmo","Jette"]
+        },
         "game-type": "Zltac Training - Full Game"
     },
     {

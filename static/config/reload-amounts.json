@@ -1,0 +1,39 @@
+{
+  "gameTypes": {
+    "Zltac Training - Full Game": {
+      "lives": 7,
+      "shots": 45
+    },
+    "Zltac Settings - Clash": {
+      "lives": 7,
+      "shots": 45
+    },
+    "Zltac Settings - Wapl": {
+      "lives": 7,
+      "shots": 45
+    },
+    "Zltac Training - Unlim Bases And Reloads": {
+      "lives": 7,
+      "shots": 45
+    },
+    "League Laserforce": {
+      "lives": 7,
+      "shots": 45
+    },
+    "League Laserforce Training": {
+      "lives": 7,
+      "shots": 45
+    },
+    "League Laserforce Doubles": {
+      "lives": 7,
+      "shots": 45
+    },
+    "Zzavd The Game": {
+      "lives": 7,
+      "shots": 45
+    },
+    "Dogfight": {
+      "lives": 20
+    }
+  }
+}

@@ -1,72 +1,36 @@
 // displayLabels.js
 // these are for the display names & team names for games in an event. sorry idk what else to call it
 
-import { parseGameStart } from "./utils.js";
-
-function normaliseText(value) {
-    return String(value || "").trim().toLowerCase();
-}
-
-function isGameInEventRange(game, event) {
-    const gameStart = parseGameStart(game);
-    if (!gameStart) return false;
-    return (event?.ranges || []).some((r) => {
-        const start = new Date(r.start);
-        const end = new Date(r.end);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-        return gameStart >= start && gameStart <= end;
-    });
-}
+import { normaliseText, parseGameStart } from "./utils.js";
+import { summaryPlayerAlias, summaryPlayerAliases } from "./summaryPlayers.js";
 
 function findMatchingEventForGame(game, events = []) {
     const gameTypeNorm = normaliseText(game?.title || "");
     if (!gameTypeNorm) return null;
+    const gameStart = parseGameStart(game);
+    if (!gameStart) return null;
 
     for (const event of events) {
         const teams = event?.teams;
         if (!teams || typeof teams !== "object") continue;
         const eventGameTypeNorm = normaliseText(event["game-type"]);
         if (!eventGameTypeNorm || eventGameTypeNorm !== gameTypeNorm) continue;
-        if (!isGameInEventRange(game, event)) continue;
+        if (!(event?.ranges || []).some((range) => {
+            const start = new Date(range.start);
+            const end = new Date(range.end);
+            return !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) &&
+                gameStart >= start && gameStart <= end;
+        })) continue;
         return event;
     }
     return null;
 }
 
-function getEventDisplayLabel(event) {
-    return event?.label || event?.name || event?.id || "Event";
-}
-
-function getGamePlayerNames(game, fallbackPlayers = []) {
-    if (Array.isArray(game?.players) && game.players.length > 0) return game.players;
-    return Array.isArray(fallbackPlayers) ? fallbackPlayers : [];
-}
-
-function getPlayersByTeam(game, gamePlayersById = {}) {
-    const direct = game?.teams;
-    if (direct && typeof direct === "object" && !Array.isArray(direct)) {
-        const cleaned = {};
-        Object.entries(direct).forEach(([teamId, teamInfo]) => {
-            const members = teamInfo?.players;
-            if (!teamId || !Array.isArray(members)) return;
-            cleaned[teamId] = members
-                .map((name) => normaliseText(name))
-                .filter(Boolean);
-        });
-        if (Object.keys(cleaned).length) return cleaned;
-    }
-
-    const built = {};
-    Object.values(gamePlayersById || {}).forEach((p) => {
-        if (!p || !p.team) return;
-        if (!built[p.team]) built[p.team] = [];
-        built[p.team].push(normaliseText(p.name));
-    });
-    return built;
-}
-
 export function getMatchedEventTeamNames(game, events = [], fallbackPlayers = []) {
-    const players = getGamePlayerNames(game, fallbackPlayers);
+    const summaryPlayers = summaryPlayerAliases(game?.players);
+    const players = summaryPlayers.length > 0
+        ? summaryPlayers
+        : Array.isArray(fallbackPlayers) ? fallbackPlayers : [];
     if (!players.length) return [];
 
     const event = findMatchingEventForGame(game, events);
@@ -94,7 +58,22 @@ export function getEventTeamColourMap(game, events = [], gamePlayersById = {}) {
     const event = findMatchingEventForGame(game, events);
     if (!event || !event.teams || typeof event.teams !== "object") return {};
 
-    const playersByTeam = getPlayersByTeam(game, gamePlayersById);
+    const playersByTeam = {};
+    const directTeams = game?.teams;
+    if (directTeams && typeof directTeams === "object" && !Array.isArray(directTeams)) {
+        Object.entries(directTeams).forEach(([teamId, teamInfo]) => {
+            if (!teamId || !Array.isArray(teamInfo?.players)) return;
+            playersByTeam[teamId] = teamInfo.players
+                .map((playerId) => normaliseText(summaryPlayerAlias(game?.players, playerId)))
+                .filter(Boolean);
+        });
+    }
+    if (!Object.keys(playersByTeam).length) {
+        Object.values(gamePlayersById || {}).forEach((player) => {
+            if (!player?.team) return;
+            (playersByTeam[player.team] ||= []).push(normaliseText(player.name));
+        });
+    }
     const teamInfo = game?.teams && typeof game.teams === "object" ? game.teams : {};
     if (!Object.keys(playersByTeam).length || !Object.keys(teamInfo).length) return {};
 
@@ -130,7 +109,8 @@ export function getGameDisplayTitle(game, events = [], fallbackPlayers = []) {
     const event = findMatchingEventForGame(game, events);
     const matchedTeams = getMatchedEventTeamNames(game, events, fallbackPlayers);
     if (event && matchedTeams.length > 0) {
-        return `${getEventDisplayLabel(event)}: ${matchedTeams.join(" v ")}`;
+        const label = event?.label || event?.name || event?.id || "Event";
+        return `${label}: ${matchedTeams.join(" v ")}`;
     }
     return originalTitle;
 }

@@ -12,74 +12,242 @@
   <script src="static/vendor/accessibility.js"></script>
 </head>
 <body>
+  <div id="shareToast" class="share-toast" role="status" aria-live="polite">
+    Copied to clipboard
+  </div>
+
+  <div class="portrait-orientation-warning" role="status" aria-live="polite">
+    <img
+      class="portrait-orientation-logo"
+      src="static/images/worm.png"
+      alt="WORM logo"
+    />
+    <div class="portrait-orientation-icon" aria-hidden="true">↔</div>
+    <p>Rotate your device to landscape to use WORM.</p>
+  </div>
+
   <!-- Home View -->
 <section id="home-view" class="home-section">
+  <button id="installButton" type="button" style="display:none" aria-label="Download app">
+    <svg class="install-button-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+    </svg>
+    <span>Download App</span>
+  </button>
   <a class="global-github-link" href="https://github.com/vinxa/worm" target="_blank" rel="noopener noreferrer">
     <img class="global-github-logo" src="static/images/GitHub_Invertocat_White_Clearspace.svg" alt="GitHub"/>
   </a>
   <header class="app-header">
     <span class="home-mascot">
-      <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
-      <a href="https://web.extension.illinois.edu/worms/facts/" target="_blank" rel="noopener noreferrer">
-        <span class="worm-speech-bubble">
-          <span class="worm-speech-bubble-date">22 june:</span>
-          <span class="worm-speech-bubble-event">team TR & TKs split from tags<br />
-          </span>
-        </span>
+      <a class="worm-facts-link" href="https://web.extension.illinois.edu/worms/facts/" target="_blank" rel="noopener noreferrer" aria-label="Read worm facts">
+        <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
       </a>
+      <button id="patchNotesButton" class="worm-speech-bubble" type="button" aria-haspopup="dialog" aria-controls="patchNotesModal">
+        
+        <span class="worm-speech-bubble-event">CLASH 3!<br/>
+          <span class="worm-speech-bubble-date">Click for update notes</span>
+        </span>
+      </button>
     </span>
 
     <span class="app-name">WORM</span>
   </header>
 
-  <div class="filter-bar">
-    <div class="filter-row">
-      <label for="gameFilter">Game:</label>
-      <select id="gameFilter">
-        <option value="all">All</option>
-      </select>
-      <label for="eventFilter">Event:</label>
-      <select id="eventFilter">
-        <option value="none">None</option>
-      </select>
-    </div>
-    <div class="filter-row">
-      <label for="dateFilter">Date:</label>
-      <select id="dateFilter">
-        <option value="all">All</option>
-      </select>
-    <div class="player-filter">
-      <label for="playerFilter">Player:</label>
-      <input id="playerFilter" type="text" list="playerOptions" placeholder="Type a player name" />
-      <datalist id="playerOptions"></datalist>
-    </div>
+  <div class="home-filter-tools">
+    <details class="filters-section">
+      <summary>
+        <svg class="filters-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="filters-icon-filter" d="M4 5h16l-6.2 7v5.5l-3.6 1.8V12Z" />
+          <path class="filters-icon-close" d="m6 6 12 12M18 6 6 18" />
+        </svg>
+        <span>Filters</span>
+      </summary>
+      <div class="filter-bar">
+        <div class="filter-toolbar">
+          <div class="filter-actions">
+            <button id="clearFiltersButton" type="button">Clear all filters</button>
+          </div>
+          <label class="filter-favourites-toggle">
+            <input id="favouritesOnlyFilter" type="checkbox" />
+            Only games with favourite players
+          </label>
+        </div>
+        <label for="gameFilter">Game</label>
+        <select id="gameFilter">
+          <option value="all">All</option>
+        </select>
+        <label for="eventFilter">Event</label>
+        <select id="eventFilter">
+          <option value="none">None</option>
+        </select>
+        <label for="dateFilter">Date</label>
+        <select id="dateFilter">
+          <option value="all">All</option>
+        </select>
+      </div>
+    </details>
+
+    <div class="favourites-menu">
+      <button id="favouritesButton" class="favourites-button" type="button" aria-expanded="false" aria-controls="favouritesPanel">
+        <svg class="star-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m12 2.8 2.8 5.7 6.3.9-4.5 4.4 1 6.2-5.6-3-5.6 3 1-6.2-4.5-4.4 6.3-.9Z" />
+        </svg>
+        <span>Favourites</span>
+        <span id="favouritesCount" class="favourites-count" hidden>0</span>
+      </button>
+      <section id="favouritesPanel" class="favourites-panel" hidden aria-label="Follow players">
+        <header>
+          <div class="favourites-title">
+            <button id="closeFavouritesButton" class="favourites-close" type="button" aria-label="Close favourites">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <strong>Follow players</strong>
+          </div>
+          <div class="favourites-header-actions">
+            <button id="selectedFavouritesFilter" class="favourites-filter-button" type="button" aria-pressed="false" aria-label="Show selected players only" title="Show selected players only">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 5h16l-6.2 7v5.5l-3.6 1.8V12Z" />
+              </svg>
+            </button>
+            <button id="clearFavouritesButton" class="favourites-clear-button" type="button">Clear all favourites</button>
+          </div>
+        </header>
+        <input id="favouritesSearch" class="favourites-search" type="search" placeholder="Find a player" autocomplete="off" />
+        <div id="favouritesPlayers" class="favourites-players"></div>
+        <p id="favouritesEmpty" class="favourites-empty" hidden>No players available.</p>
+      </section>
     </div>
   </div>
 
 	  <div id="gamesGrid" class="games-grid"></div>
+    <div id="gamesGridFooter" class="games-grid-footer">
+      <span id="gamesGridStatus" class="games-grid-status" role="status"></span>
+      <button id="loadMoreGames" class="load-more-games" type="button" hidden>Load more games</button>
+    </div>
 </section>
+
+  <dialog id="patchNotesModal" class="patch-notes-modal" aria-labelledby="patchNotesTitle">
+    <header class="patch-notes-header">
+      <h2 id="patchNotesTitle">CLASH 3 - Update Notes</h2>
+      <button id="patchNotesClose" class="patch-notes-close" type="button" aria-label="Close update notes">✕</button>
+    </header>
+    <div class="patch-notes-content">
+      <ul>
+        <li>Watch games live :)</li>
+        <li>Tags in timeline & replay</li>
+        <li>Shareable game URLs</li>
+        <li>Favourite players and filter games to them</li>
+        <li>Better base run support</li>
+        <li>Improved mobile device handling</li>
+        <li>Slightly redesigned UI</li>
+        <li>Keyboard shortcuts</li>
+        <li>New worm style moves!!!</li>
+      </ul><br />
+      There have been a lot of updates to support live games here so please let me know if you spot anything weird ♡
+      <br /><br />
+      Also feel free to chat with me if you have ideas/feel something is missing!
+      <br /><br />
+      - Gabby
+    </div>
+  </dialog>
 
 
   <!-- Game View -->
   <header class="app-header" style="display:none;" >
     
     <div class="header-left">
-      <button class="nav-button left" style="display:none;">&lt;</button>
+      <button class="nav-button left" type="button" title="Back to games" aria-label="Back to games" style="display:none;">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m14.5 6-6 6 6 6" />
+        </svg>
+      </button>
+      <button id="keyboardShortcutsButton" class="keyboard-shortcuts-button" type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts" aria-haspopup="dialog" aria-controls="keyboardShortcutsModal">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2.5" y="5" width="19" height="14" rx="2" />
+          <path d="M6 9h1m3 0h1m3 0h1m3 0h1M6 12.5h1m3 0h1m3 0h1m3 0h1M7 16h10" />
+        </svg>
+      </button>
       <span class="app-name">WORM</span>
       
     <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
     </div>
     <div class="title">GAME LOADING</div>
     <div class="header-right">
-      <button class="next-game-button" title="Latest game (L)">Latest game</button>
+      <span id="liveCountdown" class="live-countdown" hidden>00:00</span>
+      <button class="next-game-button" title="Latest Game (L)">Latest Game</button>
+      <label id="followLiveControl" class="follow-live-control" title="Automatically open the next live game" hidden>
+        <input id="followLiveCheckbox" type="checkbox" aria-label="Follow live games" />
+        <span class="worm-checkbox" aria-hidden="true">
+          <svg viewBox="0 0 30 20">
+            <path d="M4 12c2.5-7 6 7 9 0s6.5 7 10-1" />
+            <circle cx="24.5" cy="9.5" r="1" />
+          </svg>
+        </span>
+        <span class="follow-live-label">Follow live</span>
+      </label>
       <div class="youtube-input-container">
-      <button id="headerPlayButton" class="header-play-button">▶</button>
+      <button id="headerPlayButton" class="header-play-button" type="button" title="Play" aria-label="Play"></button>
       <button id="headerSpeedButton" class="header-speed-button" title="Change playback speed (+/-)">1x</button>
       <input id="youtubeUrl" type="text" placeholder="YouTube URL (https://www.youtube.com/watch?v=pjf1uhUrc4M)"/>
-      <button id="loadButton" title="Load YouTube video (V to toggle)">►</button>
+      <button id="loadButton" class="youtube-load-button" type="button" title="Load YouTube video" aria-label="Load YouTube video">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="5" width="20" height="14" rx="4" />
+          <path d="m10 9 5 3-5 3Z" />
+        </svg>
+      </button>
       </div>
+      <button id="shareButton" class="share-button" type="button" title="Share this game" aria-label="Share this game">
+        <svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="18" cy="5" r="2.5" />
+          <circle cx="6" cy="12" r="2.5" />
+          <circle cx="18" cy="19" r="2.5" />
+          <path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" />
+        </svg>
+      </button>
     </div>
   </header>
+
+  <dialog id="keyboardShortcutsModal" class="patch-notes-modal keyboard-shortcuts-modal" aria-labelledby="keyboardShortcutsTitle">
+    <header class="patch-notes-header">
+      <h2 id="keyboardShortcutsTitle">Keyboard shortcuts</h2>
+      <button id="keyboardShortcutsClose" class="patch-notes-close" type="button" aria-label="Close keyboard shortcuts">✕</button>
+    </header>
+    <div class="patch-notes-content keyboard-shortcuts-content">
+      <section class="keyboard-shortcuts-group" aria-labelledby="playbackShortcutsTitle">
+        <h3 id="playbackShortcutsTitle">Playback</h3>
+        <dl>
+          <div><dt><kbd>Space</kbd></dt><dd>Play/pause</dd></div>
+          <div><dt><kbd>←</kbd></dt><dd>Skip back 15s</dd></div>
+          <div><dt><kbd>→</kbd></dt><dd>Skip forward 15s</dd></div>
+          <div><dt><kbd>+</kbd></dt><dd>Increase playback speed</dd></div>
+          <div><dt><kbd>−</kbd></dt><dd>Decrease playback speed</dd></div>
+          <div><dt><kbd>Shift</kbd> + <kbd>←</kbd></dt><dd>Jump to start</dd></div>
+          <div><dt><kbd>Shift</kbd> + <kbd>→</kbd></dt><dd>Jump to end</dd></div>
+        </dl>
+      </section>
+      <section class="keyboard-shortcuts-group keyboard-shortcuts-secondary" aria-label="Extras and navigation">
+        <section class="keyboard-shortcuts-subsection" aria-labelledby="navigationShortcutsTitle">
+          <h3 id="navigationShortcutsTitle">Navigation</h3>
+          <dl>
+            <div><dt><kbd>,</kbd></dt><dd>Open previous game</dd></div>
+            <div><dt><kbd>.</kbd></dt><dd>Open next game</dd></div>
+            <div><dt><kbd>L</kbd></dt><dd>Open latest game</dd></div>
+            <div><dt><kbd>Shift</kbd> + <kbd>L</kbd></dt><dd>Follow live games</dd></div>
+            <div><dt><kbd>Backspace</kbd></dt><dd>Return to games list</dd></div>
+          </dl>
+        </section>
+        <section class="keyboard-shortcuts-subsection" aria-labelledby="extraShortcutsTitle">
+          <h3 id="extraShortcutsTitle">Extras</h3>
+          <dl>
+            <div><dt><kbd>V</kbd></dt><dd>Show/hide YouTube player</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Clear selections/return to games list</dd></div>
+            <div><dt><kbd>W</kbd></dt><dd>Wiggle worm</dd></div>
+            <div><dt><kbd>S</kbd></dt><dd>Share game</dd></div>
+          </dl>
+        </section>
+      </section>
+    </div>
+  </dialog>
 
     <!-- Draggable Video Modal (hidden by default) -->
   <div id="videoModal" class="video-modal">
@@ -151,16 +319,30 @@
     <!-- <h2>TIMELINE</h2> -->
     <div id="scoreChart"></div>
     <div class="chart-controls">
-      <button id="skipStartButton" title="Jump to start (Shift+←)"><<</button>
-      <button id="rewindButton" title="Skip back 15s (←)">&lt;</button>
-      <button id="playButton" title="Play / Pause (Space)">▶</button>
-      <button id="forwardButton" title="Skip forward 15s (→)">&gt;</button>
-      <button id="skipEndButton" title="Jump to end (Shift+→)">>></button>
+      <button id="skipStartButton" class="transport-button" type="button" title="Jump to start" aria-label="Jump to start">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m11 7-7 5 7 5V7Zm9 0-7 5 7 5V7Z" />
+        </svg>
+      </button>
+      <button id="rewindButton" class="transport-button" type="button" title="Skip back 15s (←)" aria-label="Skip back 15 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 5v14M18 6l-8 6 8 6V6Z" />
+        </svg>
+      </button>
+      <button id="playButton" type="button" title="Play" aria-label="Play"></button>
+      <button id="forwardButton" class="transport-button" type="button" title="Skip forward 15s (→)" aria-label="Skip forward 15 seconds">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 5v14M6 6l8 6-8 6V6Z" />
+        </svg>
+      </button>
+      <button id="skipEndButton" class="transport-button" type="button" title="Jump to end" aria-label="Jump to end">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m4 7 7 5-7 5V7Zm9 0 7 5-7 5V7Z" />
+        </svg>
+      </button>
       <button id="speedButton" title="Change playback speed (+/-)">1x</button>
     </div>
   </section>
-
-  <button id="installButton" style="display:none">Install</button>
 
   <script type="module" src="scripts/main.js"></script>
   <script>

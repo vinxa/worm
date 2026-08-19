@@ -1,40 +1,63 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
-import { formatTime, getGameDuration, initTeamScores } from "./utils.js";
+import { getGameDuration, getLiveCurrentTime, initTeamScores } from "./utils.js";
 import { closeYouTubeModal } from "./video.js";
+import { isLiveGameSelected } from "./live.js";
 
 export function updatePlayButtonsLabel(label) {
   const mainBtn = document.getElementById("playButton");
   const headerBtn = document.getElementById("headerPlayButton");
-  if (mainBtn) mainBtn.textContent = label;
-  if (headerBtn) headerBtn.textContent = label;
+  [mainBtn, headerBtn].forEach((button) => {
+    if (!button) return;
+    const isPlaying = label !== "▶";
+    button.textContent = "";
+    button.classList.toggle("is-playing", isPlaying);
+    button.title = isPlaying ? "Pause" : "Play";
+    button.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
+  });
+}
+
+export function updateSpeedButtons() {
+    const label = `${state.playbackRate}x`;
+    const title = state.livePlaybackLocked
+        ? "Playback speed is locked at 1x while following a live game"
+        : "Change playback speed (+/-)";
+    ["speedButton", "headerSpeedButton"].forEach((id) => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        button.textContent = label;
+        button.disabled = state.livePlaybackLocked;
+        button.title = title;
+    });
 }
 
 export function handleSkip(delta) {
-    // a) If a replay is running, cancel every scheduled tick:
-    if (state.isPlaying) {
-        clearTimeouts();
+    if (delta > 0 && isLiveGameSelected()) {
+        jumpTo(getLiveCurrentTime(state.gameData, state.selectedGame));
+        return;
     }
-    // b) Compute & clamp the new time:
+
     const maxTime = getGameDuration(state.gameData);
     const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
-
-    // c) Seek all UI & chart to newTime:
-    seekToTime(newTime);
-
-    // d) If we were playing, start a fresh replay from newTime
-    if (state.isPlaying) {
-        playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
-    }
+    jumpTo(newTime);
 }
 
-export function setPlaybackRate(rate) {
+export function setPlaybackRate(rate, { force = false, restart = true } = {}) {
+    if (state.livePlaybackLocked && rate !== 1 && !force) {
+        updateSpeedButtons();
+        return state.playbackRate;
+    }
     state.playbackRate = rate;
-    if (state.isPlaying) {
+    if (state.player && typeof state.player.setPlaybackRate === "function") {
+        state.player.setPlaybackRate(rate);
+    }
+    updateSpeedButtons();
+    if (restart && state.isPlaying) {
         clearTimeouts();
         playReplay(state.chart, state.gameData, state.playbackRate, state.replayTimeouts, state.currentTime);
     }
+    return state.playbackRate;
 }
 
 export function stepPlaybackRate(direction, options = {}) {
@@ -54,28 +77,12 @@ export function goToLatestGame({ showGame } = {}) {
     return true;
 }
 
-export function jumpToStart({ loadGameAtIndex } = {}) {
-    const atStart = state.currentTime <= 0.01;
-    if (atStart && typeof loadGameAtIndex === "function") {
-        const games = state.games || [];
-        if (state.selectedGame) {
-            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
-            if (currentIdx !== -1 && loadGameAtIndex(currentIdx + 1)) return;
-        }
-    }
+export function jumpToStart() {
     jumpTo(0);
 }
 
-export function jumpToEnd({ loadGameAtIndex } = {}) {
+export function jumpToEnd() {
     const duration = getGameDuration();
-    const atEnd = duration > 0 && state.currentTime >= duration - 0.01;
-    if (atEnd && typeof loadGameAtIndex === "function") {
-        const games = state.games || [];
-        if (state.selectedGame) {
-            const currentIdx = games.findIndex((g) => g.id === state.selectedGame.id);
-            if (currentIdx > 0 && loadGameAtIndex(currentIdx - 1)) return;
-        }
-    }
     jumpTo(duration);
 }
 
@@ -121,19 +128,44 @@ function applyTeamScoreEvent(teamScores, ev, players) {
     }
 }
 
-/**
- * Play back the game in real time, resuming from `startSec`.
- * Fires every 0.5s, updates both the chart and the team‐score UI.
- *
- * @param {Highcharts.Chart} chart
- * @param {Object}           data       your gameData
- * @param {number}           rate       speed multiplier
- * @param {Array<number>}    timeouts   array to collect setTimeout IDs
- * @param {number}           startSec   second to begin playback from
- */
-export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
+export function playReplay(
+  chart,
+  data,
+  rate = 1,
+  timeouts = [],
+  startSec = 0,
+  { skipInitialLiveSeriesUpdate = false, followLiveClock = false } = {}
+) {
+  if (followLiveClock && isLiveGameSelected()) {
+    if (!skipInitialLiveSeriesUpdate) updateLiveSeries(startSec);
+
+    const drawLiveClock = () => {
+      state.replayAnimationFrame = null;
+      if (!state.isPlaying || !isLiveGameSelected() || state.chart !== chart) return;
+
+      const duration = getGameDuration(state.gameData);
+      const liveTime = getLiveCurrentTime(state.gameData, state.selectedGame);
+      // A delayed snapshot must not make the playhead jump backwards.
+      state.currentTime = Math.min(duration, Math.max(state.currentTime, liveTime));
+      updateCursorPosition(state.currentTime);
+
+      if (state.currentTime < duration) {
+        state.replayAnimationFrame = requestAnimationFrame(drawLiveClock);
+      } else {
+        state.isPlaying = false;
+        updatePlayButtonsLabel("▶");
+      }
+    };
+
+    state.replayAnimationFrame = requestAnimationFrame(drawLiveClock);
+    return;
+  }
+
   // 1) Compute duration
   const duration = getGameDuration(data);
+  const playbackEnd = isLiveGameSelected()
+    ? Math.max(startSec, Math.min(duration, getLiveCurrentTime(data, state.selectedGame)))
+    : duration;
 
   // 2) Sort events by exact time
   const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
@@ -150,18 +182,19 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   }
 
   // 4) Reset the live‐series to match startSec
-  updateLiveSeries(startSec);
+  if (!skipInitialLiveSeriesUpdate) updateLiveSeries(startSec);
   // And update the UI for the new teamScores
   updateTeamScoresUI();
   updatePlayerTiles(startSec);
 
-  // 5) Schedule ticks every 0.5s from startSec → duration
+  // 5) Schedule ticks every 0.5s from startSec → playbackEnd.
+  // Live games must not replay the unseen future up to their fixed duration.
   const stepSize = 0.5; // seconds
   const stepMillis = stepSize * 1000; // ms
-  const totalSteps = Math.ceil((duration - startSec) / stepSize);
+  const totalSteps = Math.max(0, Math.ceil((playbackEnd - startSec) / stepSize));
 
   for (let i = 0; i <= totalSteps; i++) {
-    const t = startSec + i * stepSize;
+    const t = Math.min(playbackEnd, startSec + i * stepSize);
     const delay = (i * stepMillis) / rate;
 
     const id = setTimeout(() => {
@@ -192,25 +225,19 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
       updateTeamScoresUI();
       updatePlayerTiles(t);
 
-      // d) move the cursor group smoothly
-      const x = chart.xAxis[0].toPixels(t, false);
-      const dx = x - chart.plotLeft;
-      chart.customCursorGroup.animate(
-        { translateX: dx },
-        { duration: stepMillis, easing: "linear" }
-      );
-      chart.customCursorGroup.element.querySelector("text").firstChild.data =
-        formatTime(t);
+      // d) keep the cursor line and timestamp on the same authoritative time
+      updateCursorPosition(t);
 
       // e) final redraw
       chart.redraw();
-      if (t >= duration) {
-        // we’ve reached (or passed) the end
+      if (t >= playbackEnd) {
+        // We’ve reached the end of this replay window. For live games this is
+        // the current live timestamp, not the fixed game duration.
         state.isPlaying = false;
-        updatePlayButtonsLabel("▶");        // pause video if playing
+        updatePlayButtonsLabel("▶");
         if (state.player && typeof state.player.pauseVideo === "function") {
           state.player.pauseVideo();
-        }        // clear any leftover timeouts
+        }
         clearTimeouts();
       }
     }, delay);
@@ -219,7 +246,7 @@ export function playReplay(chart, data, rate = 1, timeouts = [], startSec = 0) {
   }
 }
 
-export function seekToTime(sec, skipVideoSeek = false) {
+export function seekToTime(sec, skipVideoSeek = false, { skipLiveSeriesUpdate = false } = {}) {
   if (!state.gameData) return;
   const duration = getGameDuration(state.gameData);
   // clamp
@@ -236,36 +263,23 @@ export function seekToTime(sec, skipVideoSeek = false) {
     const offset = parseFloat(document.getElementById("videoOffset")?.value) || 0;
     state.player.seekTo(sec + offset, true);
   }
-
-  // 1) update tiles
   updatePlayerTiles(sec);
-
-  // 2) update team‐score list
-  updateTeamScoresForTime(state.currentTime);
-
-  // 3) update live series
-  updateLiveSeries(sec);
-
-  // 4) move cursor line
-  updateCursorPosition(state.currentTime);
-}
-
-function updateTeamScoresForTime(sec) {
-  // 1) zero out every team
   state.teamScores = initTeamScores(state.gameData.teams);
-
-  // 2) scan every event ≤ sec and add its delta
   state.gameData.events.forEach((ev) => {
-    if (ev.time <= sec) {
+    if (ev.time <= state.currentTime) {
       applyTeamScoreEvent(state.teamScores, ev, state.gameData.players);
     }
   });
-
-  // 3) repaint the UL
   updateTeamScoresUI();
+  if (!skipLiveSeriesUpdate) updateLiveSeries(sec);
+  updateCursorPosition(state.currentTime);
 }
 
 export function clearTimeouts() {
   state.replayTimeouts.forEach(clearTimeout);
   state.replayTimeouts.length = 0;
+  if (state.replayAnimationFrame !== null) {
+    cancelAnimationFrame(state.replayAnimationFrame);
+    state.replayAnimationFrame = null;
+  }
 }

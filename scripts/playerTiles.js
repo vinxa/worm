@@ -1,66 +1,98 @@
 // playerTiles.js
-import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, getPlayerHighlightColor } from "./utils.js";
+import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
+import { getBaseRunLayoutPlan, getBaseTargetKey } from "./baseRun.js";
+import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
+import { isLiveGameSelected } from "./live.js";
 import { state } from "./state.js";
-import { updatePlayerSeriesDisplay, toggleTeamVisibility } from "./timeline.js";
+import { updatePlayerSeriesDisplay, toggleTeamVisibility, setHiddenTeams } from "./timeline.js";
+import { SHORT_LANDSCAPE_QUERY } from "./config.js";
 
-const FAST_SORT_MIN_INTERVAL = 2; // seconds of game time
-let lastTileSortGameTime = -Infinity;
+const TILE_ORDER_CHECK_INTERVAL_MS = 300;
+const TILE_REORDER_TRANSITION_MS = 240;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
-const BASE_TEXT_CONTRAST_THRESHOLD = 186;
+const SHOT_ANIMATION_MS = 260;
+const SHOT_EVENT_TYPES = new Set([
+    "miss",
+    "miss-base",
+    "stun",
+    "tag",
+    "team-kill",
+    "deny",
+    "team-stun",
+    "base hit",
+    "base destroy",
+]);
 const baseHitFlashTimeouts = new Map();
+const shotAnimationTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
+let tileOrderCheckIntervalId = null;
+let lastTileOrderSignature = "";
 
-function hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
-    return result
-        ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16),
-        }
-        : null;
-}
-
-function getContrastTextColor(hexColor, threshold = BASE_TEXT_CONTRAST_THRESHOLD) {
-    const rgb = hexToRgb(hexColor);
-    if (!rgb) return "#ffffff";
-    return rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114 > threshold
-        ? "#000000"
-        : "#ffffff";
-}
-
-function resetBaseHitFlashState() {
-    baseHitFlashTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
-    baseHitFlashTimeouts.clear();
-    lastTileUpdateTime = -Infinity;
-    document.querySelectorAll(".player-summary.flash-base-hit").forEach((tile) => {
-        tile.classList.remove("flash-base-hit");
-        tile.style.removeProperty("--flash-color");
-        tile.style.removeProperty("--flash-duration");
-    });
-}
-
-function flashPlayerTile(pid, tile, color, durationMs, className) {
-    tile.style.setProperty("--flash-color", color);
-    const rate = state.playbackRate || 1;
-    const flashDuration = Math.max(90, durationMs / rate);
-    tile.style.setProperty("--flash-duration", `${flashDuration}ms`);
+function animateTileEffect(pid, tile, {
+    className,
+    durationMs,
+    durationProperty,
+    timeoutMap,
+    color = "",
+    restart = false,
+}) {
+    const duration = Math.max(90, durationMs / (state.playbackRate || 1));
+    tile.style.setProperty(durationProperty, `${duration}ms`);
+    if (color) tile.style.setProperty("--flash-color", color);
+    if (restart) {
+        tile.classList.remove(className);
+        void tile.offsetWidth;
+    }
     tile.classList.add(className);
-    const existing = baseHitFlashTimeouts.get(pid);
+    const existing = timeoutMap.get(pid);
     if (existing) clearTimeout(existing);
     const timeoutId = setTimeout(() => {
         tile.classList.remove(className);
-        tile.style.removeProperty("--flash-color");
-        tile.style.removeProperty("--flash-duration");
-        baseHitFlashTimeouts.delete(pid);
-    }, flashDuration);
-    baseHitFlashTimeouts.set(pid, timeoutId);
+        tile.style.removeProperty(durationProperty);
+        if (color) tile.style.removeProperty("--flash-color");
+        timeoutMap.delete(pid);
+    }, duration);
+    timeoutMap.set(pid, timeoutId);
+}
+
+export function animateLiveShotEvents(events) {
+    const shotEvents = Array.isArray(events) ? events : [events];
+    const shooters = new Set(
+        shotEvents
+            .filter((event) => event && SHOT_EVENT_TYPES.has(event.type) && event.entity)
+            .map((event) => String(event.entity))
+    );
+
+    shooters.forEach((pid) => {
+        const tile = Array.from(document.querySelectorAll(".player-summary"))
+            .find((candidate) => candidate.dataset.playerId === pid);
+        if (!tile) return;
+        animateTileEffect(pid, tile, {
+            className: "shot-fired",
+            durationMs: SHOT_ANIMATION_MS,
+            durationProperty: "--shot-duration",
+            timeoutMap: shotAnimationTimeouts,
+            restart: true,
+        });
+    });
 }
 
 export function updatePlayerTiles(currentTime) {
-    if (!state.isPlaying) {
-        resetBaseHitFlashState();
+    // Live playback stops at the wall-clock edge between messages. Do not
+    // cancel an in-flight effect when the next live delta arrives immediately
+    // afterwards (for example, tag followed by deactivated).
+    if (!state.isPlaying && !isLiveGameSelected()) {
+        [baseHitFlashTimeouts, shotAnimationTimeouts].forEach((timeouts) => {
+            timeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+            timeouts.clear();
+        });
+        lastTileUpdateTime = -Infinity;
+        document.querySelectorAll(".player-summary").forEach((tile) => {
+            tile.classList.remove("flash-base-hit", "flash-base-destroy", "shot-fired");
+            ["--flash-color", "--flash-duration", "--shot-duration"]
+                .forEach((property) => tile.style.removeProperty(property));
+        });
     }
     const timeJump =
         lastTileUpdateTime !== -Infinity &&
@@ -73,18 +105,28 @@ export function updatePlayerTiles(currentTime) {
         state.selectedPlayers && state.selectedPlayers.size === 1
         ? Array.from(state.selectedPlayers)[0]
         : null;
+    const baseRunPlan = getCurrentBaseRunLayoutPlan(
+        (state.gameData?.teams || []).map((team) => team.id),
+        currentTime
+    );
+    const duration = getGameDuration(state.gameData);
+    const showAllPlayersActive = duration > 0 &&
+        !isLiveGameSelected() &&
+        currentTime >= duration - 0.01;
 
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
         const events = state.playerEvents[pid] || [];
-        let score = 0;
+        let score = events.length ? 0 : Number(state.gameData.players[pid]?.score) || 0;
         let isActive = true;
         let latestBaseEvent = null;
+        let latestShotEvent = null;
         for (const ev of events) {
             if (ev.time > currentTime) break;
             score += ev.delta ?? 0;
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
+            if (SHOT_EVENT_TYPES.has(ev.type)) latestShotEvent = ev;
             if (ev.type === "base hit" || ev.type === "base destroy") {
                 if (
                     !latestBaseEvent ||
@@ -101,17 +143,24 @@ export function updatePlayerTiles(currentTime) {
         const scoreEl = tile.querySelector(".player-score");
         if (scoreEl) scoreEl.textContent = score.toLocaleString();
         tile.classList.toggle("_negative", score < 0);
-        tile.classList.toggle("is-deactivated", !isActive);
+        tile.classList.toggle("is-deactivated", !isActive && !showAllPlayersActive);
 
-        const { tagsFor, tagsAgainst, ratioText, baseCount, deniesCount, teamKillsFor, teamKillsAgainst } =
+        const { tagsFor, tagsAgainst, ratioText, deniesCount, teamKillsFor, teamKillsAgainst } =
         computePlayerStats(pid, currentTime);
 
         const tagsEl = tile.querySelector(".detail-tags");
         const tagsLabelEl = tile.querySelector(".detail-tags-label");
+        const livesLineEl = tile.querySelector(".detail-lives-line");
+        const livesEl = tile.querySelector(".detail-lives");
         const ratioEl = tile.querySelector(".detail-ratio");
         const deniesEl = tile.querySelector(".detail-denies");
         const uptimeEl = tile.querySelector(".detail-uptime");
 
+        if (livesEl) {
+        const lives = computePlayerLives(pid, currentTime);
+        livesEl.textContent = lives === null ? "–" : lives.toLocaleString();
+        if (livesLineEl) livesLineEl.hidden = lives === null;
+        }
         if (tagsEl) {
         if (focusPid && focusPid !== pid) {
             // Show head to head stats for other players if we have a focused player.
@@ -124,7 +173,6 @@ export function updatePlayerTiles(currentTime) {
             tagsEl.innerHTML =
             `${tagsFor} – ${tagsAgainst} ` +
             `<span class="detail-tags-teamKills">(${teamKillsFor} – ${teamKillsAgainst})</span>`;
-            //tagsEl.textContent = `${tagsFor} – ${tagsAgainst}`; // using thin spaces
         }
         }
         if (ratioEl) ratioEl.textContent = ratioText;
@@ -134,30 +182,47 @@ export function updatePlayerTiles(currentTime) {
         const pct = Math.round(uptime * 100);
         uptimeEl.textContent = `${pct}%`;
         }
-        const myTeamId = (state.gameData.players[pid]?.team || "").toLowerCase();
+        const myTeamId = normaliseText(state.gameData.players[pid]?.team);
         const baseStats = computeBaseStats(pid, currentTime);
         const teamColorById = Object.fromEntries(
             state.gameData.teams.map((t) => [t.id, t.color])
         );
-        const activeBases = (state.gameData.active_bases || []).filter(
-            (base) => base && base.id && base.id.toLowerCase() !== myTeamId
+        let activeBases = (state.gameData.active_bases || []).filter(
+            (base) => base && base.entityId && normaliseText(base.team) !== myTeamId
         );
+        const assignedBaseTargetKey = baseRunPlan?.baseTargetKeyByTeamId?.[myTeamId] || "";
+        if (assignedBaseTargetKey) {
+            activeBases = activeBases.filter(
+                (base) => getBaseTargetKey(base) === assignedBaseTargetKey
+            );
+        }
         const container = tile.querySelector(".detail-bases");
 
         if (container) {
         container.innerHTML = activeBases
-            .map(({ id, color }) => {
-            const baseColor = color || teamColorById[id] || id;
+            .map(({ entityId, team, color }) => {
+            // Match timeline markers: bases represent their owning Comp team,
+            // even when the physical base has a different colour.
+            const baseColor = teamColorById[team] || color || team;
             // stat for this target:
-            const stat = baseStats[id] || { count: 0, destroyed: false };
-            const textColor = getContrastTextColor(baseColor);
+            const stat = baseStats[normaliseText(entityId)] || {
+                count: 0,
+                destroyCount: 0,
+                destroyed: false,
+            };
+            const destroyBadge = stat.destroyCount > 1
+                ? `<span class="base-destroy-count"
+                    aria-label="Destroyed ${stat.destroyCount} ${stat.destroyCount === 1 ? "time" : "times"}"
+                    style="color:${baseColor};">${stat.destroyCount}</span>`
+                : "";
             return `
         <div class="base-box${stat.destroyed ? " filled" : ""}"
             style="
                 border-color: ${baseColor};
-                ${stat.destroyed ? `background:${baseColor}; color:${textColor};` : ""}
+                ${stat.destroyed ? `background:${baseColor}; color:#ffffff;` : ""}
             ">
             ${stat.count}
+            ${destroyBadge}
         </div>
         `;
             })
@@ -165,10 +230,13 @@ export function updatePlayerTiles(currentTime) {
         }
 
         if (state.isPlaying && latestBaseEvent && latestBaseEvent.time > flashWindowStart) {
-            const baseTeamId = (latestBaseEvent.target || "").toLowerCase();
+            const baseEntityId = (latestBaseEvent.target || "").toLowerCase();
+            const targetBase = activeBases.find(
+                (base) => normaliseText(base.entityId) === baseEntityId
+            );
             const baseColor =
-                teamColorById[baseTeamId] ||
-                activeBases.find((b) => b.id && b.id.toLowerCase() === baseTeamId)?.color ||
+                teamColorById[targetBase?.team] ||
+                targetBase?.color ||
                 "#e2b12a";
             const durationMs =
                 latestBaseEvent.type === "base destroy"
@@ -178,26 +246,33 @@ export function updatePlayerTiles(currentTime) {
                 latestBaseEvent.type === "base destroy"
                     ? "flash-base-destroy"
                     : "flash-base-hit";
-            flashPlayerTile(pid, tile, baseColor, durationMs, className);
+            animateTileEffect(pid, tile, {
+                className,
+                durationMs,
+                durationProperty: "--flash-duration",
+                timeoutMap: baseHitFlashTimeouts,
+                color: baseColor,
+            });
+        }
+        if (state.isPlaying && latestShotEvent && latestShotEvent.time > flashWindowStart) {
+            animateTileEffect(pid, tile, {
+                className: "shot-fired",
+                durationMs: SHOT_ANIMATION_MS,
+                durationProperty: "--shot-duration",
+                timeoutMap: shotAnimationTimeouts,
+                restart: true,
+            });
         }
     });
 
-    const fastRate = state.playbackRate && state.playbackRate > 1.25;
-    const shouldSort =
-        !fastRate || currentTime - lastTileSortGameTime >= FAST_SORT_MIN_INTERVAL;
-    if (shouldSort) {
-        const durationMs = fastRate ? 120 : 300;
-        sortTiles(durationMs);
-        lastTileSortGameTime = currentTime;
-    }
     lastTileUpdateTime = currentTime;
 }
 
 export function generatePlayerTiles() {
     const grid = document.getElementById("playerGrid");
     grid.innerHTML = "";
-    lastTileSortGameTime = -Infinity;
-    const ids = Object.keys(state.gameData.playerStats).slice(0, 15);
+    lastTileOrderSignature = "";
+    const ids = Object.keys(state.gameData.playerStats);
 
     ids.forEach((pid) => {
         const stats = state.gameData.playerStats[pid] || {};
@@ -212,28 +287,41 @@ export function generatePlayerTiles() {
         </div>
         <div class="player-summary-details">
             <div class="detail-left">
+                <p class="detail-lives-line"><span class="detail-lives-label">Lives:</span> <span class="detail-lives">–</span></p>
                 <p class="detail-tags-line"><span class="detail-tags-label">Tags:</span> <span class="detail-tags">–</span></p>
                 <div class="detail-bases"></div>
             </div>
             <div class="detail-right">
-                <p class="detail-ratio-line">TR: <span class="detail-ratio">–</span></p>
-                <p class="detail-denies-line">Denies: <span class="detail-denies">–</span></p>
+                <p class="detail-ratio-line"><span class="detail-ratio-label">TR:</span> <span class="detail-ratio">–</span></p>
+                <p class="detail-denies-line"><span class="detail-denies-label">Denies:</span> <span class="detail-denies">–</span></p>
                 <p class="detail-uptime-line">Uptime: <span class="detail-uptime">–</span></p>
             </div>
         </div>
         `;
 
-        // player name is team colour
         const player = state.gameData.players[pid];
         if (player) {
             const team = state.gameData.teams.find(t => t.id === player.team);
             const color = team ? team.color : "";
             tile.querySelector(".player-name").style.color = color;
+            if (color) tile.style.setProperty("--shot-color", color);
         }
 
         grid.appendChild(tile);
-        updatePlayerTiles(state.currentTime);
     });
+
+    updatePlayerTiles(state.currentTime);
+    stopPlayerTileOrderChecks();
+    updatePlayerTileOrder();
+    tileOrderCheckIntervalId = setInterval(updatePlayerTileOrder, TILE_ORDER_CHECK_INTERVAL_MS);
+}
+
+export function stopPlayerTileOrderChecks() {
+    if (tileOrderCheckIntervalId !== null) {
+        clearInterval(tileOrderCheckIntervalId);
+        tileOrderCheckIntervalId = null;
+    }
+    lastTileOrderSignature = "";
 }
 
 export function setupTeamSeriesFilter() {
@@ -245,18 +333,50 @@ export function setupTeamSeriesFilter() {
             const teamId = li.dataset.teamId;
             if (!teamId) return;
             toggleTeamVisibility(teamId);
-            const activeSet = state.hiddenTeams || new Set();
-            items.forEach((el) => {
-                const inactive = activeSet.has(el.dataset.teamId);
-                el.classList.toggle("inactive-team-filter", inactive);
+            const inactiveTeams = state.hiddenTeams || new Set();
+            items.forEach((item) => {
+                item.classList.toggle("inactive-team-filter", inactiveTeams.has(item.dataset.teamId));
             });
         });
     });
+
 }
 
-/**
- * Write the current teamScores into the HTML.
- */
+export function applySelectedTileState() {
+    if (!state.gameData) return;
+
+    const validPlayerIds = new Set(Object.keys(state.gameData.players || {}));
+    state.selectedPlayers = new Set(
+        [...(state.selectedPlayers || [])].filter((playerId) => validPlayerIds.has(playerId))
+    );
+
+    const validTeamIds = new Set((state.gameData.teams || []).map((team) => String(team.id)));
+    const hiddenTeamIds = state.selectedPlayers.size
+        ? new Set(validTeamIds)
+        : new Set(
+            [...(state.hiddenTeams || [])]
+                .map(String)
+                .filter((teamId) => validTeamIds.has(teamId))
+        );
+    setHiddenTeams(hiddenTeamIds);
+
+    document.querySelectorAll(".player-summary").forEach((tile) => {
+        const playerId = tile.dataset.playerId;
+        const selected = state.selectedPlayers.has(playerId);
+        tile.classList.toggle("selected", selected);
+        tile.style.borderColor = selected ? getPlayerHighlightColor(playerId) : "";
+    });
+    document.querySelectorAll(".team-scores li").forEach((tile) => {
+        tile.classList.toggle(
+            "inactive-team-filter",
+            Boolean(state.hiddenTeams?.has(tile.dataset.teamId))
+        );
+    });
+
+    updatePlayerSeriesDisplay();
+    updatePlayerTiles(state.currentTime);
+}
+
 export function updateTeamScoresUI() {
     if (!state.chart) return;
 
@@ -269,187 +389,202 @@ export function updateTeamScoresUI() {
         const tagsSpan = li?.querySelector(".team-tags")
         if (!name || !scoreSpan) return;
 
-        // update the score text
         scoreSpan.textContent = stats.score.toLocaleString();
         tagsSpan.textContent = `${stats.tagsFor} - ${stats.tagsAgainst}`;
-        // update team tags text
-
-        // pull team color from game data
         const team = state.gameData.teams.find(t => t.id === teamId);
         const color = team ? team.color : "";
-
-        // color the team-name, leave the score in default color
         name.style.color = color;
     });
 
-    sortTeamScoresUI();
+    const scores = document.querySelector(".team-scores");
+    if (!scores) return;
+    const items = Array.from(scores.querySelectorAll("li[data-team-id]"));
+    const subgames = getCurrentBaseRunLayoutPlan(
+        items.map((item) => item.dataset.teamId)
+    )?.subgames || null;
+    const sidebar = scores.closest(".scores-sidebar");
+
+    animateReorder(items, 300, () => {
+        if (subgames) {
+            scores.classList.add("base-run-score-subgames");
+            sidebar?.classList.add("base-run-score-sidebar");
+            scores.replaceChildren(...subgames.map((teamIds, subgameIndex) => {
+                const group = document.createElement("div");
+                group.className = "team-score-subgame";
+                group.dataset.subgame = String(subgameIndex + 1);
+                const teamNames = teamIds.map((teamId) =>
+                    state.gameData.teams.find((team) => team.id === teamId)?.name || teamId
+                );
+                group.setAttribute("aria-label", `${teamNames.join(" versus ")} subgame totals`);
+                group.style.gridTemplateColumns = `repeat(${teamIds.length}, minmax(0, 1fr))`;
+                teamIds
+                    .map((teamId) => scores.querySelector(`li[data-team-id="${teamId}"]`))
+                    .filter(Boolean)
+                    .forEach((item) => group.appendChild(item));
+                return group;
+            }));
+            return;
+        }
+
+        scores.classList.remove("base-run-score-subgames");
+        sidebar?.classList.remove("base-run-score-sidebar");
+        scores.replaceChildren(...getSortedTeamIds()
+            .map((id) => scores.querySelector(`li[data-team-id="${id}"]`))
+            .filter(Boolean)
+        );
+    });
 }
 
-/**
- * Reorders all .player-summary tiles in #playerGrid
- * by their current .player-score (desc).
- */
-function sortTiles(transitionMs = 300) {
-    const grid = document.getElementById("playerGrid");
-    const tiles = Array.from(grid.children);
-
-    // 1) Record old positions (FLIP pre‐step)
-    const oldRects = new Map();
-    tiles.forEach((tile) => {
-        oldRects.set(tile, tile.getBoundingClientRect());
-        tile.style.transition = "";
-        tile.style.transform = "";
+function animateReorder(elements, transitionMs, reorder) {
+    const oldRects = new Map(elements.map((element) => [element, element.getBoundingClientRect()]));
+    elements.forEach((element) => {
+        element.style.transition = "";
+        element.style.transform = "";
     });
+    reorder();
+    elements.forEach((element) => {
+        const oldRect = oldRects.get(element);
+        const newRect = element.getBoundingClientRect();
+        const dx = oldRect.left - newRect.left;
+        const dy = oldRect.top - newRect.top;
+        if (!dx && !dy) return;
 
-    // 2) Compute *current* team scores if you don't have them already
-    //    (e.g. from updateTeamScoresForTime or similar)
-    const totals = {};
-    state.gameData.teams.forEach((team) => {
-        totals[team.id] = computeTeamTotal(team.id, state.currentTime);
+        element.style.transform = `translate(${dx}px,${dy}px)`;
+        element.getBoundingClientRect();
+        element.style.transition = `transform ${transitionMs}ms ease`;
+        element.style.transform = "";
+        element.addEventListener("transitionend", () => {
+            element.style.transition = "";
+        }, { once: true });
     });
-    // --------------------------------------------
-    // You need a `computeTeamTotal(teamId, t)` that returns
-    // the sum of all ev.delta for that team up to `t`.
-    // --------------------------------------------
+}
 
-    // 3) Build an array of team IDs sorted by descending total
-    const sortedTeamIds = state.gameData.teams
-        .map((t) => t.id)
+function getSortedTeamIds(visibleTeamIds = null) {
+    const teams = visibleTeamIds
+        ? state.gameData.teams.filter((team) => visibleTeamIds.has(String(team.id)))
+        : state.gameData.teams;
+    const totals = Object.fromEntries(teams.map((team) => [
+        team.id,
+        computeTeamTotal(team.id, state.currentTime),
+    ]));
+    return teams
+        .map((team) => team.id)
         .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
+}
 
-    // 4) Group tiles by team
+function parseScoreText(text) {
+    const score = Number(String(text || "").replace(/,/g, ""));
+    return Number.isFinite(score) ? score : 0;
+}
+
+function getCurrentBaseRunLayoutPlan(teamIds, currentTime = state.currentTime) {
+    return getBaseRunLayoutPlan({
+        gameData: state.gameData,
+        selectedGame: state.selectedGame,
+        currentTime,
+        teamIds,
+        getTeamTotal: (teamId) => computeTeamTotal(teamId, currentTime),
+        policy: getClash3BaseRunPolicy({
+            gameData: state.gameData,
+            selectedGame: state.selectedGame,
+            events: state.events,
+        }),
+    });
+}
+
+function updatePlayerTileOrder() {
+    const grid = document.getElementById("playerGrid");
+    if (!grid || !state.gameData) return;
+    const tiles = Array.from(grid.querySelectorAll(".player-summary"));
+    if (!tiles.length) return;
+
     const byTeam = {};
     tiles.forEach((tile) => {
-        const pid = tile.dataset.playerId;
-        const teamId = state.gameData.players[pid].team;
+        const teamId = state.gameData.players[tile.dataset.playerId].team;
         (byTeam[teamId] ||= []).push(tile);
     });
-
-    // 5) Within each team, sort players by descending score
+    const baseRunPlan = getCurrentBaseRunLayoutPlan(Object.keys(byTeam));
+    const subgames = baseRunPlan?.subgames || null;
+    const sortedTeamIds = subgames
+        ? subgames.flat()
+        : getSortedTeamIds(new Set(Object.keys(byTeam)));
     sortedTeamIds.forEach((teamId) => {
-        const arr = byTeam[teamId] || [];
-        arr.sort((a, b) => {
-        const sa = +a.querySelector(".player-score").textContent.replace(/[^0-9]/g,"");
-        const sb = +b.querySelector(".player-score").textContent.replace(/[^0-9]/g,"");
-        return sb - sa;
-        });
+        (byTeam[teamId] || []).sort((a, b) =>
+            parseScoreText(b.querySelector(".player-score")?.textContent) -
+            parseScoreText(a.querySelector(".player-score")?.textContent)
+        );
     });
+    const orderedTiles = sortedTeamIds.flatMap((teamId) => byTeam[teamId] || []);
+    const baseRunTeamsAsColumns = !!subgames &&
+        window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
+    const signature = `${baseRunPlan?.id || "standard"}:${subgames
+        ? subgames.map((group) => group.map(String).join(",")).join(";")
+        : ""}:${baseRunTeamsAsColumns ? "team-columns" : "compact"}|${orderedTiles
+        .map((tile) => `${state.gameData.players[tile.dataset.playerId].team}:${tile.dataset.playerId}`)
+        .join("|")}`;
+    if (signature === lastTileOrderSignature) return;
+    lastTileOrderSignature = signature;
 
-    // 6) Layout: use the larger dimension as columns
-    const teamCount = sortedTeamIds.length;
-    const maxTeamSize = Math.max(
-        1,
-        ...sortedTeamIds.map((teamId) => (byTeam[teamId] || []).length)
-    );
+    animateReorder(tiles, TILE_REORDER_TRANSITION_MS, () => {
+        if (subgames) {
+            grid.classList.add("base-run-subgames");
+            grid.style.gridTemplateColumns = `repeat(${subgames.length}, minmax(0, 1fr))`;
+            grid.style.gridTemplateRows = "auto";
 
-    if (teamCount >= maxTeamSize) {
-        // Teams as columns (more teams than players per team)
-        grid.style.gridTemplateColumns = `repeat(${teamCount}, minmax(0, 1fr))`;
-        grid.style.gridTemplateRows = `repeat(${maxTeamSize}, auto)`;
-        sortedTeamIds.forEach((teamId, colIdx) => {
-        const arr = byTeam[teamId] || [];
-        arr.forEach((tile, rowIdx) => {
-            tile.style.gridColumn = colIdx + 1;
-            tile.style.gridRow = rowIdx + 1;
-        });
-        });
-    } else {
-        // Teams as rows (more players per team than teams)
-        grid.style.gridTemplateColumns = `repeat(${maxTeamSize}, minmax(0, 1fr))`;
-        grid.style.gridTemplateRows = `repeat(${teamCount}, auto)`;
-        sortedTeamIds.forEach((teamId, rowIdx) => {
-        const arr = byTeam[teamId] || [];
-        arr.forEach((tile, colIdx) => {
-            tile.style.gridRow = rowIdx + 1;
-            tile.style.gridColumn = colIdx + 1;
-        });
-        });
-    }
+            const groups = subgames.map((teamIds, subgameIndex) => {
+                const group = document.createElement("div");
+                group.className = "base-run-subgame";
+                group.dataset.subgame = String(subgameIndex + 1);
+                const teamNames = teamIds.map((teamId) =>
+                    state.gameData.teams.find((team) => team.id === teamId)?.name || teamId
+                );
+                group.setAttribute("aria-label", `${teamNames.join(" versus ")} subgame`);
 
-    // 7) Re‐append in row order = sortedTeamIds
-    sortedTeamIds.forEach((teamId) => {
-        (byTeam[teamId] || []).forEach((tile) => {
-        grid.appendChild(tile);
-        });
-    });
+                const maxTeamSize = Math.max(
+                    1,
+                    ...teamIds.map((teamId) => (byTeam[teamId] || []).length)
+                );
+                const teamsAsColumns = baseRunTeamsAsColumns || teamIds.length >= maxTeamSize;
+                const columnCount = teamsAsColumns ? teamIds.length : maxTeamSize;
+                const rowCount = teamsAsColumns ? maxTeamSize : teamIds.length;
+                group.style.gridTemplateColumns = `repeat(${columnCount}, minmax(0, 1fr))`;
+                group.style.gridTemplateRows = `repeat(${rowCount}, auto)`;
+                teamIds.forEach((teamId, outerIndex) => {
+                    (byTeam[teamId] || []).forEach((tile, innerIndex) => {
+                        tile.style.gridColumn = (teamsAsColumns ? outerIndex : innerIndex) + 1;
+                        tile.style.gridRow = (teamsAsColumns ? innerIndex : outerIndex) + 1;
+                        group.appendChild(tile);
+                    });
+                });
+                return group;
+            });
+            grid.replaceChildren(...groups);
+            return;
+        }
 
-    // 8) FLIP animate from oldRects → new positions
-    tiles.forEach((tile) => {
-        const oldRect = oldRects.get(tile);
-        const newRect = tile.getBoundingClientRect();
-        const dx = oldRect.left - newRect.left;
-        const dy = oldRect.top - newRect.top;
-        if (!dx && !dy) return;
+        grid.classList.remove("base-run-subgames");
+        const teamCount = sortedTeamIds.length;
+        const maxTeamSize = Math.max(
+            1,
+            ...sortedTeamIds.map((teamId) => (byTeam[teamId] || []).length)
+        );
 
-        tile.style.transform = `translate(${dx}px,${dy}px)`;
-        tile.getBoundingClientRect(); // force reflow
-        tile.style.transition = `transform ${transitionMs}ms ease`;
-        tile.style.transform = "";
-        tile.addEventListener("transitionend", function handler() {
-        tile.style.transition = "";
-        tile.removeEventListener("transitionend", handler);
+        const teamsAsColumns = teamCount >= maxTeamSize;
+        const columnCount = teamsAsColumns ? teamCount : maxTeamSize;
+        const rowCount = teamsAsColumns ? maxTeamSize : teamCount;
+
+        grid.style.gridTemplateColumns = `repeat(${columnCount}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${rowCount}, auto)`;
+        sortedTeamIds.forEach((teamId, outerIndex) => {
+            (byTeam[teamId] || []).forEach((tile, innerIndex) => {
+                tile.style.gridColumn = (teamsAsColumns ? outerIndex : innerIndex) + 1;
+                tile.style.gridRow = (teamsAsColumns ? innerIndex : outerIndex) + 1;
+            });
         });
+
+        orderedTiles.forEach((tile) => grid.appendChild(tile));
     });
 }
-
-/**
- * Re-orders the .team-scores <li>s by descending team score,
- * and animates the move via FLIP.
- */
-function sortTeamScoresUI() {
-    const ul = document.querySelector(".team-scores");
-    const items = Array.from(ul.children);
-
-    // 1) Record old positions
-    const oldRects = new Map();
-    items.forEach((li) => {
-        oldRects.set(li, li.getBoundingClientRect());
-        li.style.transition = "";
-        li.style.transform = "";
-    });
-
-    // 2) Compute current team totals
-    const totals = {};
-    state.gameData.teams.forEach((team) => {
-        totals[team.id] = computeTeamTotal(team.id, state.currentTime);
-    });
-
-    // 3) Sort team IDs by descending total
-    const sortedIds = state.gameData.teams
-        .map((t) => t.id)
-        .sort((a, b) => (totals[b] || 0) - (totals[a] || 0));
-
-    // 4) Build new order of <li> elements
-    const newOrder = sortedIds
-        .map((id) => ul.querySelector(`li[data-team-id="${id}"]`))
-        .filter(Boolean);
-
-    // 5) Re-append in sorted order
-    newOrder.forEach((li) => ul.appendChild(li));
-
-    // 6) FLIP animate from old → new
-    newOrder.forEach((li) => {
-        const oldRect = oldRects.get(li);
-        const newRect = li.getBoundingClientRect();
-        const dx = oldRect.left - newRect.left;
-        const dy = oldRect.top - newRect.top;
-        if (!dx && !dy) return;
-
-        // invert
-        li.style.transform = `translate(${dx}px,${dy}px)`;
-        // force reflow
-        li.getBoundingClientRect();
-        // play
-        li.style.transition = "transform 300ms ease";
-        li.style.transform = "";
-        // cleanup
-        li.addEventListener("transitionend", function handler() {
-        li.style.transition = "";
-        li.removeEventListener("transitionend", handler);
-        });
-    });
-}
-
 
 export function setupPlayerSeriesToggles() {
     document.querySelectorAll(".player-summary").forEach((tile) => {
@@ -465,6 +600,19 @@ export function setupPlayerSeriesToggles() {
             } else {
                 state.selectedPlayers.add(pid);
             }
+
+            // Player focus replaces the team view.  Restore the initial team
+            // selection once the last focused player is cleared.
+            const hiddenTeamIds = state.selectedPlayers.size
+                ? new Set(state.gameData.teams.map((team) => team.id))
+                : null;
+            setHiddenTeams(hiddenTeamIds);
+            document.querySelectorAll(".team-scores li").forEach((teamTile) => {
+                teamTile.classList.toggle(
+                    "inactive-team-filter",
+                    hiddenTeamIds?.has(teamTile.dataset.teamId) || false
+                );
+            });
 
             // sync chart to only show selected players
             updatePlayerSeriesDisplay();

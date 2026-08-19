@@ -22,6 +22,7 @@
   "start_url": "/worm/",
   "scope": "/worm/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#1e1e1e",
   "theme_color": "#1e1e1e"
 }

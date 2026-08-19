@@ -1,11 +1,49 @@
 const CACHE_NAME = "worm-static-__BUILD_ID__";
+const FAVOURITES_DATABASE = "worm-local-preferences";
+const FAVOURITES_DATABASE_VERSION = 1;
+const FAVOURITES_STORE = "followedPlayers";
+
+function openFavouritesDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(FAVOURITES_DATABASE, FAVOURITES_DATABASE_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(FAVOURITES_STORE)) {
+        database.createObjectStore(FAVOURITES_STORE, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function handleFavouritesRequest(action, player) {
+  const database = await openFavouritesDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(FAVOURITES_STORE, action === "list" ? "readonly" : "readwrite");
+    const store = transaction.objectStore(FAVOURITES_STORE);
+    const request = action === "list"
+      ? store.getAll()
+      : action === "put"
+        ? store.put(player)
+        : action === "delete"
+          ? store.delete(player.id)
+          : store.clear();
+    request.onsuccess = () => resolve(action === "list" ? request.result : player);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => database.close();
+  });
+}
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
       cache.addAll([
-        "./static/images/*",
+        "./static/images/worm.png",
+        "./static/images/worm-192.png",
+        "./static/images/worm-512.png",
       ])
     ).catch(() => {})
   );
@@ -47,5 +85,19 @@ self.addEventListener("fetch", (event) => {
       // Serve cached fast, but update in the background
       return cached || fetchAndUpdate;
     })
+  );
+});
+
+self.addEventListener("message", (event) => {
+  const prefix = "worm:favourites:";
+  const type = event.data?.type;
+  if (typeof type !== "string" || !type.startsWith(prefix)) return;
+  const action = type.slice(prefix.length);
+  if (!["list", "put", "delete", "clear"].includes(action)) return;
+  const responsePort = event.ports?.[0];
+  event.waitUntil(
+    handleFavouritesRequest(action, event.data?.player)
+      .then((result) => responsePort?.postMessage({ ok: true, result }))
+      .catch((error) => responsePort?.postMessage({ ok: false, error: String(error) }))
   );
 });
