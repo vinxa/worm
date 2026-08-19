@@ -17,6 +17,7 @@ let liveRenderTimer = null;
 let liveRenderTimerReadyAt = null;
 let liveRenderOrder = 0;
 let liveFinaliseTimer = null;
+const LEAGUE_LASERFORCE_GREEN = "#008140";
 
 function isInternalParserPayload(data) {
     if (!data || typeof data !== "object") return false;
@@ -37,6 +38,16 @@ function toTeamArray(teams) {
         }));
 }
 
+function normaliseLeagueLaserforceYellow(subject, name) {
+    const isYellow = normaliseText(subject?.color) === "#ffff00" ||
+        [subject?.name, subject?.colorName].some((value) =>
+            /\byellow\b/i.test(String(value || ""))
+        );
+    return isYellow
+        ? { ...subject, name, color: LEAGUE_LASERFORCE_GREEN, colorName: "Green" }
+        : subject;
+}
+
 function teamsWithPlayers(teams, players) {
     const playerTeamIds = new Set(
         Object.values(players || {})
@@ -49,10 +60,18 @@ function teamsWithPlayers(teams, players) {
 
 function prepareGameData(gameData) {
     const identifiedGameData = normaliseGamePlayerIdentity(gameData);
-    const rawTeams = toTeamArray(identifiedGameData?.teams).map((team) => ({
-        ...team,
-        id: String(team?.id ?? ""),
-    }));
+    const gameType = identifiedGameData?.gameType ||
+        state.selectedGame?.gameType || state.selectedGame?.title || "";
+    const isLeagueLaserforce = normaliseText(gameType).startsWith("league laserforce");
+    const rawTeams = toTeamArray(identifiedGameData?.teams).map((team) => {
+        const normalisedTeam = {
+            ...team,
+            id: String(team?.id ?? ""),
+        };
+        return isLeagueLaserforce
+            ? normaliseLeagueLaserforceYellow(normalisedTeam, "Green Team")
+            : normalisedTeam;
+    });
     const rawPlayers = identifiedGameData?.players && !Array.isArray(identifiedGameData.players)
         ? identifiedGameData.players
         : {};
@@ -78,13 +97,16 @@ function prepareGameData(gameData) {
     const allActiveBases = (Array.isArray(identifiedGameData?.active_bases) ? identifiedGameData.active_bases : [])
         .map((base, index) => {
             const team = String(base?.team ?? "");
-            return {
+            const normalisedBase = {
                 entityId: String(base?.entityId || `legacy-base:${team || index}:${index}`),
                 name: base?.name || "",
                 team,
                 color: base?.color || "",
                 colorName: base?.colorName || "",
             };
+            return isLeagueLaserforce
+                ? normaliseLeagueLaserforceYellow(normalisedBase, "Green Base")
+                : normalisedBase;
         });
     const baseByEntityId = new Map(
         allActiveBases
