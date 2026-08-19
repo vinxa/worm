@@ -338,8 +338,10 @@ export function generatePlayerTiles() {
                 <div class="detail-bases"></div>
             </div>
             <div class="detail-right">
-                <p class="detail-ratio-line"><span class="detail-ratio-label">TR:</span> <span class="detail-ratio">–</span></p>
-                <p class="detail-denies-line"><span class="detail-denies-label">Denies:</span> <span class="detail-denies">–</span></p>
+                <div class="detail-combat-line">
+                    <p class="detail-ratio-line"><span class="detail-ratio-label">TR:</span> <span class="detail-ratio">–</span></p>
+                    <p class="detail-denies-line"><span class="detail-denies-label">Denies:</span> <span class="detail-denies">–</span></p>
+                </div>
                 <p class="detail-uptime-line">Uptime: <span class="detail-uptime">–</span></p>
             </div>
         </div>
