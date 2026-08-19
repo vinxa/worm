@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { COARSE_POINTER_QUERY, GAME_TIMEZONE } from "./config.js";
+import { COARSE_POINTER_QUERY, GAME_TIMEZONE, LIVE_PRESENTATION_DELAY_SECONDS } from "./config.js";
 
 export const normaliseText = (value) => String(value ?? "").trim().toLowerCase();
 
@@ -139,6 +139,10 @@ export function getLiveCurrentTime(data, game = data) {
     }
 
     return 0;
+}
+
+export function getLivePresentationTime(data, game = data) {
+    return Math.max(0, getLiveCurrentTime(data, game) - LIVE_PRESENTATION_DELAY_SECONDS);
 }
 
 

@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
-import { getGameDuration, getLiveCurrentTime, initTeamScores } from "./utils.js";
+import { getGameDuration, getLivePresentationTime, initTeamScores } from "./utils.js";
 import { closeYouTubeModal } from "./video.js";
 import { isLiveGameSelected } from "./live.js";
 
@@ -34,7 +34,7 @@ export function updateSpeedButtons() {
 
 export function handleSkip(delta) {
     if (delta > 0 && isLiveGameSelected()) {
-        jumpTo(getLiveCurrentTime(state.gameData, state.selectedGame));
+        jumpTo(getLivePresentationTime(state.gameData, state.selectedGame));
         return;
     }
 
@@ -144,7 +144,7 @@ export function playReplay(
       if (!state.isPlaying || !isLiveGameSelected() || state.chart !== chart) return;
 
       const duration = getGameDuration(state.gameData);
-      const liveTime = getLiveCurrentTime(state.gameData, state.selectedGame);
+      const liveTime = getLivePresentationTime(state.gameData, state.selectedGame);
       // A delayed snapshot must not make the playhead jump backwards.
       state.currentTime = Math.min(duration, Math.max(state.currentTime, liveTime));
       updateCursorPosition(state.currentTime);
@@ -164,7 +164,7 @@ export function playReplay(
   // 1) Compute duration
   const duration = getGameDuration(data);
   const playbackEnd = isLiveGameSelected()
-    ? Math.max(startSec, Math.min(duration, getLiveCurrentTime(data, state.selectedGame)))
+    ? Math.max(startSec, Math.min(duration, getLivePresentationTime(data, state.selectedGame)))
     : duration;
 
   // 2) Sort events by exact time

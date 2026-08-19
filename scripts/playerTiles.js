@@ -78,6 +78,52 @@ export function animateLiveShotEvents(events) {
     });
 }
 
+export function animateLiveBaseEvents(events) {
+    const latestBaseEventByPlayer = new Map();
+    (Array.isArray(events) ? events : [events]).forEach((event) => {
+        if (!event?.entity || (event.type !== "base hit" && event.type !== "base destroy")) {
+            return;
+        }
+        const pid = String(event.entity);
+        const previous = latestBaseEventByPlayer.get(pid);
+        if (
+            !previous ||
+            Number(event.time) > Number(previous.time) ||
+            (Number(event.time) === Number(previous.time) && event.type === "base destroy")
+        ) {
+            latestBaseEventByPlayer.set(pid, event);
+        }
+    });
+
+    const teamColorById = Object.fromEntries(
+        (state.gameData?.teams || []).map((team) => [normaliseText(team.id), team.color])
+    );
+    latestBaseEventByPlayer.forEach((event, pid) => {
+        const tile = Array.from(document.querySelectorAll(".player-summary"))
+            .find((candidate) => candidate.dataset.playerId === pid);
+        if (!tile) return;
+
+        const targetId = normaliseText(event.target);
+        const targetBase = (state.gameData?.active_bases || []).find(
+            (base) => normaliseText(base?.entityId) === targetId
+        );
+        const baseColor =
+            teamColorById[normaliseText(targetBase?.team)] ||
+            targetBase?.color ||
+            "#e2b12a";
+        const isDestroy = event.type === "base destroy";
+        tile.classList.remove("flash-base-hit", "flash-base-destroy");
+        void tile.offsetWidth;
+        animateTileEffect(pid, tile, {
+            className: isDestroy ? "flash-base-destroy" : "flash-base-hit",
+            durationMs: isDestroy ? BASE_DESTROY_FLASH_MS : BASE_HIT_FLASH_MS,
+            durationProperty: "--flash-duration",
+            timeoutMap: baseHitFlashTimeouts,
+            color: baseColor,
+        });
+    });
+}
+
 export function updatePlayerTiles(currentTime) {
     // Live playback stops at the wall-clock edge between messages. Do not
     // cancel an in-flight effect when the next live delta arrives immediately

@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { formatGameDatetime, getGameDuration, getLiveCurrentTime } from "./utils.js";
+import { formatGameDatetime, getGameDuration, getLivePresentationTime } from "./utils.js";
 import {
     handleSkip,
     jumpToStart,
@@ -86,7 +86,7 @@ function updateLiveCountdown() {
     liveCountdown.hidden = !isLive || duration <= 0;
     if (!liveCountdown.hidden) {
         liveCountdown.textContent = formatCountdown(
-            duration - getLiveCurrentTime(data, state.selectedGame)
+            duration - getLivePresentationTime(data, state.selectedGame)
         );
     }
 }
