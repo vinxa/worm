@@ -355,7 +355,7 @@ function updatePlayerStatusBands() {
     const stripWidth = 4;
     const deadColor = "rgba(255, 80, 80, 0.18)";
     const aliveColor = "rgba(80, 255, 140, 0.08)";
-    const reloadColor = "rgba(83, 216, 251, 0.18)";
+    const reloadColor = "rgba(83, 216, 251, 0.22)";
 
     pids.forEach((pid, idx) => {
         const y = plotTop + idx * bandHeight;
@@ -380,7 +380,11 @@ function updatePlayerStatusBands() {
             .add(group);
 
         const events = (state.playerEvents?.[pid] || [])
-            .filter((ev) => ev.type === "deactivated" || ev.type === "reactivated")
+            .filter((ev) =>
+                ev.type === "deactivated" ||
+                ev.type === "reactivated" ||
+                ev.type === "reload"
+            )
             .sort((a, b) => a.time - b.time);
 
         let status = "alive";
@@ -400,13 +404,19 @@ function updatePlayerStatusBands() {
         };
 
         events.forEach((ev) => {
-            const t = ev.time;
+            const t = Math.max(0, Math.min(gameEnd, Number(ev.time)));
+            if (!Number.isFinite(t)) return;
+
             if (status === "alive" && ev.type === "deactivated") {
                 pushBand(lastTime, t, aliveColor);
                 status = "dead";
                 lastTime = t;
-            } else if (status === "dead" && ev.type === "reactivated") {
-                pushBand(lastTime, t, deadColor);
+            } else if (ev.type === "reload" && status !== "reloading") {
+                pushBand(lastTime, t, status === "dead" ? deadColor : aliveColor);
+                status = "reloading";
+                lastTime = t;
+            } else if (ev.type === "reactivated" && status !== "alive") {
+                pushBand(lastTime, t, status === "reloading" ? reloadColor : deadColor);
                 status = "alive";
                 lastTime = t;
             }
@@ -414,19 +424,11 @@ function updatePlayerStatusBands() {
 
         if (status === "alive") {
             pushBand(lastTime, gameEnd, aliveColor);
+        } else if (status === "reloading") {
+            pushBand(lastTime, gameEnd, reloadColor);
         } else {
             pushBand(lastTime, gameEnd, deadColor);
         }
-
-        // A reload is an instantaneous event, not a player state. Give it a
-        // fixed-width overlay so it remains visible at normal chart scales.
-        (state.playerEvents?.[pid] || [])
-            .filter((ev) => ev.type === "reload")
-            .forEach((ev) => pushBand(
-                Math.max(0, ev.time - 0.5),
-                Math.min(gameEnd, ev.time + 0.5),
-                reloadColor
-            ));
     });
 
     chart.customPlayerStatusGroup = group;
@@ -945,6 +947,10 @@ export function buildTeamTimeline(data) {
         if (!player) return;
 
         const teamId = player.team;
+        // Live snapshots can briefly contain a player before their team has
+        // arrived (or retain an event for a team omitted by the summary).
+        // There is no chart series for that team, so ignore the event until
+        // the team metadata is present instead of aborting the whole render.
         if (!Object.hasOwn(timeline, teamId)) return;
         totals[teamId] += ev.delta ?? 0;
         timeline[teamId].push([ev.time, totals[teamId]]);

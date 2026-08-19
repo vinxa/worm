@@ -217,6 +217,7 @@ export function showHome({
     if (unsubscribe) unsubscribeFromLiveGame();
     stopPlayerTileOrderChecks();
     if (updateHistory) clearGameUrl({ replace: replaceHistory });
+    document.body.classList.remove("game-view-active");
     homeView.style.display = "block";
     leftNavigationButton.style.display = "none";
     gameHeader.style.display = "none";
@@ -264,6 +265,7 @@ export function showGame(game, {
     if (state.liveSubscribed && game?.gameKey !== state.liveGameKey) unsubscribeFromLiveGame();
     state.selectedGame = game;
     if (updateHistory) setGameUrl(game, { replace: replaceHistory });
+    document.body.classList.add("game-view-active");
     homeView.style.display = "none";
     leftNavigationButton.style.display = "inline-flex";
     gameHeader.style.display = "flex";
