@@ -945,6 +945,7 @@ export function buildTeamTimeline(data) {
         if (!player) return;
 
         const teamId = player.team;
+        if (!Object.hasOwn(timeline, teamId)) return;
         totals[teamId] += ev.delta ?? 0;
         timeline[teamId].push([ev.time, totals[teamId]]);
     });
