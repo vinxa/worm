@@ -37,11 +37,34 @@ export function getCanonicalColourName(subject) {
 }
 
 export function getBaseTargetKey(base) {
+    const entityId = normaliseText(base?.entityId);
+    if (entityId) return `entity:${entityId}`;
     const color = normaliseText(base?.color);
     if (color) return `color:${color}`;
     const colourName = getCanonicalColourName(base);
     if (colourName) return `name:${colourName}`;
-    return `entity:${normaliseText(base?.entityId)}`;
+    return "";
+}
+
+export function baseMatchesTargetKey(base, targetKey) {
+    const [kind, ...valueParts] = String(targetKey || "").split(":");
+    const value = valueParts.join(":");
+    if (!value) return false;
+    if (kind === "entity") return normaliseText(base?.entityId) === value;
+    if (kind === "color") return normaliseText(base?.color) === value;
+    if (kind === "name") return getCanonicalColourName(base) === value;
+    return false;
+}
+
+function getPhysicalBaseColourName(base) {
+    for (const name of [base?.name, base?.colorName]) {
+        const simplified = normaliseText(name)
+            .replace(/\bbase\b/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        if (simplified && !/^\d+$/.test(simplified)) return simplified;
+    }
+    return getCanonicalColourName(base);
 }
 
 export function getBaseRunLayoutPlan({
@@ -75,7 +98,10 @@ export function getBaseRunLayoutPlan({
 
         const targetKeyByColourName = new Map();
         (gameData?.active_bases || []).forEach((base) => {
-            const colourName = getCanonicalColourName(base);
+            // A physical target can share a colour with another base (for
+            // example Blue/Ice or Red/Fire), so resolve policy names from the
+            // base name before falling back to its display colour.
+            const colourName = getPhysicalBaseColourName(base);
             if (colourName) targetKeyByColourName.set(colourName, getBaseTargetKey(base));
         });
         baseTargetKeyByTeamId = Object.fromEntries(

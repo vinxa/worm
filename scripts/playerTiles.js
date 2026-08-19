@@ -1,6 +1,6 @@
 // playerTiles.js
 import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
-import { getBaseRunLayoutPlan, getBaseTargetKey } from "./baseRun.js";
+import { baseMatchesTargetKey, getBaseRunLayoutPlan } from "./baseRun.js";
 import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
 import { isLiveGameSelected } from "./live.js";
 import { state } from "./state.js";
@@ -239,7 +239,7 @@ export function updatePlayerTiles(currentTime) {
         const assignedBaseTargetKey = baseRunPlan?.baseTargetKeyByTeamId?.[myTeamId] || "";
         if (assignedBaseTargetKey) {
             activeBases = activeBases.filter(
-                (base) => getBaseTargetKey(base) === assignedBaseTargetKey
+                (base) => baseMatchesTargetKey(base, assignedBaseTargetKey)
             );
         }
         const container = tile.querySelector(".detail-bases");
