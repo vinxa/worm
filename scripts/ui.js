@@ -360,7 +360,7 @@ export function renderGameData() {
             const fullName = teamLabelMap[team.id] || team.name || team.id;
             const name = document.createElement("span");
             name.className = "team-name";
-            name.textContent = fullName.length > 8 ? `${fullName.slice(0, 8)}...` : fullName;
+            name.textContent = fullName;
             name.title = fullName;
             const tags = document.createElement("span");
             tags.className = "team-tags";

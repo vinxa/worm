@@ -839,6 +839,10 @@ button:disabled {
 
 .team-scores .team-name {
   font-weight: bold;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .team-scores .team-score {
   font-size: 1.1em;           /* or adjust to taste */
