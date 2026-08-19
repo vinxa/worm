@@ -293,7 +293,7 @@ export function computeHeadToHeadTags(focusPid, otherPid, t) {
     let tagsAgainst = 0;
 
     state.gameData.events.forEach((ev) => {
-        if (ev.time > t || ev.type !== "tag") return;
+        if (ev.time > t || (ev.type !== "tag" && ev.type !== "team-kill")) return;
         if (ev.entity === focusPid && ev.target === otherPid) {
         tagsFor++;
         } else if (ev.entity === otherPid && ev.target === focusPid) {
