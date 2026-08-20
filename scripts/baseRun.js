@@ -78,17 +78,6 @@ export function baseMatchesTargetKey(base, targetKey) {
     return false;
 }
 
-function getPhysicalBaseColourName(base) {
-    for (const name of [base?.name, base?.colorName]) {
-        const simplified = normaliseText(name)
-            .replace(/\bbase\b/g, " ")
-            .replace(/\s+/g, " ")
-            .trim();
-        if (simplified && !/^\d+$/.test(simplified)) return simplified;
-    }
-    return getCanonicalColourName(base);
-}
-
 export function getBaseRunLayoutPlan({
     gameData,
     selectedGame,
@@ -123,7 +112,13 @@ export function getBaseRunLayoutPlan({
             // A physical target can share a colour with another base (for
             // example Blue/Ice or Red/Fire), so resolve policy names from the
             // base name before falling back to its display colour.
-            const colourName = getPhysicalBaseColourName(base);
+            const colourName = [base?.name, base?.colorName]
+                .map((name) => normaliseText(name)
+                    .replace(/\bbase\b/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim())
+                .find((name) => name && !/^\d+$/.test(name)) ||
+                getCanonicalColourName(base);
             if (colourName) targetKeyByColourName.set(colourName, getBaseTargetKey(base));
         });
         baseTargetKeyByTeamId = Object.fromEntries(

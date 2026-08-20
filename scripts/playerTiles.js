@@ -1,4 +1,3 @@
-// playerTiles.js
 import { buildPlayerLifeTimeline, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
 import { baseMatchesTargetKey, getBaseRunLayoutPlan } from "./baseRun.js";
 import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
@@ -42,7 +41,7 @@ function animateTileEffect(pid, tile, {
     colorProperty = "--flash-color",
     restart = false,
 }) {
-    const duration = Math.max(90, durationMs / (state.playbackRate || 1));
+    const duration = Math.max(90, durationMs / state.playbackRate);
     tile.style.setProperty(durationProperty, `${duration}ms`);
     if (color) tile.style.setProperty(colorProperty, color);
     if (restart) {
@@ -101,19 +100,6 @@ function animateDenyEvent(event, tile = getPlayerTile(event?.entity)) {
     });
 }
 
-function animateDenyEvents(events) {
-    const latestDenyEventByPlayer = new Map();
-    events.forEach((event) => {
-        if (!event?.entity || (event.type !== "deny" && event.type !== "denied")) return;
-        const pid = String(event.entity);
-        const previous = latestDenyEventByPlayer.get(pid);
-        if (!previous || Number(event.time) >= Number(previous.time)) {
-            latestDenyEventByPlayer.set(pid, event);
-        }
-    });
-    latestDenyEventByPlayer.forEach((event) => animateDenyEvent(event));
-}
-
 function animateLifeState(pid, className) {
     const tile = getPlayerTile(pid);
     if (!tile) return;
@@ -170,8 +156,7 @@ export function animateLiveShotEvents(events) {
     );
 
     shooters.forEach((pid) => {
-        const tile = Array.from(document.querySelectorAll(".player-summary"))
-            .find((candidate) => candidate.dataset.playerId === pid);
+        const tile = getPlayerTile(pid);
         if (!tile) return;
         animateTileEffect(pid, tile, {
             className: "shot-fired",
@@ -182,7 +167,16 @@ export function animateLiveShotEvents(events) {
         });
     });
 
-    animateDenyEvents(shotEvents);
+    const latestDenyEventByPlayer = new Map();
+    shotEvents.forEach((event) => {
+        if (!event?.entity || (event.type !== "deny" && event.type !== "denied")) return;
+        const pid = String(event.entity);
+        const previous = latestDenyEventByPlayer.get(pid);
+        if (!previous || Number(event.time) >= Number(previous.time)) {
+            latestDenyEventByPlayer.set(pid, event);
+        }
+    });
+    latestDenyEventByPlayer.forEach((event) => animateDenyEvent(event));
 }
 
 export function animateLiveBaseEvents(events) {
@@ -203,8 +197,7 @@ export function animateLiveBaseEvents(events) {
     });
 
     latestBaseEventByPlayer.forEach((event, pid) => {
-        const tile = Array.from(document.querySelectorAll(".player-summary"))
-            .find((candidate) => candidate.dataset.playerId === pid);
+        const tile = getPlayerTile(pid);
         if (!tile) return;
 
         const isDestroy = event.type === "base destroy";
@@ -291,7 +284,6 @@ export function updatePlayerTiles(currentTime) {
                 }
             }
         }
-        // update the tile
         const scoreEl = tile.querySelector(".player-score");
         if (scoreEl) scoreEl.textContent = score.toLocaleString();
         tile.classList.toggle("_negative", score < 0);
@@ -357,11 +349,10 @@ export function updatePlayerTiles(currentTime) {
         }
         if (tagsEl) {
         if (focusPid && focusPid !== pid) {
-            // Show head to head stats for other players if we have a focused player.
             const headToHead = computeHeadToHeadTags(focusPid, pid, currentTime);
             tagsEl.innerHTML =
             `${tagsFor} – ${tagsAgainst} ` +
-            `<span class="detail-tags-h2h">(${headToHead.tagsFor} – ${headToHead.tagsAgainst})</span>`; // using thin spaces
+            `<span class="detail-tags-h2h">(${headToHead.tagsFor} – ${headToHead.tagsAgainst})</span>`;
             if (tagsLabelEl) tagsLabelEl.textContent = "Tags:";
         } else {
             tagsEl.innerHTML =
@@ -398,7 +389,6 @@ export function updatePlayerTiles(currentTime) {
             // Match timeline markers: bases represent their owning Comp team,
             // even when the physical base has a different colour.
             const baseColor = teamColorById[normaliseText(team)] || color || team;
-            // stat for this target:
             const stat = baseStats[normaliseText(entityId)] || {
                 count: 0,
                 destroyCount: 0,
@@ -497,8 +487,7 @@ export function generatePlayerTiles() {
 
         const player = state.gameData.players[pid];
         if (player) {
-            const team = state.gameData.teams.find(t => t.id === player.team);
-            const color = team ? team.color : "";
+            const color = state.gameData.teams.find((team) => team.id === player.team)?.color || "";
             tile.querySelector(".player-name").style.color = color;
             if (color) tile.style.setProperty("--shot-color", color);
         }
@@ -543,7 +532,7 @@ export function applySelectedTileState() {
 
     const validPlayerIds = new Set(Object.keys(state.gameData.players || {}));
     state.selectedPlayers = new Set(
-        [...(state.selectedPlayers || [])].filter((playerId) => validPlayerIds.has(playerId))
+        [...state.selectedPlayers].filter((playerId) => validPlayerIds.has(playerId))
     );
 
     const validTeamIds = new Set((state.gameData.teams || []).map((team) => String(team.id)));
@@ -791,9 +780,8 @@ export function setupPlayerSeriesToggles() {
             const clickedTile = e.currentTarget;
 
             const pid = clickedTile.dataset.playerId;
-            if ( state.isGameLoading || !state.gameData || !state.gameData.players || !state.gameData.players[pid] ) return; // ignore clicks while loading
+            if (state.isGameLoading || !state.gameData?.players?.[pid]) return;
 
-            // toggle in the Set
             if (state.selectedPlayers.has(pid)) {
                 state.selectedPlayers.delete(pid);
             } else {
@@ -813,17 +801,14 @@ export function setupPlayerSeriesToggles() {
                 );
             });
 
-            // sync chart to only show selected players
             updatePlayerSeriesDisplay();
             updatePlayerTiles(state.currentTime);
             clickedTile.classList.toggle("selected");
 
-            // if selected, set the border to the highlight color
             const isSelected = clickedTile.classList.contains("selected");
             if (isSelected) {
                 clickedTile.style.borderColor = getPlayerHighlightColor(pid);
             } else {
-                // collapsed — reset to default
                 clickedTile.style.borderColor = "";
             }
         });

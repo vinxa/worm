@@ -203,6 +203,10 @@
     <div class="title">GAME LOADING</div>
     <div class="header-right">
       <span id="liveCountdown" class="live-countdown" hidden>00:00</span>
+      <button id="headerResumeLiveButton" class="button--secondary resume-live-button" type="button" hidden>
+        <span class="resume-live-dot" aria-hidden="true"></span>
+        <span>Resume live</span>
+      </button>
       <button class="button--secondary next-game-button" title="Latest Game (L)">
         <span class="next-game-live-dot" aria-hidden="true"></span>
         <span>Latest Game</span>
@@ -380,6 +384,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m4 7 7 5-7 5V7Zm9 0 7 5-7 5V7Z" />
         </svg>
+      </button>
+      <button id="resumeLiveButton" class="button--secondary resume-live-button" type="button" hidden>
+        <span class="resume-live-dot" aria-hidden="true"></span>
+        <span>Resume live</span>
       </button>
       <button id="speedButton" class="button--secondary" title="Change playback speed (+/-)">1x</button>
       <button id="comparisonDetailsToggle" class="button--icon comparison-details-toggle" type="button" aria-pressed="true" aria-label="Show all tagged events" title="Show all tagged events" hidden>

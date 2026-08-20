@@ -4,11 +4,32 @@ import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { getGameDuration, getLivePresentationTime, initTeamScores } from "./utils.js";
 import { closeYouTubeModal } from "./video.js";
 import { isLiveGameSelected } from "./live.js";
+import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
+
+const LIVE_MANUAL_SEEK_TOLERANCE_SECONDS = 0.75;
+
+function isLiveSpeedLocked() {
+    return state.livePlaybackLocked && state.livePlayheadFollowing;
+}
+
+export function updateResumeLiveButtons() {
+    const hidden = !state.livePlaybackLocked || state.livePlayheadFollowing;
+    ["resumeLiveButton", "headerResumeLiveButton"].forEach((id) => {
+        const button = document.getElementById(id);
+        if (button) button.hidden = hidden;
+    });
+}
+
+export function detachLivePlayback() {
+    if (!state.livePlaybackLocked || !state.livePlayheadFollowing) return;
+    state.livePlayheadFollowing = false;
+    updateResumeLiveButtons();
+    updateSpeedButtons();
+}
 
 export function updatePlayButtonsLabel(label) {
-  const mainBtn = document.getElementById("playButton");
-  const headerBtn = document.getElementById("headerPlayButton");
-  [mainBtn, headerBtn].forEach((button) => {
+  ["playButton", "headerPlayButton"].forEach((id) => {
+    const button = document.getElementById(id);
     if (!button) return;
     const isPlaying = label !== "▶";
     button.textContent = "";
@@ -20,31 +41,28 @@ export function updatePlayButtonsLabel(label) {
 
 export function updateSpeedButtons() {
     const label = `${state.playbackRate}x`;
-    const title = state.livePlaybackLocked
+    const locked = isLiveSpeedLocked();
+    const title = locked
         ? "Playback speed is locked at 1x while following a live game"
         : "Change playback speed (+/-)";
     ["speedButton", "headerSpeedButton"].forEach((id) => {
         const button = document.getElementById(id);
         if (!button) return;
         button.textContent = label;
-        button.disabled = state.livePlaybackLocked;
+        button.disabled = locked;
         button.title = title;
     });
 }
 
 export function handleSkip(delta) {
-    if (delta > 0 && isLiveGameSelected()) {
-        jumpTo(getLivePresentationTime(state.gameData, state.selectedGame));
-        return;
-    }
-
-    const maxTime = getGameDuration(state.gameData);
-    const newTime = Math.min(maxTime, Math.max(0, state.currentTime + delta));
-    jumpTo(newTime);
+    const maxTime = isLiveGameSelected()
+        ? getLivePresentationTime(state.gameData, state.selectedGame)
+        : getGameDuration(state.gameData);
+    jumpTo(Math.min(maxTime, Math.max(0, state.currentTime + delta)));
 }
 
 export function setPlaybackRate(rate, { force = false, restart = true } = {}) {
-    if (state.livePlaybackLocked && rate !== 1 && !force) {
+    if (isLiveSpeedLocked() && rate !== 1 && !force) {
         updateSpeedButtons();
         return state.playbackRate;
     }
@@ -82,12 +100,22 @@ export function jumpToStart() {
 }
 
 export function jumpToEnd() {
-    const duration = getGameDuration();
-    jumpTo(duration);
+    if (isLiveGameSelected()) {
+        resumeLivePlayback();
+        return;
+    }
+    jumpTo(getGameDuration());
 }
 
 export function togglePlayback() {
     if (!state.gameData) return null;
+    if (state.isPlaying && state.livePlayheadFollowing) detachLivePlayback();
+    if (!state.isPlaying && isLiveGameSelected() && isAtLiveEdge(
+        state.currentTime,
+        getLivePresentationTime(state.gameData, state.selectedGame),
+    )) {
+        return resumeLivePlayback();
+    }
     if (state.currentTime >= getGameDuration()) {
         seekToTime(0);
     }
@@ -99,15 +127,20 @@ export function togglePlayback() {
     }
     state.isPlaying = false;
     clearTimeouts();
-    // pause video
-    if (state.player && typeof state.player.pauseVideo === "function") {
-      state.player.pauseVideo();
-    }
+    if (typeof state.player?.pauseVideo === "function") state.player.pauseVideo();
     return false;
 }
 
 export function jumpTo(time) {
     if (!state.gameData) return;
+    if (isLiveGameSelected()) {
+        const liveTime = getLivePresentationTime(state.gameData, state.selectedGame);
+        if (isAtLiveEdge(time, liveTime)) {
+            resumeLivePlayback();
+            return;
+        }
+        detachLivePlayback();
+    }
     if (state.isPlaying) clearTimeouts();
     seekToTime(time);
     if (state.isPlaying) {
@@ -136,17 +169,23 @@ export function playReplay(
   startSec = 0,
   { skipInitialLiveSeriesUpdate = false, followLiveClock = false } = {}
 ) {
-  if (followLiveClock && isLiveGameSelected()) {
+  if (followLiveClock && isLiveGameSelected() && state.livePlayheadFollowing) {
     if (!skipInitialLiveSeriesUpdate) updateLiveSeries(startSec);
 
     const drawLiveClock = () => {
       state.replayAnimationFrame = null;
-      if (!state.isPlaying || !isLiveGameSelected() || state.chart !== chart) return;
+      if (!state.isPlaying || !isLiveGameSelected() ||
+          !state.livePlayheadFollowing || state.chart !== chart) return;
 
       const duration = getGameDuration(state.gameData);
       const liveTime = getLivePresentationTime(state.gameData, state.selectedGame);
       // A delayed snapshot must not make the playhead jump backwards.
-      state.currentTime = Math.min(duration, Math.max(state.currentTime, liveTime));
+      state.currentTime = resolveLivePlayheadTime({
+        currentTime: state.currentTime,
+        presentationTime: liveTime,
+        duration,
+        following: true,
+      });
       updateCursorPosition(state.currentTime);
 
       if (state.currentTime < duration) {
@@ -161,18 +200,14 @@ export function playReplay(
     return;
   }
 
-  // 1) Compute duration
   const duration = getGameDuration(data);
   const playbackEnd = isLiveGameSelected()
     ? Math.max(startSec, Math.min(duration, getLivePresentationTime(data, state.selectedGame)))
     : duration;
 
-  // 2) Sort events by exact time
   const sortedEvents = data.events.slice().sort((a, b) => a.time - b.time);
   let eventIdx = 0;
 
-  // 3) Initialize global teamScores up to startSec
-  //    (assumes teamScores = {} declared at top and populated in loadGameData)
   state.teamScores = initTeamScores(data.teams);
   while (
     eventIdx < sortedEvents.length &&
@@ -181,29 +216,23 @@ export function playReplay(
     applyTeamScoreEvent(state.teamScores, sortedEvents[eventIdx++], data.players);
   }
 
-  // 4) Reset the live‐series to match startSec
   if (!skipInitialLiveSeriesUpdate) updateLiveSeries(startSec);
-  // And update the UI for the new teamScores
   updateTeamScoresUI();
   updatePlayerTiles(startSec);
 
-  // 5) Schedule ticks every 0.5s from startSec → playbackEnd.
-  // Live games must not replay the unseen future up to their fixed duration.
-  const stepSize = 0.5; // seconds
-  const stepMillis = stepSize * 1000; // ms
+  const stepSize = 0.5;
   const totalSteps = Math.max(0, Math.ceil((playbackEnd - startSec) / stepSize));
 
   for (let i = 0; i <= totalSteps; i++) {
     const t = Math.min(playbackEnd, startSec + i * stepSize);
-    const delay = (i * stepMillis) / rate;
+    timeouts.push(setTimeout(() => {
+      // A live update can replace both the normalized data object and the
+      // chart while this detached replay has queued ticks. Never mutate that
+      // stale Highcharts instance after the live renderer has moved on.
+      if (!state.isPlaying || state.chart !== chart || state.gameData !== data) return;
 
-    const id = setTimeout(() => {
-      if (!state.isPlaying) return;
-
-      // Keep currentTime in sync!
       state.currentTime = t;
 
-      // a) apply any events whose time ≤ t
       while (
         eventIdx < sortedEvents.length &&
         sortedEvents[eventIdx].time <= t
@@ -211,55 +240,64 @@ export function playReplay(
         applyTeamScoreEvent(state.teamScores, sortedEvents[eventIdx++], data.players);
       }
 
-      // b) draw a point for each team at time = t
-      const offset = data.teams.length; // ghost series first
-      data.teams.forEach((team, idx) => {
-        chart.series[offset + idx].addPoint(
-          [t, state.teamScores[team.id].score],
-          idx === data.teams.length - 1,
-          false
-        );
-      });
+      // Replace every visible live series as one batch. Calling addPoint with
+      // redraw enabled for the final team fired Highcharts' render callback
+      // halfway through each replay tick, then redrew the chart a second time
+      // below. A buffered live refresh landing between those render cycles
+      // could leave axes, series, and custom overlays out of sync.
+      updateLiveSeries(t);
 
-      // c) update team-scores list and player tiles
       updateTeamScoresUI();
       updatePlayerTiles(t);
 
-      // d) keep the cursor line and timestamp on the same authoritative time
       updateCursorPosition(t);
-
-      // e) final redraw
-      chart.redraw();
       if (t >= playbackEnd) {
         // We’ve reached the end of this replay window. For live games this is
         // the current live timestamp, not the fixed game duration.
         state.isPlaying = false;
         updatePlayButtonsLabel("▶");
-        if (state.player && typeof state.player.pauseVideo === "function") {
-          state.player.pauseVideo();
-        }
+        if (typeof state.player?.pauseVideo === "function") state.player.pauseVideo();
         clearTimeouts();
       }
-    }, delay);
-
-    timeouts.push(id);
+    }, i * stepSize * 1000 / rate));
   }
 }
 
-export function seekToTime(sec, skipVideoSeek = false, { skipLiveSeriesUpdate = false } = {}) {
+export function resumeLivePlayback() {
+  if (!state.gameData || !isLiveGameSelected()) return false;
+  state.livePlayheadFollowing = true;
+  state.isPlaying = true;
+  clearTimeouts();
+  setPlaybackRate(1, { force: true, restart: false });
+  seekToTime(getLivePresentationTime(state.gameData, state.selectedGame));
+  updateResumeLiveButtons();
+  updatePlayButtonsLabel("❚❚");
+  playReplay(
+    state.chart,
+    state.gameData,
+    state.playbackRate,
+    state.replayTimeouts,
+    state.currentTime,
+    { followLiveClock: true },
+  );
+  if (typeof state.player?.playVideo === "function") state.player.playVideo();
+  return true;
+}
+
+export function seekToTime(
+  sec,
+  skipVideoSeek = false,
+  { skipLiveSeriesUpdate = false, userInitiated = false } = {},
+) {
   if (!state.gameData) return;
-  const duration = getGameDuration(state.gameData);
-  // clamp
-  sec = Math.max(0, Math.min(sec, duration));
+  sec = Math.max(0, Math.min(sec, getGameDuration(state.gameData)));
+  if (userInitiated && isLiveGameSelected() &&
+      sec < state.currentTime - LIVE_MANUAL_SEEK_TOLERANCE_SECONDS) {
+    detachLivePlayback();
+  }
   state.currentTime = sec;
 
-  // mark that we just seeked, so sync won't pull us back
-  if (typeof window !== 'undefined' && window.lastProgrammaticSeekAt !== undefined) {
-    window.lastProgrammaticSeekAt = Date.now();
-  }
-
-  // sync video
-  if (!skipVideoSeek && state.player && typeof state.player.seekTo === "function") {
+  if (!skipVideoSeek && typeof state.player?.seekTo === "function") {
     const offset = parseFloat(document.getElementById("videoOffset")?.value) || 0;
     state.player.seekTo(sec + offset, true);
   }

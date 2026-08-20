@@ -5,6 +5,7 @@ import {
     jumpToStart,
     jumpToEnd,
     goToLatestGame,
+    resumeLivePlayback,
     seekToTime,
     setPlaybackRate,
     stepPlaybackRate,
@@ -79,16 +80,6 @@ const previousDanceIndexes = new WeakMap();
 let loadGameData;
 let visibleGameLimit = GAME_BATCH_SIZE;
 
-function formatCountdown(seconds) {
-    const totalSeconds = Math.max(0, Math.ceil(seconds));
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const remainingSeconds = totalSeconds % 60;
-    return hours
-        ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`
-        : `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
-}
-
 function updateLiveCountdown() {
     if (!liveCountdown) return;
     const isLive = isSelectedCurrentLiveGame(state.selectedGame, state.liveGameKey);
@@ -99,9 +90,13 @@ function updateLiveCountdown() {
 
     liveCountdown.hidden = !isLive || duration <= 0;
     if (!liveCountdown.hidden) {
-        liveCountdown.textContent = formatCountdown(
+        const seconds = Math.max(0, Math.ceil(
             duration - getLivePresentationTime(data, state.selectedGame)
-        );
+        ));
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const time = `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+        liveCountdown.textContent = hours ? `${hours}:${time}` : time;
     }
 }
 
@@ -151,7 +146,7 @@ export function buildGrid(games, highlightIds = [], { resetLimit = false } = {})
         tile.dataset.gameId = game.id;
         tile.href = getGameHref(game);
         if (gameHasFollowedPlayer(game)) tile.classList.add("has-favourite");
-        if (game.live === true || (game.gameKey && game.gameKey === state.liveGameKey)) {
+        if (isSelectedCurrentLiveGame(game, state.liveGameKey)) {
             tile.classList.add("is-live");
         }
 
@@ -161,15 +156,15 @@ export function buildGrid(games, highlightIds = [], { resetLimit = false } = {})
 
         const rawLine = document.createElement("span");
         rawLine.className = "game-title-text";
-        const raw = getGameDisplayTitle(game, state.events || []);
-        const matchedTeams = getMatchedEventTeamNames(game, state.events || []);
+        const raw = getGameDisplayTitle(game, state.events);
+        const matchedTeams = getMatchedEventTeamNames(game, state.events);
         if (!matchedTeams.length) {
             rawLine.textContent = raw;
         } else {
             const prefix = document.createElement("span");
             prefix.textContent = raw.includes(":") ? `${raw.split(":")[0]}: ` : "";
             rawLine.appendChild(prefix);
-            const teamColourMap = getEventTeamColourMap(game, state.events || []);
+            const teamColourMap = getEventTeamColourMap(game, state.events);
             matchedTeams.forEach((teamName, index) => {
                 const teamNameLine = document.createElement("div");
                 const fullName = String(teamName || "").trim();
@@ -303,10 +298,11 @@ export function showGame(game, {
     updateLiveCountdown();
     gameSections.forEach((section) => (section.style.display = ""));
 
-    const isLiveGame = game.live === true || (game.gameKey && game.gameKey === state.liveGameKey);
-    if (isLiveGame) {
+    const isLiveGame = isSelectedCurrentLiveGame(game, state.liveGameKey);
+    const hasTemporaryGameData = Boolean(game.gameKey && !game.dataPath);
+    if (isLiveGame || hasTemporaryGameData) {
         state.liveGameKey = game.gameKey || state.liveGameKey;
-        subscribeToLiveGame();
+        if (isLiveGame) subscribeToLiveGame();
         let liveData = state.liveGameData?.gameKey === game.gameKey
             ? state.liveGameData
             : state.gameData?.gameKey === game.gameKey
@@ -363,7 +359,7 @@ export function showGame(game, {
         }
         loadGameData("", {
             prefetchedData: liveData,
-            livePlayback: true,
+            livePlayback: isLiveGame,
             initialViewState: viewState,
         });
     } else {
@@ -385,7 +381,7 @@ export function renderGameData() {
         const teamLabelMap = getTeamLabelMapForGame(
             state.selectedGame,
             state.gameData?.players || {},
-            state.events || []
+            state.events
         );
         teamScores.replaceChildren(...(state.gameData?.teams || []).map((team) => {
             const item = document.createElement("li");
@@ -417,7 +413,7 @@ export function renderGameData() {
         .filter(Boolean);
     const displayTitle = getGameDisplayTitle(
         state.selectedGame,
-        state.events || [],
+        state.events,
         fallbackPlayers
     ) || state.gameData.gameType || "Game";
     const title = document.querySelector(".title");
@@ -425,12 +421,12 @@ export function renderGameData() {
 
     const matchedTeams = getMatchedEventTeamNames(
         state.selectedGame,
-        state.events || [],
+        state.events,
         fallbackPlayers
     );
     const teamColourMap = getEventTeamColourMap(
         state.selectedGame,
-        state.events || [],
+        state.events,
         state.gameData?.players || {}
     );
     const date = document.createElement("span");
@@ -469,7 +465,7 @@ function clickPlayButton() {
 }
 
 async function shareCurrentPage(button) {
-    const selectedPlayers = [...(state.selectedPlayers || [])];
+    const selectedPlayers = [...state.selectedPlayers];
     const youtubeUrl = getShareableYouTubeUrl(
         document.getElementById("youtubeUrl")?.value || ""
     );
@@ -528,7 +524,7 @@ async function shareCurrentPage(button) {
 }
 
 function loadAdjacentGame(offset) {
-    const games = state.games || [];
+    const games = state.games;
     const currentIndex = games.findIndex((game) => game.id === state.selectedGame?.id);
     if (currentIndex < 0) return false;
     const index = currentIndex + offset;
@@ -548,6 +544,8 @@ export function initUI(gameLoader) {
 
     [document.getElementById("playButton"), document.getElementById("headerPlayButton")]
         .forEach((button) => button?.addEventListener("click", clickPlayButton));
+    [document.getElementById("resumeLiveButton"), document.getElementById("headerResumeLiveButton")]
+        .forEach((button) => button?.addEventListener("click", resumeLivePlayback));
     [document.getElementById("speedButton"), document.getElementById("headerSpeedButton")]
         .forEach((button) => button?.addEventListener("click", () => {
             const currentIndex = SPEED_OPTIONS.indexOf(state.playbackRate);
@@ -689,26 +687,26 @@ export function initUI(gameLoader) {
     }
     document.getElementById("loadMoreGames")?.addEventListener("click", () => {
         visibleGameLimit += GAME_BATCH_SIZE;
-        buildGrid(state.games || []);
+        buildGrid(state.games);
     });
     setupFilterListeners({
-        onFiltersChanged: () => buildGrid(state.games || [], [], { resetLimit: true }),
+        onFiltersChanged: () => buildGrid(state.games, [], { resetLimit: true }),
     });
     setupFavourites({
         onChange: ({ playerToggle = false } = {}) => {
             if (playerToggle) {
                 if (state.favouritesOnly) {
-                    buildGrid(state.games || [], [], { resetLimit: true });
+                    buildGrid(state.games, [], { resetLimit: true });
                     return;
                 }
-                const gamesById = new Map((state.games || []).map((game) => [String(game.id), game]));
+                const gamesById = new Map(state.games.map((game) => [String(game.id), game]));
                 document.querySelectorAll("#gamesGrid .game-tile[data-game-id]").forEach((tile) => {
                     const game = gamesById.get(tile.dataset.gameId);
                     tile.classList.toggle("has-favourite", Boolean(game && gameHasFollowedPlayer(game)));
                 });
                 return;
             }
-            buildGrid(state.games || [], [], { resetLimit: true });
+            buildGrid(state.games, [], { resetLimit: true });
         },
     });
 

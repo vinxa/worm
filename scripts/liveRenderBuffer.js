@@ -1,4 +1,4 @@
-function eventIdentity(event) {
+export function liveEventIdentity(event) {
     return JSON.stringify([
         event?.seqNo ?? null,
         event?.time ?? null,
@@ -13,7 +13,7 @@ export function takeUnseenLiveEvents(events, seenKeys) {
     const unseen = [];
     (Array.isArray(events) ? events : []).forEach((event) => {
         if (!event) return;
-        const key = eventIdentity(event);
+        const key = liveEventIdentity(event);
         if (seenKeys.has(key)) return;
         seenKeys.add(key);
         unseen.push(event);

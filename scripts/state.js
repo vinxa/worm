@@ -1,4 +1,3 @@
-// state.js
 import { S3_BASE_URL } from "./config.js";
 
 export const state = {
@@ -20,6 +19,7 @@ export const state = {
     selectedGame: null,
     playbackRate: 1,
     livePlaybackLocked: false,
+    livePlayheadFollowing: false,
     isGameLoading: false,
     loadingStart: 0,
     gameSignatures: {},

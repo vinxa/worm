@@ -1,6 +1,9 @@
 import { WS_URL } from "./config.js";
 import { state } from "./state.js";
 import { normaliseGamePlayerIdentity } from "./playerIdentity.js";
+import { liveEventIdentity } from "./liveRenderBuffer.js";
+import { withLocalStorage } from "./browserStorage.js";
+import { isPastScheduledGameLiveDeadline } from "./utils.js";
 
 let ws;
 let replaying = false;
@@ -13,20 +16,21 @@ const FOLLOW_LIVE_GAMES_STORAGE_KEY = "worm:follow-live-games";
 
 export function setFollowLiveGames(enabled) {
     state.followLiveGames = Boolean(enabled);
-    try {
-        window.localStorage.setItem(FOLLOW_LIVE_GAMES_STORAGE_KEY, String(state.followLiveGames));
-    } catch {
-        // Following still works for this session when storage is unavailable.
-    }
+    withLocalStorage((storage) =>
+        storage.setItem(FOLLOW_LIVE_GAMES_STORAGE_KEY, String(state.followLiveGames))
+    );
 }
 
 export function isSelectedCurrentLiveGame(game, liveGameKey) {
     if (!game) return false;
+    if (isPastScheduledGameLiveDeadline(game)) return false;
+    if (game.live === false && game.dataPath) return false;
     if (game.gameKey && liveGameKey) return game.gameKey === liveGameKey;
     return game.live === true;
 }
 
 export function isLiveGameSelected() {
+    if (isPastScheduledGameLiveDeadline(state.selectedGame)) return false;
     return state.livePlaybackLocked ||
         isSelectedCurrentLiveGame(state.selectedGame, state.liveGameKey);
 }
@@ -44,34 +48,22 @@ export function shouldFollowNewLiveGame({
         previousLatestId &&
         latestGame?.id &&
         latestGame.id !== previousLatestId &&
-        latestGame.live === true &&
+        isSelectedCurrentLiveGame(latestGame, null) &&
         selectedGame?.id !== latestGame.id
     );
 }
 
-try {
-    state.followLiveGames = window.localStorage.getItem(FOLLOW_LIVE_GAMES_STORAGE_KEY) === "true";
-} catch {
-    state.followLiveGames = false;
-}
-
-function eventKey(event) {
-    return JSON.stringify([
-        event?.seqNo ?? null,
-        event?.time ?? null,
-        event?.entity ?? null,
-        event?.target ?? null,
-        event?.type ?? null,
-        event?.delta ?? null,
-    ]);
-}
+state.followLiveGames = withLocalStorage(
+    (storage) => storage.getItem(FOLLOW_LIVE_GAMES_STORAGE_KEY) === "true",
+    false,
+);
 
 function mergeEvents(...lists) {
     const merged = [];
     const seen = new Set();
     lists.flatMap((list) => Array.isArray(list) ? list : []).forEach((event) => {
         if (!event) return;
-        const key = eventKey(event);
+        const key = liveEventIdentity(event);
         if (seen.has(key)) return;
         seen.add(key);
         merged.push(event);

@@ -1,4 +1,4 @@
-import { buildPlayerLifeTimeline, hexToRGBA, formatTime, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
+import { buildPlayerLifeTimeline, hexToRGBA, formatTime, getGameDuration, getLivePresentationTime, getPlayerHighlightColor, normaliseText } from "./utils.js";
 import { jumpTo } from "./replayHandler.js";
 import { state } from "./state.js";
 import { COMPACT_LAYOUT_QUERY, DESKTOP_TIMELINE_QUERY, SHORT_LANDSCAPE_QUERY } from "./config.js";
@@ -111,67 +111,6 @@ function animateWormSeriesEntrance(series, animation) {
     });
 }
 
-function retirePlayerStatusOverlay(group, labelGroup, clip, animation, currentPlayerIds) {
-    const destroy = () => {
-        if (group?.element) group.destroy();
-        if (labelGroup?.element) labelGroup.destroy();
-        if (clip?.element) clip.destroy();
-    };
-    if (!animation) {
-        destroy();
-        return;
-    }
-
-    // Large translucent status bands must never overlap their replacements:
-    // compositing both layers briefly makes the entire timeline flash brighter.
-    // Keep only the departing player's narrow edge strips and labels so those
-    // can slide away while every retained/new bar moves at its normal opacity.
-    group?.element?.querySelectorAll(".player-status-band")
-        .forEach((band) => band.remove());
-    group?.element?.querySelectorAll(".player-edge-strip")
-        .forEach((strip) => {
-            if (currentPlayerIds.has(strip.getAttribute("data-player-id"))) strip.remove();
-        });
-    labelGroup?.element?.querySelectorAll(".player-timeline-label")
-        .forEach((label) => {
-            if (currentPlayerIds.has(label.getAttribute("data-player-id"))) label.remove();
-            else label.classList.add("player-timeline-label-exit");
-        });
-
-    const hasOutgoingElements = Boolean(
-        group?.element?.childElementCount || labelGroup?.element?.childElementCount
-    );
-    if (!hasOutgoingElements) {
-        destroy();
-        return;
-    }
-
-    group?.addClass("player-status-exit");
-    labelGroup?.addClass("player-status-exit");
-    const exitY = -getWormSlideDistance();
-    group?.animate({ opacity: 0, translateY: exitY }, animation);
-    labelGroup?.animate({ opacity: 0, translateY: exitY }, animation);
-    setTimeout(destroy, animation.duration + 30);
-}
-
-function containMarkerCenterY(anchorY, preferredOffset, extent, minBoundary, maxBoundary) {
-    const edgePadding = 1;
-    const minY = minBoundary + edgePadding + extent;
-    const maxY = maxBoundary - edgePadding - extent;
-    if (maxY < minY) return (minBoundary + maxBoundary) / 2;
-    const preferredY = anchorY + preferredOffset;
-    if (preferredY >= minY && preferredY <= maxY) return preferredY;
-
-    const alternateY = anchorY - preferredOffset;
-    if (alternateY >= minY && alternateY <= maxY) return alternateY;
-
-    return Math.max(minY, Math.min(maxY, preferredY));
-}
-
-function getSplitWormControl() {
-    return document.getElementById("splitWormControl");
-}
-
 function getSplitWormToggle() {
     return document.getElementById("splitWormToggle");
 }
@@ -185,7 +124,7 @@ function isDesktopTimeline() {
 }
 
 function updateSplitWormControl() {
-    const control = getSplitWormControl();
+    const control = document.getElementById("splitWormControl");
     const toggle = getSplitWormToggle();
     const detailsToggle = getComparisonDetailsToggle();
     const controlsHidden = state.selectedPlayers.size < 1 || !isDesktopTimeline();
@@ -206,14 +145,6 @@ function getSplitWormAxisId(playerId) {
     return `${SPLIT_WORM_AXIS_PREFIX}${playerId}`;
 }
 
-function isSplitWormActive() {
-    return Boolean(
-        state.splitWorm &&
-        state.selectedPlayers.size >= 2 &&
-        isDesktopTimeline()
-    );
-}
-
 function setSeriesYAxis(series, yAxisId) {
     if (!series || series.yAxis?.options?.id === yAxisId) return;
     series.update({ yAxis: yAxisId }, false);
@@ -223,67 +154,6 @@ function setPlayerSeriesYAxis(playerId, yAxisId) {
     ["-player", "-tags", "-base-destroys"].forEach((suffix) => {
         setSeriesYAxis(state.chart?.get(`${playerId}${suffix}`), yAxisId);
     });
-}
-
-function getSplitWormAxisOptions(playerId, index, count) {
-    const color = getPlayerHighlightColor(playerId);
-    return {
-        id: getSplitWormAxisId(playerId),
-        top: `${index * 100 / count}%`,
-        height: `${100 / count}%`,
-        offset: 0,
-        title: { text: null },
-        gridLineWidth: 0,
-        softMin: 0,
-        minPadding: 0.15,
-        startOnTick: false,
-        tickPixelInterval: 35,
-        labels: { style: { color } },
-        plotLines: [{
-            value: 0,
-            color,
-            width: 1,
-            zIndex: 2,
-            dashStyle: "Dash",
-        }],
-    };
-}
-
-function updateSplitWormAxes() {
-    const chart = state.chart;
-    if (!chart?.yAxis?.[0]) return false;
-
-    const selectedPlayerIds = [...state.selectedPlayers];
-    const splitActive = isSplitWormActive();
-    const splitAxes = () => [...chart.yAxis].filter((axis) =>
-        String(axis.options?.id || "").startsWith(SPLIT_WORM_AXIS_PREFIX)
-    );
-
-    if (!splitActive) {
-        selectedPlayerIds.forEach((playerId) =>
-            setPlayerSeriesYAxis(playerId, PRIMARY_Y_AXIS_ID)
-        );
-        splitAxes().forEach((axis) => axis.remove(false));
-        chart.get(PRIMARY_Y_AXIS_ID)?.update({ visible: true }, false);
-        return false;
-    }
-
-    const selectedAxisIds = new Set(selectedPlayerIds.map(getSplitWormAxisId));
-    splitAxes()
-        .filter((axis) => !selectedAxisIds.has(axis.options.id))
-        .forEach((axis) => axis.remove(false));
-    chart.get(PRIMARY_Y_AXIS_ID)?.update({ visible: false }, false);
-
-    selectedPlayerIds.forEach((playerId, index) => {
-        const options = getSplitWormAxisOptions(playerId, index, selectedPlayerIds.length);
-        const axis = chart.get(options.id);
-        if (axis) axis.update(options, false);
-        else chart.addAxis(options, false, false);
-    });
-    selectedPlayerIds.forEach((playerId) =>
-        setPlayerSeriesYAxis(playerId, getSplitWormAxisId(playerId))
-    );
-    return true;
 }
 
 export function setupSplitWormToggle() {
@@ -322,32 +192,30 @@ export function setupComparisonDetailsToggle() {
     updateSplitWormControl();
 }
 
-function registerStarMarker() {
+{
     const symbols = globalThis.Highcharts?.SVGRenderer?.prototype?.symbols;
-    if (!symbols || symbols.star) return;
+    if (symbols && !symbols.star) {
+        symbols.star = (x, y, width, height) => {
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const outerRadius = Math.min(width, height) / 2;
+            const innerRadius = outerRadius * 0.45;
+            const path = [];
 
-    symbols.star = (x, y, width, height) => {
-        const centerX = x + width / 2;
-        const centerY = y + height / 2;
-        const outerRadius = Math.min(width, height) / 2;
-        const innerRadius = outerRadius * 0.45;
-        const path = [];
-
-        for (let point = 0; point < 10; point++) {
-            const radius = point % 2 === 0 ? outerRadius : innerRadius;
-            const angle = -Math.PI / 2 + point * Math.PI / 5;
-            path.push([
-                point === 0 ? "M" : "L",
-                centerX + Math.cos(angle) * radius,
-                centerY + Math.sin(angle) * radius,
-            ]);
-        }
-        path.push(["Z"]);
-        return path;
-    };
+            for (let point = 0; point < 10; point++) {
+                const radius = point % 2 === 0 ? outerRadius : innerRadius;
+                const angle = -Math.PI / 2 + point * Math.PI / 5;
+                path.push([
+                    point === 0 ? "M" : "L",
+                    centerX + Math.cos(angle) * radius,
+                    centerY + Math.sin(angle) * radius,
+                ]);
+            }
+            path.push(["Z"]);
+            return path;
+        };
+    }
 }
-
-registerStarMarker();
 
 function getBaseDisplayName(base, team, fallback = "?") {
     const colorName = ["none", "???"].includes(normaliseText(base?.colorName))
@@ -459,7 +327,6 @@ function filterBaseDestroySeries(selectedSet) {
         selectedSet && selectedSet.size
         ? allPoints.filter((pt) => !selectedSet.has(pt.attackerTeamId))
         : allPoints;
-    // clone objects
     const payload = filtered.map((pt) => ({ ...pt }));
     series.setData(payload, false, false);
 }
@@ -506,7 +373,7 @@ export function toggleTeamVisibility(teamId = null) {
         state.hiddenTeams.add(teamId);
         }
         if (state.hiddenTeams.size === 0) {
-        state.hiddenTeams = null; // fall back to show all
+        state.hiddenTeams = null;
         }
     }
     applyTeamSeriesVisibility(state.hiddenTeams);
@@ -520,25 +387,22 @@ export function setHiddenTeams(teamIds = null) {
 export function buildPlayerTimelines(data) {
     const duration = Math.floor(getGameDuration(data));
 
-    // Bucket all player deltas by second
     const buckets = {};
     const playerIds = Object.keys(data.players);
     playerIds.forEach((pid) => (buckets[pid] = {}));
     data.events.forEach((ev) => {
         const pid = ev.entity;
         if (!(pid in buckets)) return;
-        // floor to whole‐second bucket:
         const sec = Math.floor(ev.time);
         const d = ev.delta ?? 0;
         buckets[pid][sec] = (buckets[pid][sec] || 0) + d;
     });
 
-    // Walk each second and build cumulative timeline for each player
     const timelines = {};
     const totals = {};
     playerIds.forEach((pid) => {
         totals[pid] = 0;
-        timelines[pid] = [[0, 0]]; // start at 0
+        timelines[pid] = [[0, 0]];
     });
 
     for (let sec = 1; sec <= duration; sec++) {
@@ -553,60 +417,130 @@ export function buildPlayerTimelines(data) {
     return timelines;
 }
 
-function getPlayerMarkerColor(playerId, fallback = "") {
-    const resolvedPlayerId = String(playerId ?? "");
-    const player = state.gameData?.players?.[resolvedPlayerId];
-    if (!player) return fallback;
-    // Tag fills identify the other player's team; selecting that player must
-    // not replace the team colour with their individual highlight colour.
-    const team = state.gameData?.teams?.find(
-        (item) => String(item.id) === String(player.team)
+function updateSplitWormAxes(selectedPlayerIds) {
+    const splitAxes = () => [...(state.chart.yAxis || [])].filter((axis) =>
+        String(axis.options?.id || "").startsWith(SPLIT_WORM_AXIS_PREFIX)
     );
-    return team?.color || fallback;
+    const splitActive = Boolean(
+        state.chart.yAxis?.[0] &&
+        state.splitWorm &&
+        selectedPlayerIds.length >= 2 &&
+        isDesktopTimeline()
+    );
+
+    if (!splitActive) {
+        selectedPlayerIds.forEach((playerId) =>
+            setPlayerSeriesYAxis(playerId, PRIMARY_Y_AXIS_ID)
+        );
+        splitAxes().forEach((axis) => axis.remove(false));
+        state.chart.get(PRIMARY_Y_AXIS_ID)?.update({ visible: true }, false);
+        return false;
+    }
+
+    const selectedAxisIds = new Set(selectedPlayerIds.map(getSplitWormAxisId));
+    splitAxes()
+        .filter((axis) => !selectedAxisIds.has(axis.options.id))
+        .forEach((axis) => axis.remove(false));
+    state.chart.get(PRIMARY_Y_AXIS_ID)?.update({ visible: false }, false);
+    selectedPlayerIds.forEach((playerId, index) => {
+        const color = getPlayerHighlightColor(playerId);
+        const options = {
+            id: getSplitWormAxisId(playerId),
+            top: `${index * 100 / selectedPlayerIds.length}%`,
+            height: `${100 / selectedPlayerIds.length}%`,
+            offset: 0,
+            title: { text: null },
+            gridLineWidth: 0,
+            ...getSplitWormScorePadding(playerId, selectedPlayerIds.length),
+            startOnTick: false,
+            tickPixelInterval: 35,
+            labels: { style: { color } },
+            plotLines: [{
+                value: 0,
+                color,
+                width: 1,
+                zIndex: 2,
+                dashStyle: "Dash",
+            }],
+        };
+        const axis = state.chart.get(options.id);
+        if (axis) axis.update(options, false);
+        else state.chart.addAxis(options, false, false);
+    });
+    selectedPlayerIds.forEach((playerId) =>
+        setPlayerSeriesYAxis(playerId, getSplitWormAxisId(playerId))
+    );
+    return true;
 }
 
-export function updatePlayerSeriesDisplay(redraw = true) {
-    updateSplitWormControl();
-    if (!state.chart || !state.gameData || !state.gameData.players) return;
-    const compactMarkers = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
-    const selectedPlayerSignature = [...state.selectedPlayers].join("\u001f");
-    const selectionChanged = state.chart.playerSelectionSignature !== selectedPlayerSignature;
-    const selectionAnimation = selectionChanged ? getWormSelectionAnimation() : false;
-    const enteringPlayerIds = new Set();
-    state.chart.playerSelectionSignature = selectedPlayerSignature;
+function getSplitWormScorePadding(playerId, selectedPlayerCount) {
+    const hasTaggedEvent = (state.playerEvents?.[playerId] || [])
+        .some((event) => event.type === "tagged");
+    if (!hasTaggedEvent) return { softMin: 0, minPadding: 0.15 };
 
-    // Remove deselected players before removing any split axes they used.
-    Object.keys(state.playerTimelines).forEach((pid) => {
-        if (!state.selectedPlayers.has(pid)) {
-        const sid = pid + "-player";
-        const s = state.chart.get(sid);
-        if (s) {
-            animateWormSeriesExit(s, selectionAnimation);
-            s.remove(false, false);
-        }
-        const tagSeries = state.chart.get(pid + "-tags");
-        if (tagSeries) {
-            animateWormSeriesExit(tagSeries, selectionAnimation);
-            tagSeries.remove(false, false);
-        }
-        const baseDestroySeries = state.chart.get(pid + "-base-destroys");
-        if (baseDestroySeries) {
-            animateWormSeriesExit(baseDestroySeries, selectionAnimation);
-            baseDestroySeries.remove(false, false);
-        }
-        }
-    });
+    const timeline = state.playerTimelines[playerId] || [[0, 0]];
+    const scores = timeline
+        .map((point) => Number(point?.[1]))
+        .filter(Number.isFinite);
+    const dataMin = scores.length ? Math.min(...scores) : 0;
+    const dataMax = scores.length ? Math.max(...scores) : 0;
+    const dataRange = Math.max(1, dataMax - dataMin);
+    const marker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
+        ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
+        : PLAYER_EVENT_MARKER_DESKTOP;
+    const largestTaggedSize = Math.max(marker.tagSize, marker.headToHeadSize);
+    const taggedHoverSize = largestTaggedSize + marker.hoverGrowth;
+    const taggedHitSize = Math.max(taggedHoverSize + 4, 14);
+    const taggedExtent = Math.max(10, taggedHoverSize / 2, taggedHitSize / 2);
+    const minimumTaggedSpace = largestTaggedSize / 2 + taggedExtent + 2;
+    const preferredTaggedSpace = Math.max(marker.offset, taggedExtent + 1) +
+        taggedExtent + 1;
+    const axisHeight = Math.max(
+        1,
+        (Number(state.chart.plotHeight) || 1) / selectedPlayerCount
+    );
+    const taggedSpace = Math.min(
+        preferredTaggedSpace,
+        Math.max(minimumTaggedSpace, axisHeight * 0.24)
+    );
+    const lowerSpaceFraction = Math.min(0.8, taggedSpace / axisHeight);
+    const maxPadding = 0.05;
+    const lowerPadding = dataRange * lowerSpaceFraction *
+        (1 + maxPadding) / (1 - lowerSpaceFraction);
+    return {
+        softMin: dataMin - lowerPadding,
+        minPadding: 0,
+        maxPadding,
+    };
+}
 
-    const splitActive = updateSplitWormAxes();
+function getPlayerEventPointId(seriesKind, playerId, event, occurrences) {
+    const identity = JSON.stringify([
+        seriesKind,
+        String(playerId),
+        event?.seqNo ?? null,
+        Number(event?.time) || 0,
+        event?.type || "",
+        event?.target ?? null,
+        event?.delta ?? null,
+    ]);
+    const occurrence = occurrences.get(identity) || 0;
+    occurrences.set(identity, occurrence + 1);
+    return `${identity}:${occurrence}`;
+}
 
-    // Add missing series for every selected pid.
-    state.selectedPlayers.forEach((pid) => {
-        if (!state.gameData.players[pid]) return;
-        const sid = pid + "-player";
-        const yAxis = splitActive ? getSplitWormAxisId(pid) : PRIMARY_Y_AXIS_ID;
-        const playerSeries = state.chart.get(sid);
-        const playerSeriesData = getVisiblePlayerTimeline(pid, state.currentTime);
-        if (!playerSeries) {
+function updateSelectedPlayerSeries(pid, {
+    compactMarkers,
+    splitActive,
+    selectionAnimation,
+    enteringPlayerIds,
+}) {
+    if (!state.gameData.players[pid]) return;
+    const sid = pid + "-player";
+    const yAxis = splitActive ? getSplitWormAxisId(pid) : PRIMARY_Y_AXIS_ID;
+    const playerSeries = state.chart.get(sid);
+    const playerSeriesData = getVisiblePlayerTimeline(pid, state.currentTime);
+    if (!playerSeries) {
         enteringPlayerIds.add(pid);
         state.chart.addSeries({
             id: sid,
@@ -618,104 +552,106 @@ export function updatePlayerSeriesDisplay(redraw = true) {
             yAxis,
             zIndex: 4,
         }, false);
-        } else {
-        playerSeries.setData(
-            playerSeriesData,
-            false,
-            selectionAnimation
-        );
+    } else {
+        playerSeries.setData(playerSeriesData, false, selectionAnimation);
         setSeriesYAxis(playerSeries, yAxis);
-        }
+    }
 
-        const tagSeriesId = pid + "-tags";
-        const color = getPlayerHighlightColor(pid);
-        const hideUnselectedIncomingTags =
-            !state.comparisonDetails && state.selectedPlayers.size > 0;
-        const tagPoints = (state.playerEvents?.[pid] || [])
-            .filter((ev) => ["tag", "deny", "tagged", "denied"].includes(ev.type))
-            .filter((ev) =>
-                !hideUnselectedIncomingTags ||
-                ev.type !== "tagged" ||
-                state.selectedPlayers.has(String(ev.target))
-            )
-            .map((ev) => {
-                const timeline = state.playerTimelines[pid] || [[0, 0]];
-                const scorePoint = timeline[Math.min(Math.floor(ev.time), timeline.length - 1)];
-                const player = state.gameData.players?.[pid];
-                const target = state.gameData.players?.[ev.target];
-                const isIncoming = ev.type === "tagged" || ev.type === "denied";
-                const isDeny = ev.type === "deny" || ev.type === "denied";
-                const deniedPlayer = ev.type === "deny" ? target : player;
-                const denierPlayer = ev.type === "denied" ? target : player;
-                const deniedTeam = state.gameData.teams?.find(
-                    (item) => String(item.id) === String(deniedPlayer?.team)
-                );
-                const denierTeam = state.gameData.teams?.find(
-                    (item) => String(item.id) === String(denierPlayer?.team)
-                );
-                // Deny records identify the two players but not the base. A
-                // deny happens while the denying player defends their team base.
-                const targetBase = isDeny
-                    ? findBaseByTarget(
-                        state.gameData.active_bases,
-                        denierTeam?.id ?? denierPlayer?.team
+    const tagSeriesId = pid + "-tags";
+    const color = getPlayerHighlightColor(pid);
+    const hideUnselectedIncomingTags =
+        !state.comparisonDetails && state.selectedPlayers.size > 0;
+    const tagEventOccurrences = new Map();
+    const tagPoints = (state.playerEvents?.[pid] || [])
+        .filter((ev) => ["tag", "deny", "tagged", "denied"].includes(ev.type))
+        .filter((ev) =>
+            !hideUnselectedIncomingTags ||
+            ev.type !== "tagged" ||
+            state.selectedPlayers.has(String(ev.target))
+        )
+        .map((ev) => {
+            const timeline = state.playerTimelines[pid] || [[0, 0]];
+            const scorePoint = timeline[Math.min(Math.floor(ev.time), timeline.length - 1)];
+            const player = state.gameData.players?.[pid];
+            const target = state.gameData.players?.[ev.target];
+            const isIncoming = ev.type === "tagged" || ev.type === "denied";
+            const isDeny = ev.type === "deny" || ev.type === "denied";
+            const deniedPlayer = ev.type === "deny" ? target : player;
+            const denierPlayer = ev.type === "denied" ? target : player;
+            const deniedTeam = state.gameData.teams?.find(
+                (item) => String(item.id) === String(deniedPlayer?.team)
+            );
+            const denierTeam = state.gameData.teams?.find(
+                (item) => String(item.id) === String(denierPlayer?.team)
+            );
+            // Deny records identify the two players but not the base. A
+            // deny happens while the denying player defends their team base.
+            const targetBase = isDeny
+                ? findBaseByTarget(
+                    state.gameData.active_bases,
+                    denierTeam?.id ?? denierPlayer?.team
+                )
+                : null;
+            const targetBaseTeam = isDeny
+                ? state.gameData.teams?.find(
+                    (item) => String(item.id) === String(targetBase?.team)
+                )
+                : null;
+            const isSharedSelectedTag =
+                (ev.type === "tag" || ev.type === "tagged") &&
+                state.selectedPlayers.has(String(ev.target));
+            const markerPlayer = state.gameData.players?.[String(ev.target ?? "")];
+            const markerTeam = markerPlayer && state.gameData.teams?.find(
+                (item) => String(item.id) === String(markerPlayer.team)
+            );
+            let markerColor = markerTeam?.color || color;
+            if (ev.type === "deny") {
+                markerColor = deniedTeam?.color || markerColor;
+            } else if (ev.type === "denied") {
+                markerColor = targetBase?.color || targetBaseTeam?.color ||
+                    denierTeam?.color || markerColor;
+            }
+            return {
+                id: getPlayerEventPointId("tag", pid, ev, tagEventOccurrences),
+                x: ev.time,
+                y: scorePoint?.[1] || 0,
+                color: markerColor,
+                targetName: target?.name || ev.target || "Unknown player",
+                targetBaseName: isDeny
+                    ? getBaseDisplayName(
+                        targetBase,
+                        targetBaseTeam,
+                        denierTeam?.name || denierTeam?.id || "?"
                     )
-                    : null;
-                const targetBaseTeam = isDeny
-                    ? state.gameData.teams?.find(
-                        (item) => String(item.id) === String(targetBase?.team)
-                    )
-                    : null;
-                const isSharedSelectedTag =
-                    (ev.type === "tag" || ev.type === "tagged") &&
-                    state.selectedPlayers.has(String(ev.target));
-                let markerColor = getPlayerMarkerColor(ev.target, color);
-                if (ev.type === "deny") {
-                    markerColor = deniedTeam?.color || markerColor;
-                } else if (ev.type === "denied") {
-                    markerColor = targetBase?.color || targetBaseTeam?.color ||
-                        denierTeam?.color || markerColor;
-                }
-                return {
-                    x: ev.time,
-                    y: scorePoint?.[1] || 0,
-                    color: markerColor,
-                    targetName: target?.name || ev.target || "Unknown player",
-                    targetBaseName: isDeny
-                        ? getBaseDisplayName(
-                            targetBase,
-                            targetBaseTeam,
-                            denierTeam?.name || denierTeam?.id || "?"
-                        )
-                        : null,
-                    eventType: ev.type,
-                    playerBorderColor: color,
-                    isSharedSelectedTag,
-                    marker: (isDeny || isIncoming)
-                        ? {
-                            enabled: false,
-                            states: { hover: { enabled: false } },
-                        }
-                        : {
-                            fillColor: markerColor,
-                            lineColor: color,
-                            ...(isSharedSelectedTag ? {
-                                radius: (compactMarkers
-                                    ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
-                                    : PLAYER_EVENT_MARKER_DESKTOP).headToHeadSize / 2,
-                                lineWidth: 2,
-                                states: {
-                                    hover: {
-                                        enabled: true,
-                                        radius: compactMarkers ? 7 : 8,
-                                    },
+                    : null,
+                eventType: ev.type,
+                playerBorderColor: color,
+                isSharedSelectedTag,
+                marker: (isDeny || isIncoming)
+                    ? {
+                        enabled: false,
+                        states: { hover: { enabled: false } },
+                    }
+                    : {
+                        fillColor: markerColor,
+                        lineColor: color,
+                        ...(isSharedSelectedTag ? {
+                            radius: (compactMarkers
+                                ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
+                                : PLAYER_EVENT_MARKER_DESKTOP).headToHeadSize / 2,
+                            lineWidth: 2,
+                            states: {
+                                hover: {
+                                    enabled: true,
+                                    radius: compactMarkers ? 7 : 8,
                                 },
-                            } : {}),
-                        },
-                };
-            });
-        const tagSeries = state.chart.get(tagSeriesId);
-        if (!tagSeries) {
+                            },
+                        } : {}),
+                    },
+            };
+        });
+    const tagSeries = state.chart.get(tagSeriesId);
+    if (!tagSeries) {
         state.chart.addSeries({
             id: tagSeriesId,
             linkedTo: sid,
@@ -737,51 +673,102 @@ export function updatePlayerSeriesDisplay(redraw = true) {
             showInLegend: false,
             zIndex: 6,
         }, false);
-        } else {
-        tagSeries.setData(tagPoints, false, selectionAnimation);
+    } else {
+        tagSeries.setData(tagPoints, false, selectionAnimation, true);
         setSeriesYAxis(tagSeries, yAxis);
-        }
+    }
 
-        const playerTimeline = state.playerTimelines[pid] || [[0, 0]];
-        const baseDestroyPoints = (state.playerEvents?.[pid] || [])
-            .filter((ev) => ev.type === "base destroy")
-            .map((ev) => {
-                const base = findBaseByTarget(state.gameData.active_bases, ev.target);
-                const team = state.gameData.teams?.find((item) => String(item.id) === String(base?.team));
-                return {
-                    x: ev.time,
-                    y: playerTimeline[Math.min(Math.floor(ev.time), playerTimeline.length - 1)]?.[1] || 0,
-                    color: team?.color || base?.color || "#ffb347",
-                    targetBaseName: getBaseMarkerDisplayName(base, team, ev.target),
-                };
-            });
-        const baseDestroySeries = state.chart.get(`${pid}-base-destroys`);
-        const comparisonMarkerSize = (compactMarkers
-            ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
-            : PLAYER_EVENT_MARKER_DESKTOP).headToHeadSize;
-        if (baseDestroySeries) {
-            baseDestroySeries.setData(baseDestroyPoints, false, selectionAnimation);
-        } else {
-            state.chart.addSeries({
-                id: `${pid}-base-destroys`,
-                type: "scatter",
-                showInLegend: false,
-                zIndex: 7,
-                name: `${state.gameData.players[pid].name} base destroys`,
-                yAxis,
-                marker: {
-                    enabled: true,
-                    symbol: "diamond",
-                    radius: comparisonMarkerSize / 2,
-                    lineColor: "#ffffff",
-                    lineWidth: 2,
-                    states: { hover: { enabled: true, radius: comparisonMarkerSize / 2 + 2 } },
-                },
-                data: baseDestroyPoints,
-            }, false);
+    const playerTimeline = state.playerTimelines[pid] || [[0, 0]];
+    const baseDestroyEventOccurrences = new Map();
+    const baseDestroyPoints = (state.playerEvents?.[pid] || [])
+        .filter((ev) => ev.type === "base destroy")
+        .map((ev) => {
+            const base = findBaseByTarget(state.gameData.active_bases, ev.target);
+            const team = state.gameData.teams?.find(
+                (item) => String(item.id) === String(base?.team)
+            );
+            return {
+                id: getPlayerEventPointId(
+                    "base-destroy",
+                    pid,
+                    ev,
+                    baseDestroyEventOccurrences
+                ),
+                x: ev.time,
+                y: playerTimeline[
+                    Math.min(Math.floor(ev.time), playerTimeline.length - 1)
+                ]?.[1] || 0,
+                color: team?.color || base?.color || "#ffb347",
+                targetBaseName: getBaseMarkerDisplayName(base, team, ev.target),
+            };
+        });
+    const baseDestroySeries = state.chart.get(`${pid}-base-destroys`);
+    const comparisonMarkerSize = (compactMarkers
+        ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
+        : PLAYER_EVENT_MARKER_DESKTOP).headToHeadSize;
+    if (baseDestroySeries) {
+        baseDestroySeries.setData(baseDestroyPoints, false, selectionAnimation);
+    } else {
+        state.chart.addSeries({
+            id: `${pid}-base-destroys`,
+            type: "scatter",
+            showInLegend: false,
+            zIndex: 7,
+            name: `${state.gameData.players[pid].name} base destroys`,
+            yAxis,
+            marker: {
+                enabled: true,
+                symbol: "diamond",
+                radius: comparisonMarkerSize / 2,
+                lineColor: "#ffffff",
+                lineWidth: 2,
+                states: { hover: { enabled: true, radius: comparisonMarkerSize / 2 + 2 } },
+            },
+            data: baseDestroyPoints,
+        }, false);
+    }
+    setSeriesYAxis(baseDestroySeries || state.chart.get(`${pid}-base-destroys`), yAxis);
+}
+
+export function updatePlayerSeriesDisplay(redraw = true) {
+    updateSplitWormControl();
+    if (!state.chart || !state.gameData || !state.gameData.players) return;
+    const compactMarkers = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
+    const selectedPlayerSignature = [...state.selectedPlayers].join("\u001f");
+    const selectionChanged = state.chart.playerSelectionSignature !== selectedPlayerSignature;
+    const selectionAnimation = selectionChanged ? getWormSelectionAnimation() : false;
+    const enteringPlayerIds = new Set();
+    state.chart.playerSelectionSignature = selectedPlayerSignature;
+
+    Object.keys(state.playerTimelines).forEach((pid) => {
+        if (!state.selectedPlayers.has(pid)) {
+            const sid = pid + "-player";
+            const series = state.chart.get(sid);
+            if (series) {
+                animateWormSeriesExit(series, selectionAnimation);
+                series.remove(false, false);
+            }
+            const tagSeries = state.chart.get(pid + "-tags");
+            if (tagSeries) {
+                animateWormSeriesExit(tagSeries, selectionAnimation);
+                tagSeries.remove(false, false);
+            }
+            const baseDestroySeries = state.chart.get(pid + "-base-destroys");
+            if (baseDestroySeries) {
+                animateWormSeriesExit(baseDestroySeries, selectionAnimation);
+                baseDestroySeries.remove(false, false);
+            }
         }
-        setSeriesYAxis(baseDestroySeries || state.chart.get(`${pid}-base-destroys`), yAxis);
     });
+
+    const splitActive = updateSplitWormAxes([...state.selectedPlayers]);
+
+    state.selectedPlayers.forEach((pid) => updateSelectedPlayerSeries(pid, {
+        compactMarkers,
+        splitActive,
+        selectionAnimation,
+        enteringPlayerIds,
+    }));
 
     if (redraw) {
         state.chart.redraw(selectionAnimation || undefined);
@@ -793,7 +780,6 @@ export function updatePlayerSeriesDisplay(redraw = true) {
             });
         }
     }
-    else updatePlayerStatusBands();
 }
 
 function updatePlayerStatusBands() {
@@ -801,7 +787,7 @@ function updatePlayerStatusBands() {
     if (!chart) return;
     const axis = chart.xAxis[0];
     if (!axis) return;
-    const pids = Array.from(state.selectedPlayers || []);
+    const pids = [...state.selectedPlayers];
     const previousPids = chart.customPlayerBandPlayerIds || [];
     const selectionChanged = pids.join("\u001f") !== previousPids.join("\u001f");
     const selectionAnimation = selectionChanged ? getWormSelectionAnimation() : false;
@@ -813,13 +799,41 @@ function updatePlayerStatusBands() {
     chart.customPlayerStatusGroup = null;
     chart.customPlayerStatusClip = null;
     chart.customPlayerLabelGroup = null;
-    retirePlayerStatusOverlay(
-        previousGroup,
-        previousLabelGroup,
-        previousClip,
-        selectionAnimation,
-        new Set(pids.map(String))
-    );
+    const destroyPreviousOverlay = () => {
+        if (previousGroup?.element) previousGroup.destroy();
+        if (previousLabelGroup?.element) previousLabelGroup.destroy();
+        if (previousClip?.element) previousClip.destroy();
+    };
+    if (!selectionAnimation) {
+        destroyPreviousOverlay();
+    } else {
+        const currentPlayerIds = new Set(pids.map(String));
+        // Only opaque strips and labels animate out; overlapping translucent
+        // status bands would briefly compound their brightness.
+        previousGroup?.element?.querySelectorAll(".player-status-band")
+            .forEach((band) => band.remove());
+        previousGroup?.element?.querySelectorAll(".player-edge-strip")
+            .forEach((strip) => {
+                if (currentPlayerIds.has(strip.getAttribute("data-player-id"))) strip.remove();
+            });
+        previousLabelGroup?.element?.querySelectorAll(".player-timeline-label")
+            .forEach((label) => {
+                if (currentPlayerIds.has(label.getAttribute("data-player-id"))) label.remove();
+                else label.classList.add("player-timeline-label-exit");
+            });
+
+        if (previousGroup?.element?.childElementCount ||
+            previousLabelGroup?.element?.childElementCount) {
+            previousGroup?.addClass("player-status-exit");
+            previousLabelGroup?.addClass("player-status-exit");
+            const exitY = -getWormSlideDistance();
+            previousGroup?.animate({ opacity: 0, translateY: exitY }, selectionAnimation);
+            previousLabelGroup?.animate({ opacity: 0, translateY: exitY }, selectionAnimation);
+            setTimeout(destroyPreviousOverlay, selectionAnimation.duration + 30);
+        } else {
+            destroyPreviousOverlay();
+        }
+    }
 
     if (pids.length === 0) return;
 
@@ -959,43 +973,41 @@ function updatePlayerStatusBands() {
         const lifeTimeline = buildPlayerLifeTimeline(pid);
         const lifeChangeTimes = lifeTimeline?.slice(1).map((point) => point.time) || [];
         let lifePointIndex = 0;
-        const pushStatusBand = (from, to, statusColor) => {
-            if (!lifeTimeline) {
-                pushBand(from, to, statusColor);
-                return;
-            }
-
-            const boundaries = [
-                from,
-                ...lifeChangeTimes.filter((time) => time > from && time < to),
-                to,
-            ];
-            boundaries.forEach((start, index) => {
-                const end = boundaries[index + 1];
-                if (end === undefined) return;
-                while (
-                    lifePointIndex + 1 < lifeTimeline.length &&
-                    lifeTimeline[lifePointIndex + 1].time <= start
-                ) {
-                    lifePointIndex++;
-                }
-                pushBand(
-                    start,
-                    end,
-                    lifeTimeline[lifePointIndex].lives === 0 ? zeroLivesColor : statusColor
-                );
-            });
-        };
-
         const statusColors = {
             alive: aliveColor,
             dead: deadColor,
             reloading: reloadColor,
         };
         buildPlayerStatusPeriods(state.playerEvents?.[pid], gameEnd)
-            .forEach(({ from, to, status }) =>
-                pushStatusBand(from, to, statusColors[status])
-            );
+            .forEach(({ from, to, status }) => {
+                if (!lifeTimeline) {
+                    pushBand(from, to, statusColors[status]);
+                    return;
+                }
+
+                const boundaries = [
+                    from,
+                    ...lifeChangeTimes.filter((time) => time > from && time < to),
+                    to,
+                ];
+                boundaries.forEach((start, index) => {
+                    const end = boundaries[index + 1];
+                    if (end === undefined) return;
+                    while (
+                        lifePointIndex + 1 < lifeTimeline.length &&
+                        lifeTimeline[lifePointIndex + 1].time <= start
+                    ) {
+                        lifePointIndex++;
+                    }
+                    pushBand(
+                        start,
+                        end,
+                        lifeTimeline[lifePointIndex].lives === 0
+                            ? zeroLivesColor
+                            : statusColors[status]
+                    );
+                });
+            });
     });
 
     chart.customPlayerStatusGroup = group;
@@ -1056,17 +1068,290 @@ export function updateCursorPosition(sec) {
     }
 }
 
-// Empty chart for live replay
-export function initLiveChart(data) {
-    if (state.chart) {
-        state.chart.layoutResizeObserver?.disconnect();
-        if (state.chart.layoutResizeFrame) {
-            cancelAnimationFrame(state.chart.layoutResizeFrame);
-        }
-        state.chart.destroy();
-        state.chart = null;
+function getPlayerEventOverlayState(chart) {
+    const existing = chart.playerEventOverlayState;
+    if (existing?.stemGroup?.element && existing?.markerGroup?.element) return existing;
+
+    const stemGroup = chart.renderer.g().attr({ zIndex: 2 }).add();
+    const markerGroup = chart.renderer.g().attr({ zIndex: 7 }).add();
+    markerGroup.element.style.pointerEvents = "auto";
+    const overlayState = {
+        stemGroup,
+        markerGroup,
+        items: new Map(),
+    };
+    chart.playerEventOverlayState = overlayState;
+    chart.playerEventStemOverlayGroup = stemGroup;
+    chart.playerEventOverlayGroup = markerGroup;
+    return overlayState;
+}
+
+function getPlayerEventOverlayKey(tagSeries, point, occurrence) {
+    return JSON.stringify([
+        tagSeries.options.id || "",
+        point.x,
+        point.eventType || "",
+        point.targetName || "",
+        point.targetBaseName || "",
+        occurrence,
+    ]);
+}
+
+function createPlayerEventOverlayItem(chart, overlayState, markerSymbol) {
+    const item = {
+        point: null,
+        markerSize: 0,
+        hoverSize: 0,
+        x: 0,
+        y: 0,
+        stem: chart.renderer.path().add(overlayState.stemGroup),
+        halo: chart.renderer.circle(0, 0, 0).add(overlayState.markerGroup),
+        eventSymbol: chart.renderer.symbol(markerSymbol, 0, 0, 0, 0)
+            .addClass("player-event-symbol")
+            .add(overlayState.markerGroup),
+        hitTarget: chart.renderer.symbol("circle", 0, 0, 0, 0)
+            .add(overlayState.markerGroup),
+    };
+
+    item.hitTarget.element.addEventListener("mouseenter", () => {
+        item.halo.animate({
+            r: 10,
+            "fill-opacity": 0.25,
+        }, { duration: PLAYER_EVENT_HALO_ANIMATION_MS });
+        item.eventSymbol.animate({
+            x: item.x - item.hoverSize / 2,
+            y: item.y - item.hoverSize / 2,
+            width: item.hoverSize,
+            height: item.hoverSize,
+        }, { duration: PLAYER_EVENT_MARKER_ANIMATION_MS });
+        if (item.point) chart.tooltip.refresh(item.point);
+    });
+    item.hitTarget.element.addEventListener("mouseleave", () => {
+        item.halo.animate({
+            r: 0,
+            "fill-opacity": 0,
+        }, { duration: PLAYER_EVENT_HALO_ANIMATION_MS });
+        item.eventSymbol.animate({
+            x: item.x - item.markerSize / 2,
+            y: item.y - item.markerSize / 2,
+            width: item.markerSize,
+            height: item.markerSize,
+        }, { duration: PLAYER_EVENT_MARKER_ANIMATION_MS });
+        chart.tooltip.hide();
+    });
+    return item;
+}
+
+function destroyPlayerEventOverlayItem(item) {
+    [item.stem, item.halo, item.eventSymbol, item.hitTarget]
+        .forEach((element) => element?.destroy());
+}
+
+function renderLiveChartOverlays(chart) {
+    const baseDestroySeries = chart.get("base-destroys");
+    if (baseDestroySeries) {
+        const marker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
+            ? BASE_MARKER_SHORT_LANDSCAPE
+            : BASE_MARKER_DESKTOP;
+        chart.baseDestroyStemOverlayGroup?.destroy();
+        chart.baseDestroyOverlayGroup?.destroy();
+        const stemOverlay = chart.renderer.g().attr({ zIndex: 2 }).add();
+        const overlay = chart.renderer.g().attr({ zIndex: 7 }).add();
+        overlay.element.style.pointerEvents = "auto";
+
+        baseDestroySeries.points.forEach((point) => {
+            const {
+                plotX,
+                plotY,
+                color = "#ffffff",
+                targetBaseLabel = "",
+                targetColor = "#ffffff",
+            } = point;
+            if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
+            const x = chart.plotLeft + plotX;
+            const y = chart.plotTop + plotY;
+            const raisedEndY = y - marker.offset;
+            const renderBelow = raisedEndY - marker.labelOffset - marker.labelHeight < 1;
+            const endY = y + (renderBelow ? marker.offset : -marker.offset);
+            const stem = chart.renderer.path(["M", x, y, "L", x, endY]).attr({
+                stroke: color,
+                "stroke-width": 1,
+                "stroke-opacity": 0.6,
+            }).add(stemOverlay);
+            const triangle = chart.renderer.symbol(
+                "triangle",
+                x - marker.size / 2,
+                endY - marker.size / 2,
+                marker.size,
+                marker.size
+            ).attr({
+                fill: color,
+                stroke: "#111",
+                "stroke-width": 2,
+            }).add(overlay);
+            const label = chart.renderer.text(
+                targetBaseLabel,
+                x,
+                renderBelow
+                    ? endY + marker.labelOffset + marker.labelHeight
+                    : endY - marker.labelOffset
+            ).attr({
+                align: "center",
+                zIndex: 8,
+            }).css({
+                color: targetColor,
+                fontSize: marker.labelFontSize,
+                fontWeight: "bold",
+                textOutline: "1px #000",
+            }).add(overlay);
+            [stem, triangle, label].forEach((element) => {
+                element.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
+                element.element.addEventListener("mouseleave", () => chart.tooltip.hide());
+            });
+        });
+        chart.baseDestroyStemOverlayGroup = stemOverlay;
+        chart.baseDestroyOverlayGroup = overlay;
     }
 
+    const eventMarker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
+        ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
+        : PLAYER_EVENT_MARKER_DESKTOP;
+    const overlayState = getPlayerEventOverlayState(chart);
+    const renderedKeys = new Set();
+    const occurrenceCounts = new Map();
+
+    chart.series
+        .filter((tagSeries) => String(tagSeries.options.id || "").endsWith("-tags"))
+        .forEach((tagSeries) => {
+            // Incoming/custom events are rendered by the stable overlay below.
+            // Highcharts can retain a native scatter graphic while reconciling
+            // point IDs, so remove it explicitly to guarantee that an incoming
+            // tagged dot never appears directly on the player worm.
+            tagSeries.points.forEach((point) => {
+                if (!["deny", "tagged", "denied"].includes(point.eventType)) return;
+                if (point.graphic) point.graphic = point.graphic.destroy();
+            });
+            tagSeries.points
+                .filter((point) => ["deny", "tagged", "denied"].includes(point.eventType))
+                .forEach((point) => {
+                    if (!Number.isFinite(point.plotX) || !Number.isFinite(point.plotY)) return;
+                    const x = chart.plotLeft + point.plotX;
+                    const axisTop = tagSeries.yAxis?.pos ?? chart.plotTop;
+                    const axisBottom = axisTop + (tagSeries.yAxis?.len ?? chart.plotHeight);
+                    const y = axisTop + point.plotY;
+                    const isTagged = point.eventType === "tagged";
+                    const isDenied = point.eventType === "denied";
+                    const isDeny = point.eventType === "deny" || isDenied;
+                    const isSharedSelectedTag = isTagged && point.isSharedSelectedTag;
+                    const preferredOffset = isDenied
+                        ? eventMarker.deniedOffset
+                        : (isTagged ? eventMarker.offset : -eventMarker.offset);
+                    const baseMarkerSize = isDenied
+                        ? eventMarker.deniedSize
+                        : (isTagged ? eventMarker.tagSize : eventMarker.denySize);
+                    const markerSize = isSharedSelectedTag
+                        ? eventMarker.headToHeadSize
+                        : baseMarkerSize;
+                    const hoverSize = markerSize + eventMarker.hoverGrowth;
+                    const hitSize = Math.max(hoverSize + 4, 14);
+                    const markerExtent = Math.max(10, hoverSize / 2, hitSize / 2);
+                    const minMarkerY = axisTop + markerExtent + 1;
+                    const maxMarkerY = axisBottom - markerExtent - 1;
+                    const preferredMarkerY = y + preferredOffset;
+                    const alternateMarkerY = y - preferredOffset;
+                    const minimumTaggedY = y + markerSize / 2 + 1;
+                    const markerY = isTagged
+                        ? Math.max(
+                            minimumTaggedY,
+                            Math.min(maxMarkerY, preferredMarkerY)
+                        )
+                        : maxMarkerY < minMarkerY
+                            ? (axisTop + axisBottom) / 2
+                            : preferredMarkerY >= minMarkerY && preferredMarkerY <= maxMarkerY
+                                ? preferredMarkerY
+                                : alternateMarkerY >= minMarkerY && alternateMarkerY <= maxMarkerY
+                                    ? alternateMarkerY
+                                    : Math.max(minMarkerY, Math.min(maxMarkerY, preferredMarkerY));
+                    const markerPlotY = markerY - chart.plotTop;
+                    const markerSymbol = isDenied
+                        ? "triangle-down"
+                        : (isTagged ? "circle" : "star");
+                    const markerStrokeWidth = markerSymbol === "star"
+                        ? 1
+                        : (isDeny || isSharedSelectedTag ? 2 : 1);
+                    const color = point.color || tagSeries.color || "#ffffff";
+                    const borderColor = point.playerBorderColor || tagSeries.color || "#ffffff";
+                    const stemColor = tagSeries.color || "#ffffff";
+                    point.tooltipPos = [point.plotX, markerPlotY];
+                    const keyBase = getPlayerEventOverlayKey(tagSeries, point, 0);
+                    const occurrence = occurrenceCounts.get(keyBase) || 0;
+                    occurrenceCounts.set(keyBase, occurrence + 1);
+                    const key = getPlayerEventOverlayKey(tagSeries, point, occurrence);
+                    renderedKeys.add(key);
+                    let item = overlayState.items.get(key);
+                    if (!item) {
+                        item = createPlayerEventOverlayItem(chart, overlayState, markerSymbol);
+                        overlayState.items.set(key, item);
+                    }
+
+                    item.point = point;
+                    item.markerSize = markerSize;
+                    item.hoverSize = hoverSize;
+                    item.x = x;
+                    item.y = markerY;
+                    Highcharts.stop(item.halo);
+                    Highcharts.stop(item.eventSymbol);
+                    item.stem.attr({
+                        d: ["M", x, y, "L", x, markerY],
+                        stroke: stemColor,
+                        "stroke-width": 1,
+                        "stroke-opacity": 0.65,
+                        zIndex: 0,
+                    });
+                    item.halo.attr({
+                        cx: x,
+                        cy: markerY,
+                        r: 0,
+                        fill: color,
+                        "fill-opacity": 0,
+                        zIndex: 1,
+                    });
+                    item.eventSymbol.attr({
+                        x: x - markerSize / 2,
+                        y: markerY - markerSize / 2,
+                        width: markerSize,
+                        height: markerSize,
+                        fill: color,
+                        stroke: borderColor,
+                        "stroke-width": markerStrokeWidth,
+                        "data-base-name": point.targetBaseName || "",
+                        "data-event-type": point.eventType,
+                        "data-player-id": String(tagSeries.options.id || "").replace(/-tags$/, ""),
+                        zIndex: 2,
+                    });
+                    item.hitTarget.attr({
+                        x: x - hitSize / 2,
+                        y: markerY - hitSize / 2,
+                        width: hitSize,
+                        height: hitSize,
+                        fill: "rgba(0,0,0,0)",
+                        stroke: "rgba(0,0,0,0)",
+                        "stroke-width": 0,
+                        zIndex: 3,
+                    });
+                });
+        });
+    overlayState.items.forEach((item, key) => {
+        if (renderedKeys.has(key)) return;
+        destroyPlayerEventOverlayItem(item);
+        overlayState.items.delete(key);
+    });
+
+    updatePlayerStatusBands();
+    if (chart.customCursorGroup) updateCursorPosition(state.currentTime);
+}
+
+function createLiveScoreChart(data) {
     const fullTimeline = buildTeamTimeline(data);
     const baseDestroyPoints = buildBaseDestroyPoints(data);
     const liveSeries = data.teams.map((t) => ({
@@ -1119,375 +1404,176 @@ export function initLiveChart(data) {
 
     const chart = Highcharts.chart("scoreChart", {
         chart: {
-        type: "line",
-        backgroundColor: "transparent",
-        events: {
-            click: function (e) {
-            const t = e.xAxis?.[0]?.value;
-            if (Number.isFinite(t)) jumpTo(t);
+            type: "line",
+            backgroundColor: "transparent",
+            events: {
+                click(e) {
+                    const time = e.xAxis?.[0]?.value;
+                    if (Number.isFinite(time)) jumpTo(time);
+                },
+                render() {
+                    renderLiveChartOverlays(this);
+                },
             },
-            render: function () {
-            const series = this.get("base-destroys");
-            if (series) {
-                const chart = this;
-                const marker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
-                    ? BASE_MARKER_SHORT_LANDSCAPE
-                    : BASE_MARKER_DESKTOP;
-                chart.baseDestroyStemOverlayGroup?.destroy();
-                chart.baseDestroyOverlayGroup?.destroy();
-                const stemOverlay = chart.renderer.g().attr({ zIndex: 2 }).add();
-                const overlay = chart.renderer.g().attr({ zIndex: 7 }).add();
-                overlay.element.style.pointerEvents = "auto";
-
-                series.points.forEach((point) => {
-                    const {
-                        plotX,
-                        plotY,
-                        color = "#ffffff",
-                        targetBaseLabel = "",
-                        targetColor = "#ffffff",
-                    } = point;
-                    if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
-                    const x = chart.plotLeft + plotX;
-                    const y = chart.plotTop + plotY;
-                    const raisedEndY = y - marker.offset;
-                    const renderBelow = raisedEndY - marker.labelOffset - marker.labelHeight < 1;
-                    const endY = y + (renderBelow ? marker.offset : -marker.offset);
-                    const stem = chart.renderer.path(["M", x, y, "L", x, endY]).attr({
-                        stroke: color,
-                        "stroke-width": 1,
-                        "stroke-opacity": 0.6,
-                    }).add(stemOverlay);
-                    const triangle = chart.renderer.symbol(
-                        "triangle",
-                        x - marker.size / 2,
-                        endY - marker.size / 2,
-                        marker.size,
-                        marker.size
-                    ).attr({
-                        fill: color,
-                        stroke: "#111",
-                        "stroke-width": 2,
-                    }).add(overlay);
-                    const label = chart.renderer.text(
-                        targetBaseLabel,
-                        x,
-                        renderBelow
-                            ? endY + marker.labelOffset + marker.labelHeight
-                            : endY - marker.labelOffset
-                    ).attr({
-                        align: "center",
-                        zIndex: 8,
-                    }).css({
-                        color: targetColor,
-                        fontSize: marker.labelFontSize,
-                        fontWeight: "bold",
-                        textOutline: "1px #000",
-                    }).add(overlay);
-                    [stem, triangle, label].forEach((element) => {
-                        element.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
-                        element.element.addEventListener("mouseleave", () => chart.tooltip.hide());
-                    });
-                });
-                chart.baseDestroyStemOverlayGroup = stemOverlay;
-                chart.baseDestroyOverlayGroup = overlay;
-            }
-
-            const chart = this;
-            const eventMarker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
-                ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
-                : PLAYER_EVENT_MARKER_DESKTOP;
-            chart.playerEventStemOverlayGroup?.destroy();
-            chart.playerEventOverlayGroup?.destroy();
-            const playerEventStemOverlay = chart.renderer.g().attr({ zIndex: 2 }).add();
-            const playerEventOverlay = chart.renderer.g().attr({ zIndex: 7 }).add();
-            playerEventOverlay.element.style.pointerEvents = "auto";
-
-            chart.series
-                .filter((tagSeries) => String(tagSeries.options.id || "").endsWith("-tags"))
-                .forEach((tagSeries) => {
-                    tagSeries.points
-                        .filter((point) => ["deny", "tagged", "denied"].includes(point.eventType))
-                        .forEach((point) => {
-                            if (!Number.isFinite(point.plotX) || !Number.isFinite(point.plotY)) return;
-                            const x = chart.plotLeft + point.plotX;
-                            const axisTop = tagSeries.yAxis?.pos ?? chart.plotTop;
-                            const axisBottom = axisTop + (tagSeries.yAxis?.len ?? chart.plotHeight);
-                            const y = axisTop + point.plotY;
-                            const isTagged = point.eventType === "tagged";
-                            const isDenied = point.eventType === "denied";
-                            const isDeny = point.eventType === "deny" || isDenied;
-                            const isSharedSelectedTag =
-                                isTagged && point.isSharedSelectedTag;
-                            const preferredOffset = isDenied
-                                ? eventMarker.deniedOffset
-                                : (isTagged ? eventMarker.offset : -eventMarker.offset);
-                            const baseMarkerSize = isDenied
-                                ? eventMarker.deniedSize
-                                : (isTagged ? eventMarker.tagSize : eventMarker.denySize);
-                            const markerSize = isSharedSelectedTag
-                                ? eventMarker.headToHeadSize
-                                : baseMarkerSize;
-                            const hoverSize = markerSize + eventMarker.hoverGrowth;
-                            const hitSize = Math.max(hoverSize + 4, 14);
-                            const markerExtent = Math.max(10, hoverSize / 2, hitSize / 2);
-                            const markerY = containMarkerCenterY(
-                                y,
-                                preferredOffset,
-                                markerExtent,
-                                axisTop,
-                                axisBottom
-                            );
-                            const markerPlotY = markerY - chart.plotTop;
-                            const markerSymbol = isDenied
-                                ? "triangle-down"
-                                : (isTagged ? "circle" : "star");
-                            const markerStrokeWidth = markerSymbol === "star"
-                                ? 1
-                                : (isDeny || isSharedSelectedTag ? 2 : 1);
-                            const color = point.color || tagSeries.color || "#ffffff";
-                            const borderColor =
-                                point.playerBorderColor || tagSeries.color || "#ffffff";
-                            // The marker can identify another player or team, but its
-                            // stem always connects back to this highlighted player.
-                            const stemColor = tagSeries.color || "#ffffff";
-                            point.tooltipPos = [point.plotX, markerPlotY];
-                            const stem = chart.renderer.path(["M", x, y, "L", x, markerY]).attr({
-                                stroke: stemColor,
-                                "stroke-width": 1,
-                                "stroke-opacity": 0.65,
-                                zIndex: 0,
-                            }).add(playerEventStemOverlay);
-                            const halo = chart.renderer.circle(x, markerY, 0).attr({
-                                fill: color,
-                                "fill-opacity": 0,
-                                zIndex: 1,
-                            }).add(playerEventOverlay);
-                            const eventSymbol = chart.renderer.symbol(
-                                markerSymbol,
-                                x - markerSize / 2,
-                                markerY - markerSize / 2,
-                                markerSize,
-                                markerSize
-                            ).attr({
-                                fill: color,
-                                stroke: borderColor,
-                                "stroke-width": markerStrokeWidth,
-                                "data-base-name": point.targetBaseName || "",
-                                "data-event-type": point.eventType,
-                                "data-player-id": String(tagSeries.options.id || "")
-                                    .replace(/-tags$/, ""),
-                                zIndex: 2,
-                            }).addClass("player-event-symbol").add(playerEventOverlay);
-                            const hitTarget = chart.renderer.symbol(
-                                "circle",
-                                x - hitSize / 2,
-                                markerY - hitSize / 2,
-                                hitSize,
-                                hitSize
-                            ).attr({
-                                fill: "rgba(0,0,0,0)",
-                                stroke: "rgba(0,0,0,0)",
-                                "stroke-width": 0,
-                                zIndex: 3,
-                            }).add(playerEventOverlay);
-                            hitTarget.element.addEventListener("mouseenter", () => {
-                                halo.animate({
-                                    r: 10,
-                                    "fill-opacity": 0.25,
-                                }, { duration: PLAYER_EVENT_HALO_ANIMATION_MS });
-                                eventSymbol.animate({
-                                    x: x - hoverSize / 2,
-                                    y: markerY - hoverSize / 2,
-                                    width: hoverSize,
-                                    height: hoverSize,
-                                }, { duration: PLAYER_EVENT_MARKER_ANIMATION_MS });
-                                chart.tooltip.refresh(point);
-                            });
-                            hitTarget.element.addEventListener("mouseleave", () => {
-                                halo.animate({
-                                    r: 0,
-                                    "fill-opacity": 0,
-                                }, { duration: PLAYER_EVENT_HALO_ANIMATION_MS });
-                                eventSymbol.animate({
-                                    x: x - markerSize / 2,
-                                    y: markerY - markerSize / 2,
-                                    width: markerSize,
-                                    height: markerSize,
-                                }, { duration: PLAYER_EVENT_MARKER_ANIMATION_MS });
-                                chart.tooltip.hide();
-                            });
-                        });
-                });
-            chart.playerEventStemOverlayGroup = playerEventStemOverlay;
-            chart.playerEventOverlayGroup = playerEventOverlay;
-
-            updatePlayerStatusBands();
-            if (this.customCursorGroup) updateCursorPosition(state.currentTime);
-            },
-        },
         },
         title: {
-        text: "Team scores from laser tag game",
-        style: {
-            opacity: 0,
-            fontSize: "0px",
-        },
+            text: "Team scores from laser tag game",
+            style: {
+                opacity: 0,
+                fontSize: "0px",
+            },
         },
         xAxis: {
-        gridLineWidth: 1,
-        gridLineColor: "rgba(136, 136, 136, 0.3)",
-        min: 0,
-        max: Math.max(1, getGameDuration(state.gameData)),
-        tickInterval: 60,
-        minorTickInterval: 0.1,
-        minorTickLength: 5,
-        minorGridLineWidth: 0.1,
-        labels: {
-            style: { color: "#ccc" },
-            formatter: function () {
-            const m = Math.floor(this.value / 60),
-                s = this.value % 60;
-            return m + ":" + (s < 10 ? "0" + s : s);
+            gridLineWidth: 1,
+            gridLineColor: "rgba(136, 136, 136, 0.3)",
+            min: 0,
+            max: Math.max(1, getGameDuration(state.gameData)),
+            tickInterval: 60,
+            minorTickInterval: 0.1,
+            minorTickLength: 5,
+            minorGridLineWidth: 0.1,
+            labels: {
+                style: { color: "#ccc" },
+                formatter() {
+                    const minutes = Math.floor(this.value / 60);
+                    const seconds = this.value % 60;
+                    return `${minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
+                },
             },
         },
-        },
-
         yAxis: {
-        id: PRIMARY_Y_AXIS_ID,
-        title: { text: "Score", style: { color: "#ccc" } },
-        gridLineWidth: 0,
-        gridLineColor: "rgba(136, 136, 136, 0.3)",
-        softMin: 0,
-        minPadding: 0.15,
-        startOnTick: false,
-        labels: { style: { color: "#ccc" } },
-        plotLines: [
-            {
-            value: 0,
-            color: "#888",
-            width: 1,
-            zIndex: 2,
-            dashStyle: "Dash",
-            },
-        ],
+            id: PRIMARY_Y_AXIS_ID,
+            title: { text: "Score", style: { color: "#ccc" } },
+            gridLineWidth: 0,
+            gridLineColor: "rgba(136, 136, 136, 0.3)",
+            softMin: 0,
+            minPadding: 0.15,
+            startOnTick: false,
+            labels: { style: { color: "#ccc" } },
+            plotLines: [{
+                value: 0,
+                color: "#888",
+                width: 1,
+                zIndex: 2,
+                dashStyle: "Dash",
+            }],
         },
         series: [...ghostSeries, ...liveSeries, baseDestroySeries],
         credits: { enabled: false },
         legend: { enabled: false, itemStyle: { color: "#eee" } },
         plotOptions: {
-        series: {
-            marker: { enabled: false, states: { hover: { enabled: false } } },
-            stickyTracking: false,
-        },
-        tooltip: { snap: 5 },
+            series: {
+                marker: { enabled: false, states: { hover: { enabled: false } } },
+                stickyTracking: false,
+            },
+            tooltip: { snap: 5 },
         },
         tooltip: {
-        headerFormat: "",
-        hideDelay: 0,
-        snap: 5,
-        shared: false,
-        formatter: function () {
-            const id = this.series.options.id || "";
-            if (id === "base-destroys") {
-            const target = this.point.targetBaseName
-                ? ` on ${this.point.targetBaseName} base`
-                : "";
-            return (
-                `<span style="color:${this.point.color}">\u25B2</span> ` +
-                `${formatTime(this.x)} — ` +
-                `<b>${this.point.playerName}</b> (${this.point.attackerTeamName})${target}`
-            );
-            }
+            headerFormat: "",
+            hideDelay: 0,
+            snap: 5,
+            shared: false,
+            formatter() {
+                const id = this.series.options.id || "";
+                if (id === "base-destroys") {
+                    const target = this.point.targetBaseName
+                        ? ` on ${this.point.targetBaseName} base`
+                        : "";
+                    return (
+                        `<span style="color:${this.point.color}">\u25B2</span> ` +
+                        `${formatTime(this.x)} — ` +
+                        `<b>${this.point.playerName}</b> ` +
+                        `(${this.point.attackerTeamName})${target}`
+                    );
+                }
 
-            if (id.endsWith("-tags")) {
-            const playerName = this.series.name.replace(/ tags$/, "");
-            if (this.point.eventType === "deny") {
-                const base = this.point.targetBaseName
-                    ? ` at ${this.point.targetBaseName} Base`
-                    : "";
-                return (
-                    `<span style="color:${this.point.color}">\u2605</span> ` +
-                    `${formatTime(this.x)} — <b>${playerName}</b> denied ` +
-                    `<b>${this.point.targetName}</b>${base}`
-                );
-            }
-            if (this.point.eventType === "denied") {
-                const base = this.point.targetBaseName
-                    ? ` at ${this.point.targetBaseName} Base`
-                    : "";
-                return (
-                    `<span style="color:${this.point.color}">\u25BC</span> ` +
-                    `${formatTime(this.x)} — <b>${playerName}</b> was denied by ` +
-                    `<b>${this.point.targetName}</b>${base}`
-                );
-            }
-            if (this.point.eventType === "tagged") {
+                if (id.endsWith("-tags")) {
+                    const playerName = this.series.name.replace(/ tags$/, "");
+                    if (this.point.eventType === "deny") {
+                        const base = this.point.targetBaseName
+                            ? ` at ${this.point.targetBaseName} Base`
+                            : "";
+                        return (
+                            `<span style="color:${this.point.color}">\u2605</span> ` +
+                            `${formatTime(this.x)} — <b>${playerName}</b> denied ` +
+                            `<b>${this.point.targetName}</b>${base}`
+                        );
+                    }
+                    if (this.point.eventType === "denied") {
+                        const base = this.point.targetBaseName
+                            ? ` at ${this.point.targetBaseName} Base`
+                            : "";
+                        return (
+                            `<span style="color:${this.point.color}">\u25BC</span> ` +
+                            `${formatTime(this.x)} — <b>${playerName}</b> was denied by ` +
+                            `<b>${this.point.targetName}</b>${base}`
+                        );
+                    }
+                    if (this.point.eventType === "tagged") {
+                        return (
+                            `<span style="color:${this.point.color}">\u25CF</span> ` +
+                            `${formatTime(this.x)} — <b>${playerName}</b> was tagged by ` +
+                            `<b>${this.point.targetName}</b>`
+                        );
+                    }
+                    return (
+                        `<span style="color:${this.point.color}">\u25CF</span> ` +
+                        `${formatTime(this.x)} — <b>${playerName}</b> tagged ` +
+                        `<b>${this.point.targetName}</b>`
+                    );
+                }
+
+                if (id.endsWith("-base-destroys")) {
+                    const target = this.point.targetBaseName
+                        ? ` destroyed ${this.point.targetBaseName} base`
+                        : " destroyed a base";
+                    return `${formatTime(this.x)} — ` +
+                        `<b>${this.series.name.replace(/ base destroys$/, "")}</b>${target}`;
+                }
+
+                const sec = this.x;
+                const isLive = id.endsWith("-live");
+                const isGhost = id.endsWith("-ghost");
+                if (sec <= state.currentTime && !isLive) return false;
+                if (sec > state.currentTime && !isGhost) return false;
                 return (
                     `<span style="color:${this.point.color}">\u25CF</span> ` +
-                    `${formatTime(this.x)} — <b>${playerName}</b> was tagged by ` +
-                    `<b>${this.point.targetName}</b>`
+                    `${this.series.name}: <b>${this.y}</b>`
                 );
-            }
-            return (
-                `<span style="color:${this.point.color}">\u25CF</span> ` +
-                `${formatTime(this.x)} — <b>${playerName}</b> tagged ` +
-                `<b>${this.point.targetName}</b>`
-            );
-            }
-
-            if (id.endsWith("-base-destroys")) {
-            const target = this.point.targetBaseName ? ` destroyed ${this.point.targetBaseName} base` : " destroyed a base";
-            return `${formatTime(this.x)} — <b>${this.series.name.replace(/ base destroys$/, "")}</b>${target}`;
-            }
-
-            const sec = this.x;
-            const isLive = id.endsWith("-live");
-            const isGhost = id.endsWith("-ghost");
-
-            // before the playhead, only live series tooltips:
-            if (sec <= state.currentTime && !isLive) return false;
-            // after the playhead, only ghost series tooltips:
-            if (sec > state.currentTime && !isGhost) return false;
-
-            // otherwise show the default‐looking Y-only tooltip
-            return (
-            `<span style="color:${this.point.color}">\u25CF</span> ` +
-            `${this.series.name}: <b>${this.y}</b>`
-            );
-        },
+            },
         },
         responsive: {
-        rules: [{
-            condition: {
-                callback: () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,
-            },
-            chartOptions: {
-                chart: {
-                    spacing: [8, 4, 2, 2],
+            rules: [{
+                condition: {
+                    callback: () => window.matchMedia(COMPACT_LAYOUT_QUERY).matches,
                 },
-                title: {
-                    floating: true,
-                    margin: 0,
-                },
-                xAxis: {
-                    tickLength: 4,
-                    labels: {
-                        y: 10,
-                        style: { fontSize: "8px" },
+                chartOptions: {
+                    chart: {
+                        spacing: [8, 4, 2, 2],
+                    },
+                    title: {
+                        floating: true,
+                        margin: 0,
+                    },
+                    xAxis: {
+                        tickLength: 4,
+                        labels: {
+                            y: 10,
+                            style: { fontSize: "8px" },
+                        },
+                    },
+                    yAxis: {
+                        title: { text: null },
                     },
                 },
-                yAxis: {
-                    title: { text: null },
-                },
-            },
-        }],
+            }],
         },
     });
+    return { chart, baseDestroyPoints };
+}
 
-    // keep an immutable copy for filtering toggles
+function setupLiveChartInteractions(chart, baseDestroyPoints) {
     chart.baseDestroyAllPoints = baseDestroyPoints.map((pt) => ({ ...pt }));
-    // grab chart internals for positioning
     const left = chart.plotLeft;
     const top = chart.plotTop;
     const height = chart.plotHeight;
@@ -1495,14 +1581,13 @@ export function initLiveChart(data) {
     const cursorGroup = chart.renderer.g().attr({ zIndex: 5 }).add();
     cursorGroup.element.style.pointerEvents = "none";
 
-    // 1a) Draw a vertical line at x=0
     const cursorLine = chart.renderer
         .path(["M", left, top, "L", left, top + height - 1])
         .attr({
-        stroke: "#888",
-        "stroke-width": 2,
-        dashstyle: "Dash",
-        zIndex: 5,
+            stroke: "#888",
+            "stroke-width": 2,
+            dashstyle: "Dash",
+            zIndex: 5,
         })
         .add(cursorGroup);
 
@@ -1529,16 +1614,21 @@ export function initLiveChart(data) {
     const hoverLine = chart.renderer
         .path(["M", left, top, "L", left, top + height - 1])
         .attr({
-        stroke: "rgba(136, 136, 136, 0.5)",
-        "stroke-width": 2,
-        dashstyle: "Dash",
-        zIndex: 4,
+            stroke: "rgba(136, 136, 136, 0.5)",
+            "stroke-width": 2,
+            dashstyle: "Dash",
+            zIndex: 4,
         })
         .add(hoverGroup);
     const hoverLabel = chart.renderer
         .text("", left, top - 5)
         .attr({ align: "center", zIndex: 7 })
-        .css({ color: "#ddddddff", fontWeight: "bold", fontSize: "10px", textOutline: "1px #2A2A2A" })
+        .css({
+            color: "#ddddddff",
+            fontWeight: "bold",
+            fontSize: "10px",
+            textOutline: "1px #2A2A2A",
+        })
         .add(hoverGroup);
     const desktopHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     let activeTouchPointer = null;
@@ -1600,32 +1690,42 @@ export function initLiveChart(data) {
         chart.layoutResizeFrame = requestAnimationFrame(resizeChart);
     }
 
+}
+
+export function initLiveChart(data) {
+    if (state.chart) {
+        state.chart.layoutResizeObserver?.disconnect();
+        if (state.chart.layoutResizeFrame) {
+            cancelAnimationFrame(state.chart.layoutResizeFrame);
+        }
+        state.chart.destroy();
+        state.chart = null;
+    }
+
+    const { chart, baseDestroyPoints } = createLiveScoreChart(data);
+    setupLiveChartInteractions(chart, baseDestroyPoints);
     applyTeamSeriesVisibility(state.hiddenTeams);
     updatePlayerStatusBands();
     return chart;
 }
 
-/**
- * Resets each “-live” series to the points up to currentTime
- */
 export function updateLiveSeries(inCurrentTime) {
-    if (!state.chart || !state.gameData?.teams) return;
-    const offset = state.gameData.teams.length; // ghost series are first
-    state.gameData.teams.forEach((team, idx) => {
+    const chart = state.chart;
+    if (!chart || !state.gameData?.teams) return;
+    state.gameData.teams.forEach((team) => {
         const pts = buildVisibleLivePoints(state.teamFullTimeline[team.id] || [], inCurrentTime);
-        // Replace the live series’ data in-place
-        state.chart.series[offset + idx]?.setData(pts, false, false);
+        chart.get(`${team.id}-live`)?.setData(pts, false, false);
     });
     if (state.livePlaybackLocked) {
         state.selectedPlayers.forEach((playerId) => {
-            state.chart.get(`${playerId}-player`)?.setData(
+            chart.get(`${playerId}-player`)?.setData(
                 getVisiblePlayerTimeline(playerId, inCurrentTime),
                 false,
                 false
             );
         });
     }
-    state.chart.redraw(); // batch redraw after all series updated
+    chart.redraw();
 }
 
 function buildVisibleLivePoints(points, currentTime) {
@@ -1639,9 +1739,14 @@ function buildVisibleLivePoints(points, currentTime) {
 
 function getVisiblePlayerTimeline(playerId, currentTime) {
     const points = state.playerTimelines[playerId] || [[0, 0]];
-    return state.livePlaybackLocked
-        ? buildVisibleLivePoints(points, currentTime)
-        : points;
+    if (!state.livePlaybackLocked) return points;
+
+    // A detached playhead controls scores and playback, but it must not hide
+    // player data that has continued to arrive from the live game. Cap the
+    // worm at the delayed live edge (or the playhead when it is farther on),
+    // never at an earlier rewound position.
+    const liveEdge = getLivePresentationTime(state.gameData, state.selectedGame);
+    return buildVisibleLivePoints(points, Math.max(Number(currentTime) || 0, liveEdge));
 }
 
 export function refreshLiveChartData(data, currentTime) {
@@ -1685,7 +1790,6 @@ export function refreshLiveChartData(data, currentTime) {
     return true;
 }
 
-// Build per second timeline for a team.
 export function buildTeamTimeline(data) {
     const teams = Array.isArray(data?.teams) ? data.teams : [];
     const events = Array.isArray(data?.events) ? data.events : [];

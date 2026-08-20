@@ -3,51 +3,42 @@ import { COARSE_POINTER_QUERY, GAME_TIMEZONE } from "./config.js";
 import { getLivePresentationDelaySeconds } from "./liveDelay.js";
 
 export const normaliseText = (value) => String(value ?? "").trim().toLowerCase();
+export const LIVE_END_GRACE_SECONDS = 30;
 
 const PLAYER_HIGHLIGHT_BACKGROUND = [30, 30, 30];
 const MIN_PLAYER_HIGHLIGHT_CONTRAST = 3;
 
-function hslToRgb(hue, saturation, lightness) {
-    const h = ((hue % 360) + 360) % 360 / 360;
-    const s = saturation / 100;
-    const l = lightness / 100;
-    if (s === 0) return [l * 255, l * 255, l * 255];
-
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    const channel = (offset) => {
-        let value = h + offset;
-        if (value < 0) value += 1;
-        if (value > 1) value -= 1;
-        if (value < 1 / 6) return p + (q - p) * 6 * value;
-        if (value < 1 / 2) return q;
-        if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
-        return p;
-    };
-    return [channel(1 / 3) * 255, channel(0) * 255, channel(-1 / 3) * 255];
-}
-
-function relativeLuminance(rgb) {
-    const [red, green, blue] = rgb.map((channel) => {
-        const value = channel / 255;
-        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-}
-
-function highlightContrast(hue, saturation, lightness) {
-    const foreground = relativeLuminance(hslToRgb(hue, saturation, lightness));
-    const background = relativeLuminance(PLAYER_HIGHLIGHT_BACKGROUND);
-    return (Math.max(foreground, background) + 0.05) /
-        (Math.min(foreground, background) + 0.05);
-}
-
 function readableHighlightLightness(hue, saturation, lightness) {
+    const luminance = (rgb) => {
+        const [red, green, blue] = rgb.map((channel) => {
+            const value = channel / 255;
+            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+    };
+    const background = luminance(PLAYER_HIGHLIGHT_BACKGROUND);
     let adjusted = Math.max(0, Math.min(100, lightness));
-    while (
-        adjusted < 100 &&
-        highlightContrast(hue, saturation, adjusted) < MIN_PLAYER_HIGHLIGHT_CONTRAST
-    ) adjusted += 1;
+    while (adjusted < 100) {
+        const h = ((hue % 360) + 360) % 360 / 360;
+        const s = saturation / 100;
+        const l = adjusted / 100;
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        const channel = (offset) => {
+            if (s === 0) return l * 255;
+            let value = h + offset;
+            if (value < 0) value += 1;
+            if (value > 1) value -= 1;
+            if (value < 1 / 6) return (p + (q - p) * 6 * value) * 255;
+            if (value < 1 / 2) return q * 255;
+            if (value < 2 / 3) return (p + (q - p) * (2 / 3 - value) * 6) * 255;
+            return p * 255;
+        };
+        const foreground = luminance([channel(1 / 3), channel(0), channel(-1 / 3)]);
+        if ((Math.max(foreground, background) + 0.05) /
+            (Math.min(foreground, background) + 0.05) >= MIN_PLAYER_HIGHLIGHT_CONTRAST) break;
+        adjusted++;
+    }
     return adjusted;
 }
 
@@ -86,7 +77,6 @@ export function addSwipeRightListener(element, listener) {
     }, { passive: true });
 }
 
-/** Convert hex color "#RRGGBB" to rgba() string with alpha */
 export function hexToRGBA(hex, alpha) {
     const h = hex.replace("#", "");
     const r = parseInt(h.substring(0, 2), 16);
@@ -95,20 +85,15 @@ export function hexToRGBA(hex, alpha) {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** Convert an integer number of seconds to "M:SS".
- */
 export function formatTime(sec) {
     const total = Math.floor(sec);
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return m + ":" + (s < 10 ? "0" + s : s);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 export function getPlayerHighlightColor(pid) {
-    const players = Object.keys(state.gameData.players || {});
-    players.sort(); // sort by pid for consistent ordering
+    const players = Object.keys(state.gameData.players || {}).sort();
     const index = players.indexOf(pid);
-    if (index === -1) return "#e2b12a"; // fallback
+    if (index === -1) return "#e2b12a";
 
     const player = state.gameData.players[pid];
     const teammates = players.filter(
@@ -121,8 +106,7 @@ export function getPlayerHighlightColor(pid) {
         ? team.color.trim().match(/^#([0-9a-f]{6})$/i)
         : null;
 
-    // In team games, keep every player close to their team colour while
-    // offsetting teammates enough to distinguish overlapping score lines.
+    // Team-game highlights stay close to the team colour but remain distinct.
     if (teammates.length > 1 && match) {
         const rgb = [0, 2, 4].map((offset) => parseInt(match[1].slice(offset, offset + 2), 16) / 255);
         const max = Math.max(...rgb);
@@ -137,22 +121,21 @@ export function getPlayerHighlightColor(pid) {
         if (hue < 0) hue += 360;
         const lightness = (max + min) / 2;
         const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
-        const teammateIndex = teammates.indexOf(pid);
-        const centeredIndex = teammateIndex - (teammates.length - 1) / 2;
-        const hueOffset = centeredIndex * 16;
-        const lightnessOffset = centeredIndex === 0 ? 0 : (centeredIndex < 0 ? 10 : -10);
+        const centeredIndex = teammates.indexOf(pid) - (teammates.length - 1) / 2;
         const adjustedSaturation = Math.max(45, Math.round(saturation * 100));
-        const adjustedHue = Math.round((hue + hueOffset + 360) % 360);
+        const adjustedHue = Math.round((hue + centeredIndex * 16 + 360) % 360);
         const adjustedLightness = readableHighlightLightness(
             adjustedHue,
             adjustedSaturation,
-            Math.max(34, Math.min(78, Math.round(lightness * 100) + lightnessOffset)),
+            Math.max(34, Math.min(78,
+                Math.round(lightness * 100) +
+                (centeredIndex === 0 ? 0 : centeredIndex < 0 ? 10 : -10)
+            )),
         );
         return `hsl(${adjustedHue}, ${adjustedSaturation}%, ${adjustedLightness}%)`;
     }
 
-    const total = players.length;
-    const hue = (index / total) * 360;
+    const hue = (index / players.length) * 360;
     return `hsl(${hue}, 70%, ${readableHighlightLightness(hue, 70, 60)}%)`;
 }
 
@@ -173,33 +156,56 @@ export function parseGameStart(game, timezone = GAME_TIMEZONE) {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function getLiveCurrentTime(data, game = data) {
-    const duration = getGameDuration(data);
-    const explicitStart = data?.startTime ? new Date(data.startTime) : null;
-    const start =
-        parseGameStart(game || data) ||
-        parseGameStart(data) ||
-        (explicitStart && !Number.isNaN(explicitStart.getTime()) ? explicitStart : null);
-    if (start) {
-        const elapsed = (Date.now() - start.getTime()) / 1000;
-        return Math.max(0, Math.min(duration, elapsed));
-    }
+export function getScheduledGameLiveDeadline(game) {
+    if (!game) return null;
+    const duration = Number(game.gameDuration);
+    if (!Number.isFinite(duration) || duration <= 0) return null;
 
-    const events = Array.isArray(data?.events) ? data.events : [];
-    if (events.length) {
-        const latestEventTime = Math.max(...events.map((event) => Number(event.time) || 0));
-        return Math.max(0, Math.min(duration, latestEventTime));
-    }
+    const idStart = parseGameStart(game);
+    const explicitStart = game.startTime ? new Date(game.startTime) : null;
+    const start = idStart || (
+        explicitStart && !Number.isNaN(explicitStart.getTime()) &&
+        explicitStart.getUTCFullYear() > 2000
+            ? explicitStart
+            : null
+    );
+    if (!start) return null;
+    return new Date(start.getTime() + (duration + LIVE_END_GRACE_SECONDS) * 1000);
+}
 
-    return 0;
+export function isPastScheduledGameLiveDeadline(game, now = Date.now()) {
+    const deadline = getScheduledGameLiveDeadline(game);
+    const currentTime = now instanceof Date ? now.getTime() : Number(now);
+    return Boolean(
+        deadline &&
+        Number.isFinite(currentTime) &&
+        currentTime >= deadline.getTime()
+    );
+}
+
+export function markGameNonLiveAfterDeadline(game, now = Date.now()) {
+    return game?.live === true && isPastScheduledGameLiveDeadline(game, now)
+        ? { ...game, live: false }
+        : game;
 }
 
 export function getLivePresentationTime(data, game = data) {
-    return Math.max(0, getLiveCurrentTime(data, game) - getLivePresentationDelaySeconds());
+    const duration = getGameDuration(data);
+    const explicitStart = data?.startTime ? new Date(data.startTime) : null;
+    const start = parseGameStart(game || data) ||
+        (explicitStart && !Number.isNaN(explicitStart.getTime()) ? explicitStart : null);
+    let currentTime = 0;
+    if (start) {
+        currentTime = (Date.now() - start.getTime()) / 1000;
+    } else if (Array.isArray(data?.events) && data.events.length) {
+        currentTime = Math.max(...data.events.map((event) => Number(event.time) || 0));
+    }
+    return Math.max(
+        0,
+        Math.min(duration, currentTime) - getLivePresentationDelaySeconds(),
+    );
 }
 
-
-// Helper to compute a team’s total score at time `t`:
 export function computeTeamTotal(teamId, t) {
     return state.gameData.events
         .filter(
@@ -213,27 +219,22 @@ export function computeTeamTotal(teamId, t) {
 }
 
 export function initTeamScores(teams) {
-    const scores = {};
-    (teams || []).forEach((t) => {
-        scores[t.id] = { score: 0, tagsFor: 0, tagsAgainst: 0 };
-    });
-    return scores;
+    return Object.fromEntries((teams || []).map(({ id }) => [
+        id,
+        { score: 0, tagsFor: 0, tagsAgainst: 0 },
+    ]));
 }
 
 export function computeBaseStats(pid, t) {
-    // all base‐related events for this player up to time t
-    const evs = state.gameData.events.filter(
+    const stats = {};
+    state.gameData.events.filter(
         (ev) =>
         ev.entity === pid &&
         ev.time <= t &&
         (ev.type === "base hit" || ev.type === "base destroy")
-    );
-
-    const stats = {};
-    evs.forEach((ev) => {
-        if (!ev.target) return; // skip events with no target
-        // normalize the target to lowercase team ID:
-        const tgtId = ev.target.toLowerCase(); // "Blue" → "blue"
+    ).forEach((ev) => {
+        if (!ev.target) return;
+        const tgtId = ev.target.toLowerCase();
         if (!stats[tgtId]) {
             stats[tgtId] = { count: 0, destroyCount: 0, destroyed: false };
         }
@@ -247,12 +248,7 @@ export function computeBaseStats(pid, t) {
 }
 
 
-/**
- * Compute tags, tagged, ratio and base destroys for player `pid` up to time `t`.
- */
 export function computePlayerStats(pid, t) {
-    // get all events for this player up to time t
-    const evs = state.gameData.events.filter((ev) => ev.entity === pid && ev.time <= t);
     const player = state.gameData.players[pid];
     const sameTeam = (targetId) => {
         const target = state.gameData.players[targetId];
@@ -265,19 +261,21 @@ export function computePlayerStats(pid, t) {
         teamKillsFor: 0,
         teamKillsAgainst: 0,
     };
-    evs.forEach((ev) => {
-        if (ev.type === "team-kill") {
-            stats.teamKillsFor++;
-        } else if (ev.type === "team-killed") {
-            stats.teamKillsAgainst++;
-        } else if (ev.type === "tag") {
-            stats[sameTeam(ev.target) ? "teamKillsFor" : "tagsFor"]++;
-        } else if (ev.type === "tagged") {
-            stats[sameTeam(ev.target) ? "teamKillsAgainst" : "tagsAgainst"]++;
-        } else if (ev.type === "deny") {
-            stats.deniesCount += ev.delta == 500 ? 2 : 1;
-        }
-    });
+    state.gameData.events
+        .filter((ev) => ev.entity === pid && ev.time <= t)
+        .forEach((ev) => {
+            if (ev.type === "team-kill") {
+                stats.teamKillsFor++;
+            } else if (ev.type === "team-killed") {
+                stats.teamKillsAgainst++;
+            } else if (ev.type === "tag") {
+                stats[sameTeam(ev.target) ? "teamKillsFor" : "tagsFor"]++;
+            } else if (ev.type === "tagged") {
+                stats[sameTeam(ev.target) ? "teamKillsAgainst" : "tagsAgainst"]++;
+            } else if (ev.type === "deny") {
+                stats.deniesCount += ev.delta == 500 ? 2 : 1;
+            }
+        });
 
     const ratioText = stats.tagsAgainst > 0
         ? Math.round((stats.tagsFor / stats.tagsAgainst) * 100) + "%"
@@ -314,27 +312,19 @@ function normaliseGameType(value) {
     return normaliseText(value).replace(/\s+/g, " ");
 }
 
-function gameTypeConfig(gameType) {
-    const entries = Object.entries(state.reloadReplenishment || {});
-    const exact = entries.find(
-        ([configuredGameType]) => normaliseGameType(configuredGameType) === gameType
-    );
-    if (exact) return exact[1];
-
-    // The live replay helper adds this suffix to avoid colliding with the
-    // source game. It does not change the underlying lives/reload rules.
-    const replaySourceGameType = gameType.replace(/\s*\[test\]$/, "");
-    return entries.find(
-        ([configuredGameType]) =>
-            normaliseGameType(configuredGameType) === replaySourceGameType
-    )?.[1];
-}
-
 export function buildPlayerLifeTimeline(pid) {
     const wantedGameType = normaliseGameType(
         state.gameData?.gameType || state.selectedGame?.gameType || state.selectedGame?.title
     );
-    const rawLives = wantedGameType ? gameTypeConfig(wantedGameType)?.lives : null;
+    const configs = Object.entries(state.reloadReplenishment);
+    const exact = configs.find(
+        ([gameType]) => normaliseGameType(gameType) === wantedGameType
+    );
+    const config = exact ? exact[1] : configs.find(
+        ([gameType]) => normaliseGameType(gameType) ===
+            wantedGameType.replace(/\s*\[test\]$/, "")
+    )?.[1];
+    const rawLives = wantedGameType ? config?.lives : null;
     if (typeof rawLives !== "number") return null;
     const configuredLives = Number(rawLives);
     if (!Number.isInteger(configuredLives) || configuredLives < 0) return null;
@@ -375,9 +365,6 @@ export function computePlayerLives(pid, t) {
     }
     return lives;
 }
-/**
- * tags for against between 2 players up to time t
- */
 export function computeHeadToHeadTags(focusPid, otherPid, t) {
     let tagsFor = 0;
     let tagsAgainst = 0;
@@ -385,9 +372,9 @@ export function computeHeadToHeadTags(focusPid, otherPid, t) {
     state.gameData.events.forEach((ev) => {
         if (ev.time > t || (ev.type !== "tag" && ev.type !== "team-kill")) return;
         if (ev.entity === focusPid && ev.target === otherPid) {
-        tagsFor++;
+            tagsFor++;
         } else if (ev.entity === otherPid && ev.target === focusPid) {
-        tagsAgainst++;
+            tagsAgainst++;
         }
     });
 
@@ -397,25 +384,21 @@ export function computeHeadToHeadTags(focusPid, otherPid, t) {
 export function formatGameDatetime(ts) {
     const m = ts.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
     if (!m) return ts;
-    const [,YYYY,MM,DD,hh,mm] = m;    
-    // Game timestamps are in GAME_TIMEZONE
+    const [, YYYY, MM, DD, hh, mm] = m;
     const gameDate = new Date(`${YYYY}-${MM}-${DD}T${hh}:${mm}:00${GAME_TIMEZONE}`);
-    
-    // Format in user local timezone
-    const options = { 
-        weekday: 'short', 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit', 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false
-    };
-    return gameDate.toLocaleDateString(undefined, options).replace(',', '');
+    return gameDate.toLocaleDateString(undefined, {
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    }).replace(",", "");
 }
 
 export function isTypingField(el) {
-    return el.tagName === 'INPUT' ||
-        el.tagName === 'TEXTAREA' ||
+    return el.tagName === "INPUT" ||
+        el.tagName === "TEXTAREA" ||
         el.isContentEditable;
 }

@@ -1,6 +1,6 @@
 import { state } from "./state.js";
-import { handleSkip, seekToTime } from "./replayHandler.js";
-import { getGameDuration, isTypingField } from "./utils.js";
+import { handleSkip } from "./replayHandler.js";
+import { isTypingField } from "./utils.js";
 import { toggleYouTubeModal } from "./video.js";
 
 export function setupKeyboardShortcutsModal() {
@@ -95,9 +95,6 @@ export function setupKeyboardControls({
         switch (e.code) {
             case "Space":
                 e.preventDefault();
-                if (state.currentTime >= getGameDuration()) {
-                    seekToTime(0);
-                }
                 onTogglePlay();
                 break;
             case "ArrowLeft":

@@ -262,6 +262,23 @@
 .chart-controls #speedButton:hover {
   border-color: var(--button-accent);
 }
+.resume-live-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.resume-live-button[hidden] {
+  display: none;
+}
+.resume-live-dot {
+  width: 0.55em;
+  height: 0.55em;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #ff5252;
+  box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.16);
+}
 .chart-controls .button--primary:hover {
   border-color: var(--button-accent);
 }

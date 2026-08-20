@@ -3,39 +3,6 @@ const FAVOURITES_DATABASE = "worm-local-preferences";
 const FAVOURITES_DATABASE_VERSION = 1;
 const FAVOURITES_STORE = "followedPlayers";
 
-function openFavouritesDatabase() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(FAVOURITES_DATABASE, FAVOURITES_DATABASE_VERSION);
-    request.onupgradeneeded = () => {
-      const database = request.result;
-      if (!database.objectStoreNames.contains(FAVOURITES_STORE)) {
-        database.createObjectStore(FAVOURITES_STORE, { keyPath: "id" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function handleFavouritesRequest(action, player) {
-  const database = await openFavouritesDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(FAVOURITES_STORE, action === "list" ? "readonly" : "readwrite");
-    const store = transaction.objectStore(FAVOURITES_STORE);
-    const request = action === "list"
-      ? store.getAll()
-      : action === "put"
-        ? store.put(player)
-        : action === "delete"
-          ? store.delete(player.id)
-          : store.clear();
-    request.onsuccess = () => resolve(action === "list" ? request.result : player);
-    request.onerror = () => reject(request.error);
-    transaction.oncomplete = () => database.close();
-    transaction.onerror = () => database.close();
-  });
-}
-
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -82,7 +49,6 @@ self.addEventListener("fetch", (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return resp;
       });
-      // Serve cached fast, but update in the background
       return cached || fetchAndUpdate;
     })
   );
@@ -95,8 +61,37 @@ self.addEventListener("message", (event) => {
   const action = type.slice(prefix.length);
   if (!["list", "put", "delete", "clear"].includes(action)) return;
   const responsePort = event.ports?.[0];
+  const databaseRequest = indexedDB.open(FAVOURITES_DATABASE, FAVOURITES_DATABASE_VERSION);
   event.waitUntil(
-    handleFavouritesRequest(action, event.data?.player)
+    new Promise((resolve, reject) => {
+      databaseRequest.onupgradeneeded = () => {
+        const database = databaseRequest.result;
+        if (!database.objectStoreNames.contains(FAVOURITES_STORE)) {
+          database.createObjectStore(FAVOURITES_STORE, { keyPath: "id" });
+        }
+      };
+      databaseRequest.onsuccess = () => resolve(databaseRequest.result);
+      databaseRequest.onerror = () => reject(databaseRequest.error);
+    })
+      .then((database) => new Promise((resolve, reject) => {
+        const transaction = database.transaction(
+          FAVOURITES_STORE,
+          action === "list" ? "readonly" : "readwrite"
+        );
+        const store = transaction.objectStore(FAVOURITES_STORE);
+        const player = event.data?.player;
+        const request = action === "list"
+          ? store.getAll()
+          : action === "put"
+            ? store.put(player)
+            : action === "delete"
+              ? store.delete(player.id)
+              : store.clear();
+        request.onsuccess = () => resolve(action === "list" ? request.result : player);
+        request.onerror = () => reject(request.error);
+        transaction.oncomplete = () => database.close();
+        transaction.onerror = () => database.close();
+      }))
       .then((result) => responsePort?.postMessage({ ok: true, result }))
       .catch((error) => responsePort?.postMessage({ ok: false, error: String(error) }))
   );

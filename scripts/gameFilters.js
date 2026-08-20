@@ -3,6 +3,7 @@ import { addSwipeRightListener, parseGameStart, formatGameDatetime } from "./uti
 import { gameHasFollowedPlayer } from "./favourites.js";
 import {
     clearFilterSession,
+    eventKey,
     hasActiveFilters,
     rememberAutoEventFilterChoice,
     saveFilterSession,
@@ -20,17 +21,13 @@ function gameDateKey(game) {
         .replace(/,\s*$/, "");
 }
 
-function eventKey(event) {
-    return event?.id || event?.name || event?.label || "";
-}
-
 function eventLabel(event) {
     return event?.label || event?.name || event?.id || "";
 }
 
 function matchesEvent(game, eventId) {
     if (eventId === "none") return true;
-    const event = (state.events || []).find((e) => eventKey(e) === eventId);
+    const event = state.events.find((e) => eventKey(e) === eventId);
     if (!event) return false;
 
     const gameStart = parseGameStart(game);
@@ -46,9 +43,9 @@ function matchesEvent(game, eventId) {
 
 function currentFilterValues() {
     return {
-        type: state.gameFilter || "all",
-        event: state.eventFilter || "none",
-        date: state.gameDateFilter || "all",
+        type: state.gameFilter,
+        event: state.eventFilter,
+        date: state.gameDateFilter,
         favourites: state.favouritesOnly === true,
     };
 }
@@ -128,7 +125,7 @@ export function populateFilterOptions(games) {
 
         const options = [{ value: "none", label: "All events" }];
         const seen = new Set(["none"]);
-        (state.events || []).forEach((event) => {
+        state.events.forEach((event) => {
             const value = eventKey(event);
             const label = eventLabel(event);
             if (!value || !label || seen.has(value)) return;
@@ -137,7 +134,7 @@ export function populateFilterOptions(games) {
             options.push({ value, label });
         });
         if (filters.event !== "none" && !options.some((opt) => opt.value === filters.event)) {
-            const selectedEvent = (state.events || []).find((event) => eventKey(event) === filters.event);
+            const selectedEvent = state.events.find((event) => eventKey(event) === filters.event);
             options.push({
                 value: filters.event,
                 label: selectedEvent ? eventLabel(selectedEvent) : filters.event,

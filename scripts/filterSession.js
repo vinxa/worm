@@ -1,4 +1,5 @@
 import { state } from "./state.js";
+import { withSessionStorage } from "./browserStorage.js";
 
 const STORAGE_KEY = "worm-game-filters";
 
@@ -23,50 +24,33 @@ export function hasActiveFilters({ includeFavourites = true } = {}) {
     );
 }
 
-function storage() {
-    try {
-        return typeof sessionStorage === "undefined" ? null : sessionStorage;
-    } catch (_error) {
-        return null;
-    }
-}
-
-const sessionStore = storage();
-if (sessionStore) {
-    try {
-        const saved = JSON.parse(sessionStore.getItem(STORAGE_KEY) || "null");
-        if (saved && typeof saved === "object") {
-            Object.keys(FILTER_DEFAULTS).forEach((key) => {
-                if (typeof saved[key] === typeof FILTER_DEFAULTS[key]) state[key] = saved[key];
-            });
+const savedFilters = withSessionStorage((storage) =>
+    JSON.parse(storage.getItem(STORAGE_KEY) || "null"),
+    null,
+    clearFilterSession,
+);
+if (savedFilters && typeof savedFilters === "object") {
+    Object.keys(FILTER_DEFAULTS).forEach((key) => {
+        if (typeof savedFilters[key] === typeof FILTER_DEFAULTS[key]) {
+            state[key] = savedFilters[key];
         }
-    } catch (_error) {
-        clearFilterSession();
-    }
+    });
 }
 
 export function saveFilterSession() {
-    const target = storage();
-    if (!target) return;
-    try {
-        target.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(
+    withSessionStorage((storage) =>
+        storage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(
             Object.keys(FILTER_DEFAULTS).map((key) => [key, state[key]])
-        )));
-    } catch (_error) {
-        // Filters still work for the current page when storage is unavailable.
-    }
+        )))
+    );
 }
 
 export function clearFilterSession() {
     Object.assign(state, FILTER_DEFAULTS);
-    try {
-        storage()?.removeItem(STORAGE_KEY);
-    } catch (_error) {
-        // The in-memory filters have still been reset.
-    }
+    withSessionStorage((storage) => storage.removeItem(STORAGE_KEY));
 }
 
-function eventKey(event) {
+export function eventKey(event) {
     return event?.id || event?.name || event?.label || "";
 }
 

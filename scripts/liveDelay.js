@@ -1,4 +1,5 @@
 import { LIVE_PRESENTATION_DELAY_SECONDS } from "./config.js";
+import { withLocalStorage } from "./browserStorage.js";
 
 export const LIVE_PRESENTATION_DELAY_CHANGE_EVENT = "worm:live-presentation-delay-change";
 const LIVE_PRESENTATION_DELAY_STORAGE_KEY = "worm:live-presentation-delay-seconds";
@@ -14,17 +15,9 @@ export function normaliseLivePresentationDelay(
     return Math.min(seconds, MAX_LIVE_PRESENTATION_DELAY_SECONDS);
 }
 
-function loadLivePresentationDelay() {
-    try {
-        return normaliseLivePresentationDelay(
-            window.localStorage.getItem(LIVE_PRESENTATION_DELAY_STORAGE_KEY),
-        );
-    } catch {
-        return LIVE_PRESENTATION_DELAY_SECONDS;
-    }
-}
-
-let livePresentationDelaySeconds = loadLivePresentationDelay();
+let livePresentationDelaySeconds = normaliseLivePresentationDelay(
+    withLocalStorage((storage) => storage.getItem(LIVE_PRESENTATION_DELAY_STORAGE_KEY)),
+);
 
 export function getLivePresentationDelaySeconds() {
     return livePresentationDelaySeconds;
@@ -35,14 +28,12 @@ export function setLivePresentationDelaySeconds(value) {
         value,
         livePresentationDelaySeconds,
     );
-    try {
-        window.localStorage.setItem(
+    withLocalStorage((storage) =>
+        storage.setItem(
             LIVE_PRESENTATION_DELAY_STORAGE_KEY,
             String(livePresentationDelaySeconds),
-        );
-    } catch {
-        // Keep the preference for this page lifetime when storage is unavailable.
-    }
+        )
+    );
     window.dispatchEvent(new CustomEvent(LIVE_PRESENTATION_DELAY_CHANGE_EVENT, {
         detail: { seconds: livePresentationDelaySeconds },
     }));

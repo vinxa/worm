@@ -10,7 +10,7 @@ import {
     loadFollowedPlayers,
     removeFollowedPlayer,
     saveFollowedPlayer,
-} from "./favouritesStore.js";
+} from "./browserStorage.js";
 import { hasActiveFilters, saveFilterSession } from "./filterSession.js";
 
 let currentGames = [];
@@ -250,7 +250,7 @@ function setPanelOpen(open) {
 }
 
 export function refreshFavouritesPanel(
-    games = state.games || [],
+    games = state.games,
     { allGames = games, restrictToGames = false } = {},
 ) {
     currentGames = games;
@@ -371,6 +371,6 @@ export async function setupFavourites({ onChange } = {}) {
         );
     }
     elements.only.checked = state.favouritesOnly;
-    refreshFavouritesPanel(state.games || []);
+    refreshFavouritesPanel(state.games);
     onFavouritesChanged?.();
 }

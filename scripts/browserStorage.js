@@ -3,6 +3,21 @@ const DATABASE_VERSION = 1;
 const STORE_NAME = "followedPlayers";
 const MESSAGE_PREFIX = "worm:favourites:";
 
+function withStorage(name, operation, fallback, onError) {
+    try {
+        return operation(globalThis[name]);
+    } catch {
+        onError?.();
+        return fallback;
+    }
+}
+
+export const withLocalStorage = (operation, fallback, onError) =>
+    withStorage("localStorage", operation, fallback, onError);
+
+export const withSessionStorage = (operation, fallback = null, onError) =>
+    withStorage("sessionStorage", operation, fallback, onError);
+
 async function request(action, player) {
     const worker = navigator.serviceWorker?.controller;
     if (worker && typeof MessageChannel !== "undefined") {
@@ -30,7 +45,10 @@ async function request(action, player) {
         openRequest.onerror = () => reject(openRequest.error);
     });
     return new Promise((resolve, reject) => {
-        const transaction = database.transaction(STORE_NAME, action === "list" ? "readonly" : "readwrite");
+        const transaction = database.transaction(
+            STORE_NAME,
+            action === "list" ? "readonly" : "readwrite",
+        );
         const store = transaction.objectStore(STORE_NAME);
         const dataRequest = action === "list"
             ? store.getAll()

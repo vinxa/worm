@@ -9,10 +9,18 @@ import {
     updateNextGameButtonVisibility,
     wiggleLogos,
 } from "./ui.js";
-import { parseGameStart, initTeamScores, getGameDuration, getLivePresentationTime, normaliseText } from "./utils.js";
+import {
+    parseGameStart,
+    initTeamScores,
+    getGameDuration,
+    getLivePresentationTime,
+    isPastScheduledGameLiveDeadline,
+    markGameNonLiveAfterDeadline,
+    normaliseText,
+} from "./utils.js";
 import { isLiveGameSelected, setLiveHandlers, shouldFollowNewLiveGame } from "./live.js";
 import { refreshLiveChartData } from "./timeline.js";
-import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateSpeedButtons } from "./replayHandler.js";
+import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateResumeLiveButtons, updateSpeedButtons } from "./replayHandler.js";
 import { getGameIdFromUrl, getViewStateFromUrl } from "./routing.js";
 import { isBaseRunGame, normaliseBaseForOwningTeam } from "./baseRun.js";
 import { animateLiveBaseEvents, animateLiveLifeEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
@@ -27,6 +35,7 @@ import {
     takeUnseenLiveEvents,
 } from "./liveRenderBuffer.js";
 import { LIVE_PRESENTATION_DELAY_CHANGE_EVENT } from "./liveDelay.js";
+import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
 
 let uiReady = false;
 let pendingLiveRenders = [];
@@ -246,11 +255,19 @@ function cancelPendingLiveFinalise() {
 function completePendingLiveFinalise() {
     liveFinaliseTimer = null;
     const pending = pendingLiveFinalise;
-    pendingLiveFinalise = null;
     if (!pending || !state.liveSubscribed ||
         (state.selectedGame?.gameKey && state.selectedGame.gameKey !== pending.gameKey)) {
+        pendingLiveFinalise = null;
         return;
     }
+    const completionDuration = getGameDuration(pending.data) ||
+        getGameDuration(state.gameData);
+    if (!state.livePlayheadFollowing &&
+        state.currentTime < completionDuration - 0.01) {
+        liveFinaliseTimer = setTimeout(completePendingLiveFinalise, 250);
+        return;
+    }
+    pendingLiveFinalise = null;
     const { data } = pending;
     cancelPendingLiveRender();
     state.selectedGame = {
@@ -298,155 +315,156 @@ function schedulePendingLiveRender() {
     if (liveRenderTimer !== null) clearTimeout(liveRenderTimer);
     const delay = Math.max(0, readyAt - Date.now());
     liveRenderTimerReadyAt = readyAt;
-    liveRenderTimer = setTimeout(renderPendingLiveUpdate, delay);
-}
+    liveRenderTimer = setTimeout(() => {
+        liveRenderTimer = null;
+        liveRenderTimerReadyAt = null;
+        const now = Date.now();
+        let readyCount = 0;
+        while (readyCount < pendingLiveRenders.length &&
+            pendingLiveRenders[readyCount].readyAt <= now) {
+            readyCount++;
+        }
+        if (!readyCount) {
+            schedulePendingLiveRender();
+            return;
+        }
 
-function renderPendingLiveUpdate() {
-    liveRenderTimer = null;
-    liveRenderTimerReadyAt = null;
-    const now = Date.now();
-    let readyCount = 0;
-    while (readyCount < pendingLiveRenders.length &&
-        pendingLiveRenders[readyCount].readyAt <= now) {
-        readyCount++;
-    }
-    if (!readyCount) {
+        const ready = pendingLiveRenders.splice(0, readyCount);
+        const latest = ready.reduce((newest, update) =>
+            update.order > newest.order ? update : newest
+        );
+        const pending = {
+            gameKey: latest.gameKey,
+            data: mergeReadyLiveRenderData(state.gameData, latest.data, ready),
+            effectEvents: ready.flatMap((update) => update.effectEvents),
+        };
+        if (!isLiveGameSelected()) {
+            cancelPendingLiveRender();
+            return;
+        }
         schedulePendingLiveRender();
-        return;
-    }
 
-    const ready = pendingLiveRenders.splice(0, readyCount);
-    const latest = ready.reduce((newest, update) =>
-        update.order > newest.order ? update : newest
-    );
-    const pending = {
-        gameKey: latest.gameKey,
-        data: mergeReadyLiveRenderData(state.gameData, latest.data, ready),
-        effectEvents: ready.flatMap((update) => update.effectEvents),
-    };
-    if (!isLiveGameSelected()) {
-        cancelPendingLiveRender();
-        return;
-    }
-    schedulePendingLiveRender();
+        const data = pending.data;
+        if (!data || data.gameKey !== pending.gameKey) return;
 
-    const data = pending.data;
-    if (!data || data.gameKey !== pending.gameKey) return;
+        const nextTeams = teamsWithPlayers(data.teams, data.players);
+        const sameStructure = state.gameData && state.gameData.gameKey === data.gameKey &&
+            sameIds(
+                (state.gameData.teams || []).map((team) => team.id),
+                nextTeams.map((team) => team.id)
+            ) &&
+            sameIds(Object.keys(state.gameData.players || {}), Object.keys(data.players || {}));
+        if (!state.chart || !sameStructure) {
+            loadGameData("", {
+                prefetchedData: data,
+                showSpinner: false,
+                livePlayback: true,
+                followLivePlayhead: state.livePlayheadFollowing,
+                liveReplayPlaying: state.isPlaying,
+            }).then(() => {
+                if (isLiveGameSelected() && state.livePlayheadFollowing &&
+                    state.gameData?.gameKey === pending.gameKey) {
+                    animatePendingLiveEffects(pending.effectEvents);
+                }
+            });
+            return;
+        }
 
-    const nextTeams = teamsWithPlayers(data?.teams, data?.players);
-    const sameStructure = state.gameData && state.gameData.gameKey === data.gameKey &&
-        sameIds(
-            (state.gameData.teams || []).map((team) => team.id),
-            nextTeams.map((team) => team.id)
-        ) &&
-        sameIds(Object.keys(state.gameData.players || {}), Object.keys(data.players || {}));
-    if (!state.chart || !sameStructure) {
-        loadGameData("", {
-            prefetchedData: data,
-            showSpinner: false,
-            livePlayback: true,
-        }).then(() => {
-            if (isLiveGameSelected() && state.gameData?.gameKey === pending.gameKey) {
-                animatePendingLiveEffects(pending.effectEvents);
-            }
+        const wasFollowingLive = state.livePlayheadFollowing;
+        const replayWasPlaying = state.isPlaying;
+        const liveClockRunning = wasFollowingLive && replayWasPlaying &&
+            state.replayAnimationFrame !== null;
+        state.livePlaybackLocked = true;
+        if (wasFollowingLive) setPlaybackRate(1, { force: true, restart: false });
+        prepareGameData(data);
+        state.currentTime = resolveLivePlayheadTime({
+            currentTime: state.currentTime,
+            presentationTime: getLivePresentationTime(state.gameData, state.selectedGame),
+            duration: getGameDuration(state.gameData),
+            following: wasFollowingLive,
         });
-        return;
-    }
-
-    const liveClockRunning = state.isPlaying && state.replayAnimationFrame !== null;
-    state.livePlaybackLocked = true;
-    setPlaybackRate(1, { force: true, restart: false });
-    prepareGameData(data);
-    state.currentTime = Math.max(
-        state.currentTime,
-        getLivePresentationTime(state.gameData, state.selectedGame)
-    );
-    const chartUpdated = refreshLiveChartData(state.gameData, state.currentTime);
-    if (!chartUpdated) renderGameData();
-    else seekToTime(state.currentTime, true);
-    if (!liveClockRunning || !chartUpdated) startPlayback({ keepLive: true });
-    animatePendingLiveEffects(pending.effectEvents);
-}
-
-function queueLiveRender(data, message) {
-    const gameKey = data?.gameKey || state.liveGameKey;
-    if (!gameKey) return;
-
-    const startingBuffer = bufferedLiveGameKey !== gameKey;
-    if (bufferedLiveGameKey && bufferedLiveGameKey !== gameKey) {
-        cancelPendingLiveRender();
-    }
-    bufferedLiveGameKey = gameKey;
-
-    if (startingBuffer && state.gameData?.gameKey === gameKey) {
-        takeUnseenLiveEvents(state.gameData.events, bufferedLiveEventKeys);
-    }
-
-    const incomingEffectEvents = message?.action === "event"
-        ? (Array.isArray(message.data) ? message.data : [message.data]).filter(Boolean)
-        : [];
-    const candidateEvents = incomingEffectEvents.length
-        ? incomingEffectEvents
-        : (Array.isArray(data?.events) ? data.events : []);
-    const updateEvents = takeUnseenLiveEvents(candidateEvents, bufferedLiveEventKeys);
-    const latestEventTime = candidateEvents.reduce(
-        (latest, event) => Math.max(latest, Number(event?.time) || 0),
-        0,
-    );
-    const presentationTime = getLivePresentationTime(data, state.selectedGame);
-    const queuedAt = Date.now();
-    const eventUpdates = splitLiveRenderEvents(
-        updateEvents,
-        incomingEffectEvents,
-        latestEventTime,
-    );
-    eventUpdates.forEach((update) => {
-        insertPendingLiveRender(pendingLiveRenders, {
-            gameKey,
-            data: compactLiveRenderData(data, update.events),
-            effectEvents: update.effectEvents,
-            latestEventTime: update.latestEventTime,
-            order: ++liveRenderOrder,
-            readyAt: queuedAt + Math.max(
-                0,
-                update.latestEventTime - presentationTime,
-            ) * 1000,
-        });
-    });
-    schedulePendingLiveRender();
-}
-
-function rescheduleForLivePresentationDelay() {
-    if (liveRenderTimer !== null) clearTimeout(liveRenderTimer);
-    liveRenderTimer = null;
-    liveRenderTimerReadyAt = null;
-
-    const referenceData = state.liveGameData || state.gameData || state.selectedGame;
-    const presentationTime = getLivePresentationTime(referenceData, state.selectedGame);
-    const now = Date.now();
-    pendingLiveRenders.forEach((update) => {
-        update.readyAt = now + Math.max(
-            0,
-            update.latestEventTime - presentationTime,
-        ) * 1000;
-    });
-    pendingLiveRenders.sort((left, right) =>
-        left.readyAt - right.readyAt || left.order - right.order
-    );
-    schedulePendingLiveRender();
-    schedulePendingLiveFinalise();
+        const chartUpdated = refreshLiveChartData(state.gameData, state.currentTime);
+        if (!chartUpdated) renderGameData();
+        else seekToTime(state.currentTime, true);
+        if (wasFollowingLive) {
+            if (!liveClockRunning || !chartUpdated) startPlayback({ keepLive: true });
+            animatePendingLiveEffects(pending.effectEvents);
+        } else if (replayWasPlaying) {
+            startPlayback();
+        }
+        updateResumeLiveButtons();
+    }, delay);
 }
 
 window.addEventListener(
     LIVE_PRESENTATION_DELAY_CHANGE_EVENT,
-    rescheduleForLivePresentationDelay,
+    () => {
+        if (liveRenderTimer !== null) clearTimeout(liveRenderTimer);
+        liveRenderTimer = null;
+        liveRenderTimerReadyAt = null;
+
+        const referenceData = state.liveGameData || state.gameData || state.selectedGame;
+        const presentationTime = getLivePresentationTime(referenceData, state.selectedGame);
+        const now = Date.now();
+        pendingLiveRenders.forEach((update) => {
+            update.readyAt = now + Math.max(
+                0,
+                update.latestEventTime - presentationTime,
+            ) * 1000;
+        });
+        pendingLiveRenders.sort((left, right) =>
+            left.readyAt - right.readyAt || left.order - right.order
+        );
+        schedulePendingLiveRender();
+        schedulePendingLiveFinalise();
+    },
 );
 
 setLiveHandlers({
     onUpdate: (data, message) => {
         state.liveGameKey = data.gameKey || state.liveGameKey;
         if (!isLiveGameSelected()) return;
-        queueLiveRender(data, message);
+        const gameKey = data.gameKey || state.liveGameKey;
+        if (!gameKey) return;
+
+        const startingBuffer = bufferedLiveGameKey !== gameKey;
+        if (bufferedLiveGameKey && bufferedLiveGameKey !== gameKey) {
+            cancelPendingLiveRender();
+        }
+        bufferedLiveGameKey = gameKey;
+
+        if (startingBuffer && state.gameData?.gameKey === gameKey) {
+            takeUnseenLiveEvents(state.gameData.events, bufferedLiveEventKeys);
+        }
+
+        const incomingEffectEvents = message?.action === "event"
+            ? (Array.isArray(message.data) ? message.data : [message.data]).filter(Boolean)
+            : [];
+        const candidateEvents = incomingEffectEvents.length
+            ? incomingEffectEvents
+            : (Array.isArray(data.events) ? data.events : []);
+        const updateEvents = takeUnseenLiveEvents(candidateEvents, bufferedLiveEventKeys);
+        const latestEventTime = candidateEvents.reduce(
+            (latest, event) => Math.max(latest, Number(event?.time) || 0),
+            0,
+        );
+        const presentationTime = getLivePresentationTime(data, state.selectedGame);
+        const queuedAt = Date.now();
+        splitLiveRenderEvents(updateEvents, incomingEffectEvents, latestEventTime)
+            .forEach((update) => {
+                insertPendingLiveRender(pendingLiveRenders, {
+                    gameKey,
+                    data: compactLiveRenderData(data, update.events),
+                    effectEvents: update.effectEvents,
+                    latestEventTime: update.latestEventTime,
+                    order: ++liveRenderOrder,
+                    readyAt: queuedAt + Math.max(
+                        0,
+                        update.latestEventTime - presentationTime,
+                    ) * 1000,
+                });
+            });
+        schedulePendingLiveRender();
     },
     onNewGame: (data) => {
         cancelPendingLiveFinalise();
@@ -461,15 +479,51 @@ setLiveHandlers({
     },
 });
 
+function expireOverdueLiveGames(now = Date.now()) {
+    let indexChanged = false;
+    const markedGames = state.games.map((game) => {
+        const marked = markGameNonLiveAfterDeadline(game, now);
+        if (marked !== game) indexChanged = true;
+        return marked;
+    });
+    const selectedNeedsExpiry = isPastScheduledGameLiveDeadline(state.selectedGame, now) && (
+        state.selectedGame?.live === true ||
+        state.livePlaybackLocked ||
+        state.livePlayheadFollowing
+    );
+    if (!indexChanged && !selectedNeedsExpiry) return;
+    if (indexChanged) state.games = markedGames;
+
+    if (state.latestGame) {
+        state.latestGame = state.games.find((game) =>
+            game.gameKey
+                ? game.gameKey === state.latestGame.gameKey
+                : game.id === state.latestGame.id
+        ) || markGameNonLiveAfterDeadline(state.latestGame, now);
+    }
+
+    if (selectedNeedsExpiry) {
+        state.selectedGame = markGameNonLiveAfterDeadline(state.selectedGame, now);
+        state.livePlaybackLocked = false;
+        state.livePlayheadFollowing = false;
+        state.isPlaying = false;
+        clearTimeouts();
+        updatePlayButtonsLabel("▶");
+        updateResumeLiveButtons();
+        updateSpeedButtons();
+    }
+
+    if (state.gamesIndexLoaded) buildGrid(state.games);
+    updateNextGameButtonVisibility();
+}
+
 async function fetchConfig(path, label, apply) {
     try {
         const response = await fetch(path, { cache: "no-store" });
         if (!response.ok) throw new Error(`Couldn't fetch ${label}`);
         apply(await response.json());
-        return true;
     } catch (err) {
         console.error(`Failed to load ${label}:`, err);
-        return false;
     }
 }
 
@@ -485,8 +539,9 @@ async function fetchGamesIndex(fromPoll = false) {
             const identity = String(game.gameKey || game.id || `index:${index}`);
             gamesByIdentity.set(identity, game);
         });
-        const uniqueList = [...gamesByIdentity.values()];
-        const previousIds = new Set((state.games || []).map((game) => game.id));
+        const uniqueList = [...gamesByIdentity.values()]
+            .map((game) => markGameNonLiveAfterDeadline(game));
+        const previousIds = new Set(state.games.map((game) => game.id));
         const previousLatestId = state.latestGame?.id;
         const wasIndexLoaded = state.gamesIndexLoaded;
 
@@ -518,11 +573,17 @@ async function fetchGamesIndex(fromPoll = false) {
         const viewingLatest = fromPoll && state.selectedGame && state.latestGame &&
             state.selectedGame.id === state.latestGame.id;
         const viewingLiveLatest = viewingLatest &&
-            (state.latestGame.live === true || state.latestGame.gameKey === state.liveGameKey);
+            isSelectedCurrentLiveGame(state.latestGame, state.liveGameKey);
         const start = parseGameStart(state.latestGame);
         const isFresh = start && Date.now() - start.getTime() <
             (state.latestGame.gameDuration || 15 * 60) * 1000;
-        if (viewingLatest && isFresh && !viewingLiveLatest && !state.isGameLoading) {
+        const completedIndexAvailable = Boolean(
+            state.latestGame?.dataPath &&
+            state.latestGame.dataPath !== state.selectedGame?.dataPath
+        );
+        if (viewingLatest && (isFresh || completedIndexAvailable) &&
+            !viewingLiveLatest && !state.isGameLoading) {
+            state.selectedGame = state.latestGame;
             loadGameData(state.latestGame.dataPath, {
                 skipIfSignatureUnchanged: true,
                 showSpinner: false,
@@ -541,7 +602,7 @@ function showViewFromUrl() {
         return;
     }
 
-    const game = (state.games || []).find((entry) =>
+    const game = state.games.find((entry) =>
         String(entry.id) === gameId || String(entry.gameKey || "") === gameId
     );
     if (!game) {
@@ -562,6 +623,8 @@ export async function loadGameData(dataPath, options = {}) {
         showSpinner = true,
         prefetchedData = null,
         livePlayback = false,
+        followLivePlayhead = null,
+        liveReplayPlaying = false,
         initialViewState = null,
     } = options;
     try {
@@ -571,8 +634,6 @@ export async function loadGameData(dataPath, options = {}) {
             document.getElementById("loading-indicator").style.display = "flex";
         }
         state.livePlaybackLocked = livePlayback;
-        if (livePlayback) setPlaybackRate(1, { force: true, restart: false });
-        else updateSpeedButtons();
 
         let data = prefetchedData;
         if (!data && dataPath) {
@@ -625,7 +686,6 @@ export async function loadGameData(dataPath, options = {}) {
             return;
         }
         state.gameSignatures[sigKey] = newSig;
-        state.isPlaying = livePlayback;
         clearTimeouts();
         updatePlayButtonsLabel("▶");
         prepareGameData(data);
@@ -635,6 +695,20 @@ export async function loadGameData(dataPath, options = {}) {
         state.currentTime = initialViewState?.time === null || initialViewState?.time === undefined
             ? defaultTime
             : Math.min(getGameDuration(state.gameData), Math.max(0, initialViewState.time));
+        const inferredLiveFollow = !initialViewState ||
+            initialViewState.time === null || initialViewState.time === undefined ||
+            isAtLiveEdge(state.currentTime, defaultTime);
+        state.livePlayheadFollowing = livePlayback && (followLivePlayhead === null
+            ? inferredLiveFollow
+            : Boolean(followLivePlayhead));
+        state.isPlaying = livePlayback &&
+            (state.livePlayheadFollowing || Boolean(liveReplayPlaying));
+        if (state.livePlayheadFollowing) {
+            setPlaybackRate(1, { force: true, restart: false });
+        } else {
+            updateSpeedButtons();
+        }
+        updateResumeLiveButtons();
 
         if (initialViewState) {
             state.selectedPlayers = new Set(initialViewState.selectedPlayers || []);
@@ -660,7 +734,8 @@ export async function loadGameData(dataPath, options = {}) {
                 closeYouTubeModal();
             }
         }
-        if (livePlayback) startPlayback({ keepLive: true });
+        if (state.livePlayheadFollowing) startPlayback({ keepLive: true });
+        else if (state.isPlaying) startPlayback();
 
     } catch (err) {
         console.error("Failed to load game data:", err);
@@ -681,24 +756,22 @@ function hideLoadingIndicator() {
     wiggleLogos();
 }
 
-// Load list of games initially and start polling
 fetchConfig("static/events/events.json", "events config", (list) => {
     state.events = Array.isArray(list) ? list : [];
     applyInitialEventFilter(state.events);
-}).then((loaded) => {
-    if (!loaded) state.events = [];
-    if (state.games?.length) buildGrid(state.games);
+}).then(() => {
+    if (state.games.length) buildGrid(state.games);
 });
 fetchConfig("static/config/reload-amounts.json", "reload replenishment config", (config) => {
     state.reloadReplenishment = config?.gameTypes && typeof config.gameTypes === "object"
         ? config.gameTypes
         : {};
-}).then((loaded) => {
-    if (!loaded) state.reloadReplenishment = {};
+}).then(() => {
     if (state.gameData) updatePlayerTiles(state.currentTime);
 });
 fetchGamesIndex(false);
 setInterval(() => fetchGamesIndex(true), 15000);
+setInterval(expireOverdueLiveGames, 250);
 
 document.addEventListener("DOMContentLoaded", () => {
     initUI(loadGameData);
