@@ -1,0 +1,595 @@
+/* Roomy tablet viewports: preserve a full home view and use a collision-free game shell. */
+@media screen and (min-width: 700px) and (min-height: 700px) and (max-width: 1400px) {
+  html,
+  body {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .home-section {
+    width: calc(100% - 64px);
+    max-width: 1100px;
+    min-height: 0;
+    margin: clamp(28px, 4dvh, 52px) auto;
+    padding: clamp(36px, 5dvh, 64px) 0 24px;
+    box-sizing: border-box;
+  }
+
+  .home-section .app-header {
+    height: clamp(130px, 16dvh, 170px);
+    min-height: 130px;
+    padding: 0 24px;
+    font-size: clamp(3.75rem, 7vw, 5rem);
+  }
+
+  .home-section .app-logo {
+    display: block;
+    width: clamp(56px, 6vw, 72px);
+    margin-right: 12px;
+  }
+
+  .home-section .worm-speech-bubble {
+    display: inline-flex;
+  }
+
+  .home-section .app-name {
+    display: inline;
+    font-size: 1em;
+  }
+
+  .home-filter-tools,
+  .games-grid {
+    width: calc(100% - 32px);
+    max-width: none;
+  }
+
+  .games-grid {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    margin: 28px auto;
+  }
+
+  body > .app-header {
+    min-height: 46px;
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      6px
+      max(10px, env(safe-area-inset-left));
+    gap: 8px;
+    box-sizing: border-box;
+  }
+
+  body > .app-header .header-left,
+  body > .app-header .header-right {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 5px;
+  }
+
+  body > .app-header .app-name,
+  body > .app-header .app-logo {
+    display: none;
+  }
+
+  body > .app-header .keyboard-shortcuts-button {
+    display: inline-flex;
+  }
+
+  body > .app-header .title {
+    position: static;
+    left: auto;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    font-size: clamp(0.9rem, 1.6vw, 1.15rem);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: none;
+  }
+
+  body > .app-header #youtubeUrl,
+  body > .app-header #loadButton {
+    display: none;
+  }
+
+  body > .app-header #headerPlayButton,
+  body > .app-header #headerSpeedButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body > .top-section {
+    flex: 0 0 auto;
+    min-height: 0;
+    max-height: none;
+    padding: 6px;
+    overflow: visible;
+  }
+
+  body > .top-section .results-section,
+  body > .top-section .map-section {
+    min-height: 0;
+    padding: 4px;
+  }
+
+  body > .top-section .results-content,
+  body > .top-section .grid-container {
+    overflow: visible;
+  }
+
+  body > .timeline-section {
+    flex: 1 1 300px;
+    min-height: 300px;
+    padding: 6px 10px 10px;
+  }
+
+  body > .timeline-section #scoreChart {
+    min-height: 0;
+  }
+
+  body > .timeline-section .chart-controls {
+    display: none;
+  }
+}
+
+/* Base Run splits the player area into narrower subgames on a large tablet. */
+@media screen and (min-width: 1201px) and (min-height: 700px) and (max-width: 1400px) {
+  .players-grid.base-run-subgames .player-summary {
+    padding: 6px;
+  }
+
+  .players-grid.base-run-subgames .player-summary-details {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 4px;
+    font-size: 0.75rem;
+  }
+
+  .players-grid.base-run-subgames .detail-left,
+  .players-grid.base-run-subgames .detail-right {
+    min-width: 0;
+  }
+
+  .players-grid.base-run-subgames .detail-tags-label,
+  .players-grid.base-run-subgames .detail-denies-line,
+  .players-grid.base-run-subgames .detail-uptime-line {
+    display: none;
+  }
+
+  .players-grid.base-run-subgames .detail-tags-line {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Landscape tablets have room for the optional YouTube loader in the header. */
+@media screen and (orientation: landscape) and (min-width: 1100px) and (min-height: 700px) and (max-width: 1400px) {
+  body > .app-header #youtubeUrl {
+    display: block;
+    width: clamp(120px, 13vw, 170px);
+  }
+
+  body > .app-header #loadButton {
+    display: inline-flex;
+  }
+}
+
+/* Balance non-Pro tablets between stretched player rows and a compact chart. */
+@media screen and (min-width: 700px) and (min-height: 700px) and (max-width: 1200px) {
+  html,
+  body {
+    height: 100dvh;
+  }
+
+  body > .top-section {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body > .top-section .results-section,
+  body > .top-section .results-content,
+  body > .top-section .grid-container {
+    min-height: 0;
+    height: 100%;
+  }
+
+  body > .top-section .grid-container {
+    overflow: hidden;
+  }
+
+  body > .top-section .players-grid,
+  body > .top-section .base-run-subgame {
+    height: 100%;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+  }
+
+  body > .top-section .player-summary,
+  body > .top-section .base-run-subgame {
+    align-self: stretch;
+  }
+
+  body > .top-section .player-summary {
+    align-content: center;
+  }
+
+  body > .top-section .scores-sidebar,
+  body > .top-section .team-scores {
+    min-height: 0;
+    height: 100%;
+  }
+
+  body > .top-section .team-scores {
+    display: flex;
+    flex-direction: column;
+  }
+
+  body > .top-section .team-scores > li,
+  body > .top-section .team-scores > .team-score-subgame {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+}
+
+@media screen and (orientation: landscape) and (min-width: 700px) and (min-height: 700px) and (max-width: 1200px) {
+  body > .timeline-section {
+    flex: 0 0 clamp(340px, 52dvh, 440px);
+    height: clamp(340px, 52dvh, 440px);
+    min-height: clamp(340px, 52dvh, 440px);
+  }
+}
+
+@media screen and (orientation: portrait) and (min-width: 700px) and (min-height: 700px) and (max-width: 1200px) {
+  body > .timeline-section {
+    flex: 0 0 clamp(520px, 55dvh, 650px);
+    height: clamp(520px, 55dvh, 650px);
+    min-height: clamp(520px, 55dvh, 650px);
+  }
+
+  body > .top-section .player-summary {
+    grid-template-rows: auto auto;
+    align-content: center;
+    row-gap: clamp(3px, 0.45dvh, 6px);
+    padding: clamp(4px, 0.65dvh, 8px) 4px;
+  }
+
+  body > .top-section .player-summary-header {
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    line-height: 1.05;
+  }
+
+  body > .top-section .player-name,
+  body > .top-section .player-score {
+    width: 100%;
+    text-align: center;
+  }
+
+  body > .top-section .player-name {
+    font-size: clamp(0.9rem, 1.75vw, 1.1rem);
+  }
+
+  body > .top-section .player-score {
+    font-size: clamp(1.05rem, 2.1vw, 1.35rem);
+  }
+
+  body > .top-section .player-summary-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, auto);
+    justify-items: center;
+    align-content: center;
+    column-gap: clamp(10px, 1.6vw, 18px);
+    row-gap: clamp(4px, 0.45dvh, 7px);
+    width: 100%;
+    max-height: none;
+    padding: 0;
+    font-size: clamp(0.7rem, 1.25vw, 0.82rem);
+    line-height: 1.05;
+  }
+
+  body > .top-section .detail-left,
+  body > .top-section .detail-right {
+    display: contents;
+  }
+
+  body > .top-section .detail-lives-line,
+  body > .top-section .detail-ratio-line,
+  body > .top-section .detail-denies-line,
+  body > .top-section .detail-tags-line,
+  body > .top-section .detail-uptime-line,
+  body > .top-section .detail-bases {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    align-self: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  body > .top-section .detail-lives-line,
+  body > .top-section .detail-denies-line {
+    grid-column: 1;
+    justify-self: end;
+  }
+
+  body > .top-section .detail-ratio-line,
+  body > .top-section .detail-uptime-line {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  body > .top-section .detail-lives-line,
+  body > .top-section .detail-ratio-line {
+    grid-row: 1;
+  }
+
+  body > .top-section .detail-denies-line,
+  body > .top-section .detail-uptime-line {
+    grid-row: 2;
+  }
+
+  body > .top-section .detail-tags-line {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  body > .top-section .detail-bases {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
+  body > .top-section .detail-lives-label,
+  body > .top-section .detail-denies-label {
+    font-size: inherit;
+  }
+
+  body > .top-section .detail-lives-label::after,
+  body > .top-section .detail-denies-label::after {
+    content: none;
+  }
+
+  body > .top-section .detail-tags-label {
+    display: inline;
+  }
+
+  body > .top-section .detail-uptime-line {
+    display: inline-flex;
+  }
+
+  body > .top-section .detail-lives-line,
+  body > .top-section .detail-ratio-line,
+  body > .top-section .detail-denies-line {
+    font-size: inherit;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .player-summary-details {
+    grid-template-columns: auto auto;
+    grid-template-rows: repeat(4, auto);
+    justify-content: center;
+    column-gap: 6px;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-lives-line {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: center;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-tags-line {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-uptime-line {
+    grid-column: 1;
+    grid-row: 4;
+    justify-self: end;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-bases {
+    grid-column: 2;
+    grid-row: 4;
+    justify-self: start;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-label {
+    font-size: 0;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-label::after {
+    content: "D:";
+    font-size: 0.68rem;
+  }
+}
+
+@media screen and (orientation: portrait) and (min-width: 700px) and (min-height: 700px) and (max-width: 800px) {
+  body > .top-section .player-summary {
+    row-gap: 1px;
+    padding: 3px 3px 7px;
+  }
+
+  body > .top-section .player-summary-details {
+    column-gap: 8px;
+    row-gap: 3px;
+    font-size: 0.68rem;
+  }
+
+  body > .top-section .base-box {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Base Run creates narrower cards, so keep every stat in a compact grid. */
+body > .top-section .players-grid.base-run-subgames .player-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "header"
+    "details";
+  align-content: center;
+  row-gap: 1px;
+  padding: 4px;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-summary-header {
+  grid-area: header;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 3px;
+  line-height: 1.05;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-name,
+body > .top-section .players-grid.base-run-subgames .player-score {
+  width: auto;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-name {
+  min-width: 0;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-score {
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-summary-details {
+  grid-area: details;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-rows: repeat(3, auto);
+  align-items: center;
+  align-content: center;
+  justify-content: stretch;
+  justify-items: stretch;
+  min-width: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 1;
+  column-gap: 4px;
+  row-gap: 0;
+  font-size: 0.66rem;
+  line-height: 1.05;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-left,
+body > .top-section .players-grid.base-run-subgames .detail-right {
+  display: contents;
+}
+
+.detail-combat-line {
+  display: contents;
+}
+
+body > .top-section .players-grid.base-run-subgames .player-summary-details p {
+  min-width: 0;
+  margin: 0;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-lives-line,
+body > .top-section .players-grid.base-run-subgames .detail-denies-line,
+body > .top-section .players-grid.base-run-subgames .detail-ratio-line,
+body > .top-section .players-grid.base-run-subgames .detail-tags-line,
+body > .top-section .players-grid.base-run-subgames .detail-uptime-line,
+body > .top-section .players-grid.base-run-subgames .detail-bases {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-lives-line,
+body > .top-section .players-grid.base-run-subgames .detail-denies-line,
+body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+  grid-row: 1;
+  justify-self: start;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-lives-line {
+  grid-column: 1;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-denies-line {
+  grid-column: 2;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+  grid-column: 3;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-tags-line {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: start;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-uptime-line {
+  grid-column: 1 / span 2;
+  grid-row: 3;
+  justify-self: start;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-bases {
+  grid-column: 3;
+  grid-row: 3;
+  justify-self: end;
+  align-self: center;
+  margin: 0;
+  padding: 0 3px 3px 0;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-lives-label,
+body > .top-section .players-grid.base-run-subgames .detail-denies-label {
+  font-size: 0;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-lives-label::after {
+  content: "L:";
+  font-size: 0.66rem;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-denies-label::after {
+  content: "D:";
+  font-size: 0.66rem;
+}
+
+body > .top-section .players-grid.base-run-subgames .detail-tags-label {
+  display: none;
+}
+
+body > .app-header .app-logo {
+  width: 36px;
+  margin-right: 6px;
+}

@@ -1,0 +1,564 @@
+.nav-button {
+  width: 38px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-text);
+  transition: var(--button-transition);
+}
+
+.nav-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-button:hover {
+  color: #fff;
+  transform: translateX(-1px);
+}
+
+.nav-button:active {
+  background: var(--button-bg-active);
+  transform: translateX(-1px) translateY(1px);
+}
+
+button:hover:not(:disabled) {
+  background: var(--button-bg-hover);
+  border-color: var(--button-accent);
+}
+
+.next-game-button {
+  margin-right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease-in-out;
+}
+
+.next-game-live-dot {
+  display: none;
+  width: 0.55em;
+  height: 0.55em;
+  flex: 0 0 auto;
+  margin-right: 0.45em;
+  border-radius: 50%;
+  background: #ff5252;
+  box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.16);
+}
+
+.next-game-button.is-live .next-game-live-dot {
+  display: block;
+}
+
+.next-game-button[hidden],
+.follow-live-control[hidden] {
+  display: none;
+}
+
+.follow-live-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  margin-right: 20px;
+  color: #eee;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+}
+
+.follow-live-control input,
+.split-worm-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.worm-checkbox {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #666;
+  border-radius: 12px 9px 12px 8px;
+  background: #202020;
+  color: #8c8c8c;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.worm-checkbox svg {
+  display: block;
+  width: 27px;
+  height: 18px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.worm-checkbox path {
+  fill: none;
+}
+
+.follow-live-control:hover .worm-checkbox,
+.split-worm-control:hover .worm-checkbox {
+  border-color: var(--button-accent);
+  color: #c59d32;
+}
+
+.follow-live-control input:checked + .worm-checkbox,
+.split-worm-control input:checked + .worm-checkbox {
+  border-color: #f0c94f;
+  background: var(--button-accent);
+  color: #1e1e1e;
+}
+
+.follow-live-control input:focus-visible + .worm-checkbox,
+.split-worm-control input:focus-visible + .worm-checkbox {
+  outline: 2px solid var(--button-accent);
+  outline-offset: 2px;
+}
+
+.follow-live-control input:checked + .worm-checkbox svg,
+.split-worm-control input:checked + .worm-checkbox svg {
+  animation: follow-worm-wiggle 360ms ease-out;
+}
+
+@keyframes follow-worm-wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  35% { transform: rotate(8deg) scale(1.08, 0.9); }
+  70% { transform: rotate(-5deg) scale(0.96, 1.08); }
+}
+
+.next-game-button.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+#headerSpeedButton, #headerPlayButton {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .home-section {
+    width: 100%;
+    padding: 12px 0;
+    border-radius: 0;
+  }
+  .games-grid {
+    /* auto-fit as many 140px tiles as will fit */
+
+    gap: 12px;
+    padding: 12px;
+  }
+}
+
+/* Bridge the compact and full desktop layouts without an abrupt card-size jump. */
+@media (min-width: 901px) and (max-width: 1200px) {
+  .players-grid,
+  .base-run-subgame {
+    gap: 5px;
+  }
+
+  .base-run-subgame {
+    padding: 3px;
+  }
+
+  .player-summary {
+    padding: 5px;
+  }
+
+  .player-name {
+    font-size: 0.9rem;
+  }
+
+  .player-score {
+    font-size: 1.05rem;
+  }
+
+  .player-summary-details {
+    padding: 2px 0;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 1200px), (orientation: landscape) and (max-height: 600px) {
+  body, html {
+    font-size: 14px;
+  }
+  .app-header {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .keyboard-shortcuts-button {
+    display: none;
+  }
+  .title {
+    font-size: 1rem;
+  }
+  .app-name {
+    font-size: 0.95rem;
+  }
+  .nav-button,
+  .next-game-button {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    min-height: 28px;
+  }
+  .next-game-button {
+    margin-right: 0;
+  }
+  .follow-live-control {
+    gap: 4px;
+    min-height: 28px;
+    margin-right: 0;
+    font-size: 0.72rem;
+  }
+  .worm-checkbox {
+    width: 30px;
+    height: 22px;
+  }
+  .nav-button {
+    width: 34px;
+    height: 28px;
+    padding: 0;
+  }
+  .youtube-input-container {
+    gap: 2px;
+  }
+
+  .youtube-input-container input {
+    width: 140px;
+    padding: 5px 8px;
+    font-size: 0.85rem;
+  }
+  .youtube-input-container button {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    min-height: 28px;
+  }
+  #loadButton {
+    display: none;
+  }
+  .top-section {
+    padding: 4px;
+    gap: 6px;
+    max-height: 60vh;
+    overflow: auto;
+    min-height: 0;
+  }
+  .results-section,
+  .map-section {
+    padding: 8px;
+    min-height: 32vh;
+  }
+  .scores-sidebar {
+    margin-top: 0;
+    flex: none;
+  }
+  .scores-sidebar.base-run-score-sidebar {
+    flex: 0 0 190px;
+  }
+  .team-score-subgame {
+    gap: 3px;
+    padding: 3px;
+  }
+  .players-grid {
+    gap: 4px;
+    padding: 0;
+    height: auto;
+    min-height: 100%;
+    align-content: start;
+  }
+  .base-run-subgame {
+    gap: 4px;
+    padding: 3px;
+  }
+  .player-summary {
+    width: 100%;
+    padding: 4px;
+    min-width: 0;
+    display: grid;
+    container-type: inline-size;
+    container-name: player-tile;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "details";
+    row-gap: 0px;
+    margin-bottom: 2px;
+  }
+  .player-summary-header {
+    grid-area: header;
+    min-width: 0;
+  }
+  .player-name {
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .player-score {
+    text-align: right;
+  }
+  .player-summary-details {
+    grid-area: details;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    align-content: center;
+    gap: 0 3px;
+    max-height: none;
+    opacity: 1;
+    padding: 0;
+    line-height: 1.05;
+  }
+  .detail-left {
+    display: contents;
+  }
+  .detail-lives-line {
+    grid-column: 1;
+    grid-row: 1;
+    display: inline-flex;
+    align-items: baseline;
+    align-self: baseline;
+    gap: 0;
+    white-space: nowrap;
+    font-size: 0.82rem;
+  }
+  .detail-lives-label {
+    font-size: 0;
+  }
+  .detail-lives-label::after {
+    content: "L:";
+    font-size: 0.82rem;
+  }
+  .detail-bases {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    gap: 2px;
+    margin: 0;
+    padding: 0 3px 3px 0;
+    align-self: center;
+    justify-self: end;
+  }
+  .detail-tags-line {
+    grid-column: 1 / span 3;
+    grid-row: 2;
+    margin: 0;
+    min-width: 0;
+    text-align: left;
+    display: flex;
+    justify-content: flex-start;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .detail-tags-h2h {
+    font-size: 0.85em;
+    color: #9a9a9a;
+  }
+  .detail-tags-teamKills {
+    font-size: 0.85em;
+    color: #880f0f;
+  }
+  .detail-tags-label {
+    display: none;
+  }
+
+
+  .detail-ratio-line,
+  .detail-denies-line {
+    grid-row: 1;
+    display: inline-flex;
+    align-items: baseline;
+    align-self: baseline;
+    gap: 1px;
+    white-space: nowrap;
+    font-size: 0.82rem;
+  }
+  .detail-denies-line {
+    grid-column: 2;
+  }
+  .detail-ratio-line {
+    grid-column: 3;
+  }
+  .detail-denies-label {
+    font-size: 0;
+  }
+  .detail-denies-label::after {
+    content: "D:";
+    font-size: 0.82rem;
+  }
+  .detail-uptime-line {
+    display: none;
+  }
+  .detail-right {
+    display: contents;
+  }
+  .player-summary-details p {
+    margin: 0;
+  }
+  .player-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3px;
+    line-height: 1.05;
+  }
+  .player-name {
+    font-size: 0.9rem;
+  }
+  .player-score {
+    font-size: 0.95rem;
+  }
+  .timeline-section {
+    padding: 6px;
+    flex: 1 1 auto;
+    min-height: 180px;
+  }
+  .base-box {
+    width: 18px;
+    height: 18px;
+  }
+
+  .results-content {
+    flex: 1 1 auto;
+    gap: 6px;
+  }
+
+  #scoreChart {
+    min-height: 120px;
+  }
+  .app-logo {
+    display: none;
+  }
+  .worm-speech-bubble {
+    display: none;
+  }
+  .app-header {
+    padding: 2px;
+    min-height: auto;
+    gap: 4px;
+  }
+  .app-name {
+    font-size: 0.95rem;
+  }
+  #youtubeUrl {
+    display: none;
+  }
+  .header-play-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .header-speed-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .team-scores {
+    gap: 6px;
+    margin: 0;
+    display: block;
+  }
+  .team-scores li {
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 2px;
+  }
+  .team-scores .team-score {
+    text-align: left;
+    font-size: 1rem;
+  }
+  #headerSpeedButton, #headerPlayButton {
+    display: block;
+  }
+  #headerSpeedButton:hover, #headerPlayButton:hover {
+  border: none;
+}
+}
+
+@media (max-width: 480px) {
+  .games-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+  .game-tile {
+    font-size: 0.8rem;
+    padding: 8px;
+    width:90%;
+    margin: 2% 0;
+  }
+  #scoreChart {
+    min-height: 110px;
+  }
+}
+
+@container player-tile (max-width: 135px) {
+  .detail-denies-line {
+    display: none;
+  }
+}
+
+@container player-tile (max-width: 95px) {
+  .detail-ratio-line {
+    display: none;
+  }
+
+  .detail-tags-h2h,
+  .detail-tags-teamKills {
+    display: none;
+  }
+
+  .detail-tags-line,
+  .detail-bases {
+    gap: 2px;
+  }
+
+  .detail-bases {
+    padding-right: 2px;
+  }
+}
+
+@container player-tile (max-width: 64px) {
+  .detail-lives-line {
+    display: none;
+  }
+}
+
+.detail-lives-line[hidden] {
+  display: none !important;
+}
+
+*::before,
+*::after {
+  box-sizing: border-box;
+}
