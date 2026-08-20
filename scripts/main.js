@@ -1,22 +1,42 @@
 import { state } from "./state.js";
-import { showHome, showGame, buildGrid, initUI, renderGameData, updateNextGameButtonVisibility, wiggleLogos } from "./ui.js";
+import {
+    showHome,
+    showGame,
+    buildGrid,
+    initUI,
+    renderGameData,
+    showGamesIndexRetrying,
+    updateNextGameButtonVisibility,
+    wiggleLogos,
+} from "./ui.js";
 import { parseGameStart, initTeamScores, getGameDuration, getLivePresentationTime, normaliseText } from "./utils.js";
 import { isLiveGameSelected, setLiveHandlers, shouldFollowNewLiveGame } from "./live.js";
 import { refreshLiveChartData } from "./timeline.js";
 import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateSpeedButtons } from "./replayHandler.js";
 import { getGameIdFromUrl, getViewStateFromUrl } from "./routing.js";
-import { isBaseRunGame } from "./baseRun.js";
-import { animateLiveBaseEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
+import { isBaseRunGame, normaliseBaseForOwningTeam } from "./baseRun.js";
+import { animateLiveBaseEvents, animateLiveLifeEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
 import { closeYouTubeModal, loadYouTubeUrl } from "./video.js";
 import { normaliseGamePlayerIdentity } from "./playerIdentity.js";
 import { applyInitialEventFilter } from "./filterSession.js";
+import {
+    compactLiveRenderData,
+    insertPendingLiveRender,
+    mergeReadyLiveRenderData,
+    splitLiveRenderEvents,
+    takeUnseenLiveEvents,
+} from "./liveRenderBuffer.js";
+import { LIVE_PRESENTATION_DELAY_CHANGE_EVENT } from "./liveDelay.js";
 
 let uiReady = false;
 let pendingLiveRenders = [];
 let liveRenderTimer = null;
 let liveRenderTimerReadyAt = null;
 let liveRenderOrder = 0;
+let bufferedLiveGameKey = null;
+const bufferedLiveEventKeys = new Set();
 let liveFinaliseTimer = null;
+let pendingLiveFinalise = null;
 const LEAGUE_LASERFORCE_GREEN = "#008140";
 
 function isInternalParserPayload(data) {
@@ -104,9 +124,10 @@ function prepareGameData(gameData) {
                 color: base?.color || "",
                 colorName: base?.colorName || "",
             };
-            return isLeagueLaserforce
+            const presentationBase = isLeagueLaserforce
                 ? normaliseLeagueLaserforceYellow(normalisedBase, "Green Base")
                 : normalisedBase;
+            return normaliseBaseForOwningTeam(presentationBase, rawTeams);
         });
     const baseByEntityId = new Map(
         allActiveBases
@@ -212,17 +233,62 @@ function cancelPendingLiveRender() {
     liveRenderTimer = null;
     liveRenderTimerReadyAt = null;
     pendingLiveRenders = [];
+    bufferedLiveGameKey = null;
+    bufferedLiveEventKeys.clear();
 }
 
 function cancelPendingLiveFinalise() {
     if (liveFinaliseTimer !== null) clearTimeout(liveFinaliseTimer);
     liveFinaliseTimer = null;
+    pendingLiveFinalise = null;
+}
+
+function completePendingLiveFinalise() {
+    liveFinaliseTimer = null;
+    const pending = pendingLiveFinalise;
+    pendingLiveFinalise = null;
+    if (!pending || !state.liveSubscribed ||
+        (state.selectedGame?.gameKey && state.selectedGame.gameKey !== pending.gameKey)) {
+        return;
+    }
+    const { data } = pending;
+    cancelPendingLiveRender();
+    state.selectedGame = {
+        ...(state.selectedGame || {}),
+        live: false,
+        title: data.title || state.selectedGame?.title,
+        dataPath: data.dataPath || state.selectedGame?.dataPath,
+    };
+    state.liveGameKey = null;
+    state.liveGameData = null;
+    updateNextGameButtonVisibility(false, false);
+    loadGameData(data.dataPath || "", {
+        prefetchedData: data.dataPath ? null : data,
+        showSpinner: false,
+    });
+    fetchGamesIndex(true);
+}
+
+function schedulePendingLiveFinalise() {
+    if (liveFinaliseTimer !== null) clearTimeout(liveFinaliseTimer);
+    liveFinaliseTimer = null;
+    if (!pendingLiveFinalise) return;
+    const remainingPresentationSeconds = Math.max(
+        0,
+        getGameDuration(pendingLiveFinalise.data) -
+            getLivePresentationTime(pendingLiveFinalise.data, state.selectedGame),
+    );
+    liveFinaliseTimer = setTimeout(
+        completePendingLiveFinalise,
+        remainingPresentationSeconds * 1000,
+    );
 }
 
 function animatePendingLiveEffects(events) {
     if (!events.length) return;
     animateLiveShotEvents(events);
     animateLiveBaseEvents(events);
+    animateLiveLifeEvents(events);
 }
 
 function schedulePendingLiveRender() {
@@ -255,7 +321,7 @@ function renderPendingLiveUpdate() {
     );
     const pending = {
         gameKey: latest.gameKey,
-        data: latest.data,
+        data: mergeReadyLiveRenderData(state.gameData, latest.data, ready),
         effectEvents: ready.flatMap((update) => update.effectEvents),
     };
     if (!isLiveGameSelected()) {
@@ -306,31 +372,75 @@ function queueLiveRender(data, message) {
     const gameKey = data?.gameKey || state.liveGameKey;
     if (!gameKey) return;
 
-    if (pendingLiveRenders.length && pendingLiveRenders[0].gameKey !== gameKey) {
+    const startingBuffer = bufferedLiveGameKey !== gameKey;
+    if (bufferedLiveGameKey && bufferedLiveGameKey !== gameKey) {
         cancelPendingLiveRender();
     }
+    bufferedLiveGameKey = gameKey;
 
-    const effectEvents = message?.action === "event"
+    if (startingBuffer && state.gameData?.gameKey === gameKey) {
+        takeUnseenLiveEvents(state.gameData.events, bufferedLiveEventKeys);
+    }
+
+    const incomingEffectEvents = message?.action === "event"
         ? (Array.isArray(message.data) ? message.data : [message.data]).filter(Boolean)
         : [];
-    const updateEvents = effectEvents.length
-        ? effectEvents
+    const candidateEvents = incomingEffectEvents.length
+        ? incomingEffectEvents
         : (Array.isArray(data?.events) ? data.events : []);
-    const latestEventTime = Math.max(
+    const updateEvents = takeUnseenLiveEvents(candidateEvents, bufferedLiveEventKeys);
+    const latestEventTime = candidateEvents.reduce(
+        (latest, event) => Math.max(latest, Number(event?.time) || 0),
         0,
-        ...updateEvents.map((event) => Number(event?.time) || 0)
     );
     const presentationTime = getLivePresentationTime(data, state.selectedGame);
-    pendingLiveRenders.push({
-        gameKey,
-        data,
-        effectEvents,
-        order: ++liveRenderOrder,
-        readyAt: Date.now() + Math.max(0, latestEventTime - presentationTime) * 1000,
+    const queuedAt = Date.now();
+    const eventUpdates = splitLiveRenderEvents(
+        updateEvents,
+        incomingEffectEvents,
+        latestEventTime,
+    );
+    eventUpdates.forEach((update) => {
+        insertPendingLiveRender(pendingLiveRenders, {
+            gameKey,
+            data: compactLiveRenderData(data, update.events),
+            effectEvents: update.effectEvents,
+            latestEventTime: update.latestEventTime,
+            order: ++liveRenderOrder,
+            readyAt: queuedAt + Math.max(
+                0,
+                update.latestEventTime - presentationTime,
+            ) * 1000,
+        });
     });
-    pendingLiveRenders.sort((left, right) => left.readyAt - right.readyAt);
     schedulePendingLiveRender();
 }
+
+function rescheduleForLivePresentationDelay() {
+    if (liveRenderTimer !== null) clearTimeout(liveRenderTimer);
+    liveRenderTimer = null;
+    liveRenderTimerReadyAt = null;
+
+    const referenceData = state.liveGameData || state.gameData || state.selectedGame;
+    const presentationTime = getLivePresentationTime(referenceData, state.selectedGame);
+    const now = Date.now();
+    pendingLiveRenders.forEach((update) => {
+        update.readyAt = now + Math.max(
+            0,
+            update.latestEventTime - presentationTime,
+        ) * 1000;
+    });
+    pendingLiveRenders.sort((left, right) =>
+        left.readyAt - right.readyAt || left.order - right.order
+    );
+    schedulePendingLiveRender();
+    schedulePendingLiveFinalise();
+}
+
+window.addEventListener(
+    LIVE_PRESENTATION_DELAY_CHANGE_EVENT,
+    rescheduleForLivePresentationDelay,
+);
 
 setLiveHandlers({
     onUpdate: (data, message) => {
@@ -346,29 +456,8 @@ setLiveHandlers({
     onFinalise: (data) => {
         cancelPendingLiveFinalise();
         const gameKey = data?.gameKey || state.liveGameKey;
-        const remainingPresentationSeconds = Math.max(
-            0,
-            getGameDuration(data) - getLivePresentationTime(data, state.selectedGame)
-        );
-        liveFinaliseTimer = setTimeout(() => {
-            liveFinaliseTimer = null;
-            if (!state.liveSubscribed ||
-                (state.selectedGame?.gameKey && state.selectedGame.gameKey !== gameKey)) {
-                return;
-            }
-            cancelPendingLiveRender();
-            state.selectedGame = {
-                ...(state.selectedGame || {}),
-                live: false,
-                title: data.title || state.selectedGame?.title,
-                dataPath: data.dataPath || state.selectedGame?.dataPath,
-            };
-            state.liveGameKey = null;
-            state.liveGameData = null;
-            updateNextGameButtonVisibility(false, false);
-            loadGameData(data.dataPath || "", { prefetchedData: data.dataPath ? null : data, showSpinner: false });
-            fetchGamesIndex(true);
-        }, remainingPresentationSeconds * 1000);
+        pendingLiveFinalise = { data, gameKey };
+        schedulePendingLiveFinalise();
     },
 });
 
@@ -389,7 +478,7 @@ async function fetchGamesIndex(fromPoll = false) {
         const res = await fetch(state.S3_BASE_URL + "/live/index.json", { cache: "no-cache" });
         if (!res.ok) throw new Error("Couldn't fetch games index");
         const list = await res.json();
-        if (!Array.isArray(list)) return;
+        if (!Array.isArray(list)) throw new Error("Games index wasn't an array");
         const gamesByIdentity = new Map();
         list.forEach((game, index) => {
             if (!game || typeof game !== "object") return;
@@ -399,12 +488,14 @@ async function fetchGamesIndex(fromPoll = false) {
         const uniqueList = [...gamesByIdentity.values()];
         const previousIds = new Set((state.games || []).map((game) => game.id));
         const previousLatestId = state.latestGame?.id;
+        const wasIndexLoaded = state.gamesIndexLoaded;
 
         state.games = uniqueList;
+        state.gamesIndexLoaded = true;
         state.latestGame = uniqueList.length
             ? [...uniqueList].sort((a, b) => b.id.localeCompare(a.id))[0]
             : null;
-        if (!fromPoll && uiReady) showViewFromUrl();
+        if (!wasIndexLoaded && uiReady) showViewFromUrl();
         buildGrid(uniqueList, fromPoll
             ? uniqueList.filter((game) => !previousIds.has(game.id)).map((game) => game.id)
             : []
@@ -439,6 +530,7 @@ async function fetchGamesIndex(fromPoll = false) {
         }
     } catch (err) {
         console.error("Failed to refresh games index:", err);
+        if (!state.gamesIndexLoaded) showGamesIndexRetrying();
     }
 }
 
@@ -547,11 +639,15 @@ export async function loadGameData(dataPath, options = {}) {
         if (initialViewState) {
             state.selectedPlayers = new Set(initialViewState.selectedPlayers || []);
             state.hiddenTeams = new Set(initialViewState.selectedTeams || []);
+            state.splitWorm = Boolean(initialViewState.splitWorm);
+            state.comparisonDetails = Boolean(initialViewState.comparisonDetails);
             if (!livePlayback && initialViewState.playbackRate) {
                 setPlaybackRate(initialViewState.playbackRate, { restart: false });
             }
         } else {
             state.hiddenTeams = null;
+            state.splitWorm = false;
+            state.comparisonDetails = true;
         }
 
         renderGameData();
@@ -607,8 +703,11 @@ setInterval(() => fetchGamesIndex(true), 15000);
 document.addEventListener("DOMContentLoaded", () => {
     initUI(loadGameData);
     uiReady = true;
-    showHome({ unsubscribe: false, updateHistory: false, disableLiveFollow: false });
-    if (state.games.length) showViewFromUrl();
+    if (state.gamesIndexLoaded) {
+        showViewFromUrl();
+    } else {
+        showHome({ unsubscribe: false, updateHistory: false, disableLiveFollow: false });
+    }
     window.addEventListener("popstate", showViewFromUrl);
 
     let deferredPrompt;

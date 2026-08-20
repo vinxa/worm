@@ -56,6 +56,8 @@ export function setupKeyboardControls({
     onClearSelections,
     onWiggleWorm,
     onShareGame,
+    onToggleComparisonDetails,
+    onToggleSplitTimelines,
     onShowHome,
 }) {
     document.addEventListener("keydown", (e) => {
@@ -163,10 +165,20 @@ export function setupKeyboardControls({
                 e.preventDefault();
                 onWiggleWorm();
                 break;
-            case "KeyS":
+            case "KeyC":
                 if (isTypingField(e.target)) break;
                 e.preventDefault();
                 onShareGame();
+                break;
+            case "KeyD":
+                if (isTypingField(e.target)) break;
+                e.preventDefault();
+                onToggleComparisonDetails();
+                break;
+            case "KeyS":
+                if (isTypingField(e.target)) break;
+                e.preventDefault();
+                onToggleSplitTimelines();
                 break;
             case "Backspace":
                 if (!isTypingField(e.target)) {

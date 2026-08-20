@@ -13,7 +13,13 @@ import {
     updateSpeedButtons,
 } from "./replayHandler.js";
 import { setupKeyboardControls, setupKeyboardShortcutsModal } from "./keyboard.js";
-import { initLiveChart, buildTeamTimeline, buildPlayerTimelines } from "./timeline.js";
+import {
+    initLiveChart,
+    buildTeamTimeline,
+    buildPlayerTimelines,
+    setupComparisonDetailsToggle,
+    setupSplitWormToggle,
+} from "./timeline.js";
 import {
     applySelectedTileState,
     generatePlayerTiles,
@@ -39,6 +45,10 @@ import {
 import { clearGameUrl, getGameHref, getShareHref, setGameUrl } from "./routing.js";
 import { summaryPlayerAliasMap, summaryPlayerRecordMap } from "./summaryPlayers.js";
 import { closeYouTubeModal, getShareableYouTubeUrl, setupDraggableModal } from "./video.js";
+import {
+    getLivePresentationDelaySeconds,
+    setLivePresentationDelaySeconds,
+} from "./liveDelay.js";
 
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 const GAME_BATCH_SIZE = 60;
@@ -53,6 +63,10 @@ const nextGameBtn = document.querySelector(".next-game-button");
 const liveCountdown = document.getElementById("liveCountdown");
 const followLiveControl = document.getElementById("followLiveControl");
 const followLiveCheckbox = document.getElementById("followLiveCheckbox");
+const liveDelayInput = document.getElementById("liveDelayInput");
+const liveDelaySaved = document.getElementById("liveDelaySaved");
+const liveSettings = document.querySelector(".global-live-settings");
+const LIVE_SETTINGS_ANIMATION_MS = 180;
 const logoDances = [
     { name: "worm-spin", duration: "1.1s", easing: "ease-in-out" },
     { name: "worm-corkscrew", duration: "1s", easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
@@ -103,8 +117,8 @@ function playRandomLogoDance(logo) {
     logo.style.animation = `${dance.name} ${dance.duration} ${dance.easing}`;
 }
 
-export function wiggleLogos() {
-    document.querySelectorAll(".app-logo").forEach((logo) => {
+function wiggleMatchingLogos(selector) {
+    document.querySelectorAll(selector).forEach((logo) => {
         playRandomLogoDance(logo);
         logo.addEventListener("animationend", () => {
             logo.style.animation = "";
@@ -112,7 +126,12 @@ export function wiggleLogos() {
     });
 }
 
+export function wiggleLogos() {
+    wiggleMatchingLogos(".app-logo");
+}
+
 export function buildGrid(games, highlightIds = [], { resetLimit = false } = {}) {
+    if (!state.gamesIndexLoaded) return;
     const grid = document.getElementById("gamesGrid");
     if (resetLimit) visibleGameLimit = GAME_BATCH_SIZE;
     const highlightSet = new Set(highlightIds);
@@ -207,6 +226,14 @@ export function buildGrid(games, highlightIds = [], { resetLimit = false } = {})
     if (loadMore) loadMore.hidden = visibleGames.length >= filteredGames.length;
 }
 
+export function showGamesIndexRetrying() {
+    const loader = document.getElementById("gamesIndexLoading");
+    const message = document.getElementById("gamesIndexLoadingMessage");
+    if (!loader || !message) return;
+    loader.classList.add("is-retrying");
+    message.textContent = "Couldn't load games. Retrying…";
+}
+
 export function showHome({
     unsubscribe = true,
     updateHistory = true,
@@ -226,7 +253,7 @@ export function showHome({
     state.selectedPlayers = new Set();
     updateNextGameButtonVisibility();
     closeYouTubeModal();
-    wiggleLogos();
+    if (state.gamesIndexLoaded) wiggleMatchingLogos(".home-section .app-logo");
 }
 
 export function updateNextGameButtonVisibility(fade = false, flash = false) {
@@ -234,6 +261,10 @@ export function updateNextGameButtonVisibility(fade = false, flash = false) {
     const isLive = isSelectedCurrentLiveGame(state.selectedGame, state.liveGameKey);
     const isLatest = Boolean(state.selectedGame && state.latestGame &&
         state.selectedGame.id === state.latestGame.id);
+    const isLatestLive = isSelectedCurrentLiveGame(state.latestGame, state.liveGameKey);
+    nextGameBtn.classList.toggle("is-live", isLatestLive);
+    nextGameBtn.title = isLatestLive ? "Latest Game — Live (L)" : "Latest Game (L)";
+    nextGameBtn.setAttribute("aria-label", isLatestLive ? "Latest Game — Live" : "Latest Game");
     if (followLiveControl) followLiveControl.hidden = !isLatest;
     if (followLiveCheckbox) followLiveCheckbox.checked = state.followLiveGames;
     nextGameBtn.hidden = isLive;
@@ -448,6 +479,8 @@ async function shareCurrentPage(button) {
         youtubeUrl,
         selectedPlayers,
         selectedTeams: selectedPlayers.length ? [] : [...(state.hiddenTeams || [])],
+        splitWorm: state.splitWorm,
+        comparisonDetails: state.comparisonDetails,
     });
 
     try {
@@ -508,6 +541,8 @@ function loadAdjacentGame(offset) {
 export function initUI(gameLoader) {
     loadGameData = gameLoader;
     updateLiveCountdown();
+    setupComparisonDetailsToggle();
+    setupSplitWormToggle();
     window.setInterval(updateLiveCountdown, 250);
     leftNavigationButton.addEventListener("click", () => showHome());
 
@@ -519,6 +554,61 @@ export function initUI(gameLoader) {
             setPlaybackRate(SPEED_OPTIONS[((currentIndex < 0 ? 0 : currentIndex) + 1) % SPEED_OPTIONS.length]);
         }));
     updateSpeedButtons();
+    if (liveDelayInput) {
+        liveDelayInput.value = String(getLivePresentationDelaySeconds());
+        const saveLiveDelay = () => {
+            liveDelayInput.value = String(
+                setLivePresentationDelaySeconds(liveDelayInput.value)
+            );
+            updateLiveCountdown();
+            if (liveDelaySaved) {
+                liveDelaySaved.textContent = `Saved — ${liveDelayInput.value} seconds`;
+                liveDelaySaved.classList.remove("is-visible");
+                void liveDelaySaved.offsetWidth;
+                liveDelaySaved.classList.add("is-visible");
+            }
+        };
+        liveDelayInput.addEventListener("input", () => {
+            liveDelaySaved?.classList.remove("is-visible");
+        });
+        liveDelayInput.addEventListener("change", saveLiveDelay);
+        document.querySelectorAll("[data-delay-step]").forEach((button) => {
+            button.addEventListener("click", () => {
+                if (button.dataset.delayStep === "up") liveDelayInput.stepUp();
+                else liveDelayInput.stepDown();
+                saveLiveDelay();
+                liveDelayInput.focus();
+            });
+        });
+    }
+    if (liveSettings) {
+        const summary = liveSettings.querySelector("summary");
+        let closeTimer = null;
+        const closeLiveSettings = () => {
+            window.clearTimeout(closeTimer);
+            liveSettings.classList.add("is-closing");
+            closeTimer = window.setTimeout(() => {
+                liveSettings.open = false;
+                liveSettings.classList.remove("is-closing");
+            }, LIVE_SETTINGS_ANIMATION_MS);
+        };
+        summary?.addEventListener("click", (event) => {
+            event.preventDefault();
+            window.clearTimeout(closeTimer);
+            if (liveSettings.open) return closeLiveSettings();
+            liveSettings.classList.remove("is-closing");
+            liveSettings.open = true;
+        });
+        document.addEventListener("click", (event) => {
+            if (liveSettings.open && !liveSettings.contains(event.target)) closeLiveSettings();
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && liveSettings.open) {
+                closeLiveSettings();
+                summary?.focus();
+            }
+        });
+    }
     if (followLiveCheckbox) {
         followLiveCheckbox.checked = state.followLiveGames;
         followLiveCheckbox.addEventListener("change", () => {
@@ -648,6 +738,15 @@ export function initUI(gameLoader) {
         onWiggleWorm: wiggleLogos,
         onShareGame: () => {
             if (shareButton) shareCurrentPage(shareButton);
+        },
+        onToggleComparisonDetails: () => {
+            const toggle = document.getElementById("comparisonDetailsToggle");
+            if (toggle && !toggle.hidden) toggle.click();
+        },
+        onToggleSplitTimelines: () => {
+            const control = document.getElementById("splitWormControl");
+            const toggle = document.getElementById("splitWormToggle");
+            if (control && !control.hidden && toggle) toggle.click();
         },
         onShowHome: showHome,
     });

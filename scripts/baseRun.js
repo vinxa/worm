@@ -36,6 +36,28 @@ export function getCanonicalColourName(subject) {
     return "";
 }
 
+/**
+ * Some Comp modes report the physical Yellow target as the Green team's base.
+ * Once ownership says Green, exposing Yellow in labels or marker colours is
+ * misleading, so canonicalise the base at the data boundary.
+ */
+export function normaliseBaseForOwningTeam(base, teams = []) {
+    const owningTeam = teams.find(
+        (team) => normaliseText(team?.id) === normaliseText(base?.team)
+    );
+    if (
+        getCanonicalColourName(base) !== "yellow" ||
+        getCanonicalColourName(owningTeam) !== "green"
+    ) return base;
+
+    return {
+        ...base,
+        name: "Green Base",
+        color: owningTeam?.color || "#40FF00",
+        colorName: "Green",
+    };
+}
+
 export function getBaseTargetKey(base) {
     const entityId = normaliseText(base?.entityId);
     if (entityId) return `entity:${entityId}`;

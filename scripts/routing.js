@@ -4,6 +4,8 @@ const SPEED_QUERY_PARAM = "speed";
 const YOUTUBE_QUERY_PARAM = "youtube";
 const PLAYER_QUERY_PARAM = "player";
 const TEAM_QUERY_PARAM = "team";
+const SPLIT_WORM_QUERY_PARAM = "split";
+const COMPARISON_DETAILS_QUERY_PARAM = "details";
 const PLAYBACK_RATES = new Set([0.5, 1, 1.5, 2, 4]);
 const VIEW_QUERY_PARAMS = [
     TIME_QUERY_PARAM,
@@ -11,6 +13,8 @@ const VIEW_QUERY_PARAMS = [
     YOUTUBE_QUERY_PARAM,
     PLAYER_QUERY_PARAM,
     TEAM_QUERY_PARAM,
+    SPLIT_WORM_QUERY_PARAM,
+    COMPARISON_DETAILS_QUERY_PARAM,
 ];
 
 function currentUrl() {
@@ -39,12 +43,15 @@ function clearViewQueryParams(url) {
 export function getViewStateFromUrl() {
     const params = currentUrl().searchParams;
     const playbackRate = parseNonNegativeNumber(params.get(SPEED_QUERY_PARAM));
+    const comparisonDetails = params.get(COMPARISON_DETAILS_QUERY_PARAM)?.toLowerCase();
     return {
         time: parseNonNegativeNumber(params.get(TIME_QUERY_PARAM)),
         playbackRate: PLAYBACK_RATES.has(playbackRate) ? playbackRate : null,
         youtubeUrl: params.get(YOUTUBE_QUERY_PARAM)?.trim() || "",
         selectedPlayers: uniqueValues(params.getAll(PLAYER_QUERY_PARAM)),
         selectedTeams: uniqueValues(params.getAll(TEAM_QUERY_PARAM)),
+        splitWorm: ["1", "true"].includes(params.get(SPLIT_WORM_QUERY_PARAM)?.toLowerCase()),
+        comparisonDetails: !["0", "false"].includes(comparisonDetails),
     };
 }
 
@@ -54,6 +61,8 @@ export function getShareHref({
     youtubeUrl = "",
     selectedPlayers = [],
     selectedTeams = [],
+    splitWorm = false,
+    comparisonDetails = true,
 } = {}) {
     const url = clearViewQueryParams(currentUrl());
     const parsedTime = parseNonNegativeNumber(time);
@@ -70,6 +79,8 @@ export function getShareHref({
     uniqueValues([...selectedTeams]).forEach((teamId) =>
         url.searchParams.append(TEAM_QUERY_PARAM, teamId)
     );
+    if (splitWorm) url.searchParams.set(SPLIT_WORM_QUERY_PARAM, "1");
+    if (!comparisonDetails) url.searchParams.set(COMPARISON_DETAILS_QUERY_PARAM, "0");
     return url.toString();
 }
 

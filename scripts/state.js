@@ -14,6 +14,8 @@ export const state = {
     teamFullTimeline: {},
     playerTimelines: {},
     selectedPlayers: new Set(),
+    splitWorm: false,
+    comparisonDetails: true,
     hiddenTeams: null, // null = all teams visible; otherwise Set of hidden team IDs
     selectedGame: null,
     playbackRate: 1,
@@ -22,6 +24,7 @@ export const state = {
     loadingStart: 0,
     gameSignatures: {},
     games: [],
+    gamesIndexLoaded: false,
     events: [],
     reloadReplenishment: {},
     latestGame: null,

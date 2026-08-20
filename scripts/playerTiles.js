@@ -1,5 +1,5 @@
 // playerTiles.js
-import { computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
+import { buildPlayerLifeTimeline, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
 import { baseMatchesTargetKey, getBaseRunLayoutPlan } from "./baseRun.js";
 import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
 import { isLiveGameSelected } from "./live.js";
@@ -11,7 +11,9 @@ const TILE_ORDER_CHECK_INTERVAL_MS = 300;
 const TILE_REORDER_TRANSITION_MS = 240;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
+const DENY_LABEL_MS = 750;
 const SHOT_ANIMATION_MS = 260;
+const LIFE_STATE_ANIMATION_MS = 900;
 const SHOT_EVENT_TYPES = new Set([
     "miss",
     "miss-base",
@@ -24,7 +26,9 @@ const SHOT_EVENT_TYPES = new Set([
     "base destroy",
 ]);
 const baseHitFlashTimeouts = new Map();
+const denyLabelTimeouts = new Map();
 const shotAnimationTimeouts = new Map();
+const lifeStateAnimationTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
 let tileOrderCheckIntervalId = null;
 let lastTileOrderSignature = "";
@@ -35,11 +39,12 @@ function animateTileEffect(pid, tile, {
     durationProperty,
     timeoutMap,
     color = "",
+    colorProperty = "--flash-color",
     restart = false,
 }) {
     const duration = Math.max(90, durationMs / (state.playbackRate || 1));
     tile.style.setProperty(durationProperty, `${duration}ms`);
-    if (color) tile.style.setProperty("--flash-color", color);
+    if (color) tile.style.setProperty(colorProperty, color);
     if (restart) {
         tile.classList.remove(className);
         void tile.offsetWidth;
@@ -50,10 +55,110 @@ function animateTileEffect(pid, tile, {
     const timeoutId = setTimeout(() => {
         tile.classList.remove(className);
         tile.style.removeProperty(durationProperty);
-        if (color) tile.style.removeProperty("--flash-color");
+        if (color) tile.style.removeProperty(colorProperty);
         timeoutMap.delete(pid);
     }, duration);
     timeoutMap.set(pid, timeoutId);
+}
+
+function getPlayerTile(pid) {
+    return Array.from(document.querySelectorAll(".player-summary"))
+        .find((candidate) => candidate.dataset.playerId === String(pid));
+}
+
+function getBaseEventColor(event) {
+    const targetId = normaliseText(event?.target);
+    const targetBase = (state.gameData?.active_bases || []).find(
+        (base) => normaliseText(base?.entityId) === targetId
+    );
+    const targetTeam = (state.gameData?.teams || []).find(
+        (team) => normaliseText(team?.id) === normaliseText(targetBase?.team)
+    );
+    return targetTeam?.color || targetBase?.color || "#e2b12a";
+}
+
+function getPlayerColor(pid) {
+    const player = state.gameData?.players?.[String(pid)];
+    const team = (state.gameData?.teams || []).find(
+        (candidate) => normaliseText(candidate?.id) === normaliseText(player?.team)
+    );
+    return team?.color || "";
+}
+
+function animateDenyEvent(event, tile = getPlayerTile(event?.entity)) {
+    if (!event?.entity || !tile || (event.type !== "deny" && event.type !== "denied")) return;
+    const pid = String(event.entity);
+    const isDenied = event.type === "denied";
+    tile.classList.remove("flash-denies", "flash-denied");
+    void tile.offsetWidth;
+    animateTileEffect(pid, tile, {
+        className: isDenied ? "flash-denied" : "flash-denies",
+        durationMs: DENY_LABEL_MS,
+        durationProperty: "--deny-duration",
+        timeoutMap: denyLabelTimeouts,
+        color: getPlayerColor(event.target) || getPlayerColor(event.entity) || "#e2b12a",
+        colorProperty: "--deny-color",
+    });
+}
+
+function animateDenyEvents(events) {
+    const latestDenyEventByPlayer = new Map();
+    events.forEach((event) => {
+        if (!event?.entity || (event.type !== "deny" && event.type !== "denied")) return;
+        const pid = String(event.entity);
+        const previous = latestDenyEventByPlayer.get(pid);
+        if (!previous || Number(event.time) >= Number(previous.time)) {
+            latestDenyEventByPlayer.set(pid, event);
+        }
+    });
+    latestDenyEventByPlayer.forEach((event) => animateDenyEvent(event));
+}
+
+function animateLifeState(pid, className) {
+    const tile = getPlayerTile(pid);
+    if (!tile) return;
+    tile.classList.remove("life-depleted", "life-reloaded");
+    animateTileEffect(String(pid), tile, {
+        className,
+        durationMs: LIFE_STATE_ANIMATION_MS,
+        durationProperty: "--life-state-duration",
+        timeoutMap: lifeStateAnimationTimeouts,
+        restart: true,
+    });
+}
+
+export function animateLiveLifeEvents(events) {
+    const lifeEventsByPlayer = new Map();
+    (Array.isArray(events) ? events : [events]).forEach((event) => {
+        if (!event?.entity || !["reload", "tagged", "team-killed"].includes(event.type)) {
+            return;
+        }
+        const pid = String(event.entity);
+        if (!lifeEventsByPlayer.has(pid)) lifeEventsByPlayer.set(pid, []);
+        lifeEventsByPlayer.get(pid).push(event);
+    });
+
+    lifeEventsByPlayer.forEach((lifeEvents, pid) => {
+        const className = getLatestLifeAnimation(pid, lifeEvents);
+        if (className) animateLifeState(pid, className);
+    });
+}
+
+function getLatestLifeAnimation(pid, events, windowStart = -Infinity, windowEnd = Infinity) {
+    let className = "";
+    events.forEach((event) => {
+        const eventTime = Number(event.time);
+        if (!Number.isFinite(eventTime) || eventTime <= windowStart || eventTime > windowEnd) return;
+        if (event.type === "reload") {
+            className = "life-reloaded";
+            return;
+        }
+        if (event.type !== "tagged" && event.type !== "team-killed") return;
+        const livesBefore = computePlayerLives(pid, Math.max(0, eventTime - 0.001));
+        const livesAfter = computePlayerLives(pid, eventTime);
+        if (livesBefore > 0 && livesAfter === 0) className = "life-depleted";
+    });
+    return className;
 }
 
 export function animateLiveShotEvents(events) {
@@ -76,6 +181,8 @@ export function animateLiveShotEvents(events) {
             restart: true,
         });
     });
+
+    animateDenyEvents(shotEvents);
 }
 
 export function animateLiveBaseEvents(events) {
@@ -95,22 +202,11 @@ export function animateLiveBaseEvents(events) {
         }
     });
 
-    const teamColorById = Object.fromEntries(
-        (state.gameData?.teams || []).map((team) => [normaliseText(team.id), team.color])
-    );
     latestBaseEventByPlayer.forEach((event, pid) => {
         const tile = Array.from(document.querySelectorAll(".player-summary"))
             .find((candidate) => candidate.dataset.playerId === pid);
         if (!tile) return;
 
-        const targetId = normaliseText(event.target);
-        const targetBase = (state.gameData?.active_bases || []).find(
-            (base) => normaliseText(base?.entityId) === targetId
-        );
-        const baseColor =
-            teamColorById[normaliseText(targetBase?.team)] ||
-            targetBase?.color ||
-            "#e2b12a";
         const isDestroy = event.type === "base destroy";
         tile.classList.remove("flash-base-hit", "flash-base-destroy");
         void tile.offsetWidth;
@@ -119,7 +215,7 @@ export function animateLiveBaseEvents(events) {
             durationMs: isDestroy ? BASE_DESTROY_FLASH_MS : BASE_HIT_FLASH_MS,
             durationProperty: "--flash-duration",
             timeoutMap: baseHitFlashTimeouts,
-            color: baseColor,
+            color: getBaseEventColor(event),
         });
     });
 }
@@ -129,14 +225,22 @@ export function updatePlayerTiles(currentTime) {
     // cancel an in-flight effect when the next live delta arrives immediately
     // afterwards (for example, tag followed by deactivated).
     if (!state.isPlaying && !isLiveGameSelected()) {
-        [baseHitFlashTimeouts, shotAnimationTimeouts].forEach((timeouts) => {
+        [baseHitFlashTimeouts, denyLabelTimeouts, shotAnimationTimeouts, lifeStateAnimationTimeouts].forEach((timeouts) => {
             timeouts.forEach((timeoutId) => clearTimeout(timeoutId));
             timeouts.clear();
         });
         lastTileUpdateTime = -Infinity;
         document.querySelectorAll(".player-summary").forEach((tile) => {
-            tile.classList.remove("flash-base-hit", "flash-base-destroy", "shot-fired");
-            ["--flash-color", "--flash-duration", "--shot-duration"]
+            tile.classList.remove(
+                "flash-base-hit",
+                "flash-base-destroy",
+                "flash-denies",
+                "flash-denied",
+                "shot-fired",
+                "life-depleted",
+                "life-reloaded"
+            );
+            ["--flash-color", "--flash-duration", "--deny-color", "--deny-duration", "--shot-duration", "--life-state-duration"]
                 .forEach((property) => tile.style.removeProperty(property));
         });
     }
@@ -166,6 +270,7 @@ export function updatePlayerTiles(currentTime) {
         let score = events.length ? 0 : Number(state.gameData.players[pid]?.score) || 0;
         let isActive = true;
         let latestBaseEvent = null;
+        let latestDenyEvent = null;
         let latestShotEvent = null;
         for (const ev of events) {
             if (ev.time > currentTime) break;
@@ -173,6 +278,7 @@ export function updatePlayerTiles(currentTime) {
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
             if (SHOT_EVENT_TYPES.has(ev.type)) latestShotEvent = ev;
+            if (ev.type === "deny" || ev.type === "denied") latestDenyEvent = ev;
             if (ev.type === "base hit" || ev.type === "base destroy") {
                 if (
                     !latestBaseEvent ||
@@ -203,9 +309,51 @@ export function updatePlayerTiles(currentTime) {
         const uptimeEl = tile.querySelector(".detail-uptime");
 
         if (livesEl) {
-        const lives = computePlayerLives(pid, currentTime);
-        livesEl.textContent = lives === null ? "–" : lives.toLocaleString();
-        if (livesLineEl) livesLineEl.hidden = lives === null;
+            const lifeTimeline = buildPlayerLifeTimeline(pid);
+            const configuredLives = lifeTimeline?.[0]?.lives;
+            let lives = configuredLives ?? null;
+            for (const point of lifeTimeline || []) {
+                if (point.time > currentTime) break;
+                lives = point.lives;
+            }
+            const showLifeState = !showAllPlayersActive;
+            const hasLivesMeter = showLifeState &&
+                Number.isFinite(configuredLives) && configuredLives > 0;
+            const meterWidth = hasLivesMeter
+                ? `${Math.max(0, Math.min(100, (lives / configuredLives) * 100))}%`
+                : "";
+            const previousMeterWidth = tile.style.getPropertyValue("--lives-meter-width");
+
+            livesEl.textContent = lives === null ? "–" : lives.toLocaleString();
+            if (livesLineEl) livesLineEl.hidden = lives === null;
+            tile.classList.toggle("is-out-of-lives", showLifeState && lives === 0);
+            tile.classList.toggle("has-lives-meter", hasLivesMeter);
+            tile.classList.toggle("life-meter-animated", hasLivesMeter && state.isPlaying);
+            if (hasLivesMeter) {
+                if (previousMeterWidth && previousMeterWidth !== meterWidth) {
+                    tile.style.setProperty("--previous-lives-meter-width", previousMeterWidth);
+                }
+                tile.style.setProperty("--lives-meter-width", meterWidth);
+            } else {
+                tile.style.removeProperty("--lives-meter-width");
+                tile.style.removeProperty("--previous-lives-meter-width");
+            }
+
+            if (!showLifeState) {
+                const timeoutId = lifeStateAnimationTimeouts.get(pid);
+                if (timeoutId) clearTimeout(timeoutId);
+                lifeStateAnimationTimeouts.delete(pid);
+                tile.classList.remove("life-depleted", "life-reloaded");
+                tile.style.removeProperty("--life-state-duration");
+            } else if (state.isPlaying && flashWindowStart < currentTime) {
+                const className = getLatestLifeAnimation(
+                    pid,
+                    events,
+                    flashWindowStart,
+                    currentTime
+                );
+                if (className) animateLifeState(pid, className);
+            }
         }
         if (tagsEl) {
         if (focusPid && focusPid !== pid) {
@@ -231,7 +379,7 @@ export function updatePlayerTiles(currentTime) {
         const myTeamId = normaliseText(state.gameData.players[pid]?.team);
         const baseStats = computeBaseStats(pid, currentTime);
         const teamColorById = Object.fromEntries(
-            state.gameData.teams.map((t) => [t.id, t.color])
+            state.gameData.teams.map((t) => [normaliseText(t.id), t.color])
         );
         let activeBases = (state.gameData.active_bases || []).filter(
             (base) => base && base.entityId && normaliseText(base.team) !== myTeamId
@@ -249,7 +397,7 @@ export function updatePlayerTiles(currentTime) {
             .map(({ entityId, team, color }) => {
             // Match timeline markers: bases represent their owning Comp team,
             // even when the physical base has a different colour.
-            const baseColor = teamColorById[team] || color || team;
+            const baseColor = teamColorById[normaliseText(team)] || color || team;
             // stat for this target:
             const stat = baseStats[normaliseText(entityId)] || {
                 count: 0,
@@ -276,14 +424,6 @@ export function updatePlayerTiles(currentTime) {
         }
 
         if (state.isPlaying && latestBaseEvent && latestBaseEvent.time > flashWindowStart) {
-            const baseEntityId = (latestBaseEvent.target || "").toLowerCase();
-            const targetBase = activeBases.find(
-                (base) => normaliseText(base.entityId) === baseEntityId
-            );
-            const baseColor =
-                teamColorById[targetBase?.team] ||
-                targetBase?.color ||
-                "#e2b12a";
             const durationMs =
                 latestBaseEvent.type === "base destroy"
                     ? BASE_DESTROY_FLASH_MS
@@ -297,8 +437,11 @@ export function updatePlayerTiles(currentTime) {
                 durationMs,
                 durationProperty: "--flash-duration",
                 timeoutMap: baseHitFlashTimeouts,
-                color: baseColor,
+                color: getBaseEventColor(latestBaseEvent),
             });
+        }
+        if (state.isPlaying && latestDenyEvent && latestDenyEvent.time > flashWindowStart) {
+            animateDenyEvent(latestDenyEvent, tile);
         }
         if (state.isPlaying && latestShotEvent && latestShotEvent.time > flashWindowStart) {
             animateTileEffect(pid, tile, {
@@ -317,6 +460,7 @@ export function updatePlayerTiles(currentTime) {
 export function generatePlayerTiles() {
     const grid = document.getElementById("playerGrid");
     grid.innerHTML = "";
+    lastTileUpdateTime = -Infinity;
     lastTileOrderSignature = "";
     const ids = Object.keys(state.gameData.playerStats);
 
@@ -327,6 +471,10 @@ export function generatePlayerTiles() {
         tile.classList.add("expanded");
         tile.dataset.playerId = pid;
         tile.innerHTML = `
+        <span class="player-event-label base-event-label base-hit-label" aria-hidden="true">BASE HIT</span>
+        <span class="player-event-label base-event-label base-destroy-label" aria-hidden="true">BASE DESTROY</span>
+        <span class="player-event-label deny-event-label denies-label" aria-hidden="true">DENIES</span>
+        <span class="player-event-label deny-event-label denied-label" aria-hidden="true">DENIED</span>
         <div class="player-summary-header">
             <div class="player-name">${stats.name || "–"}</div>
             <div class="player-score">${stats.score ?? "0"}</div>
@@ -529,7 +677,10 @@ function getCurrentBaseRunLayoutPlan(teamIds, currentTime = state.currentTime) {
     return getBaseRunLayoutPlan({
         gameData: state.gameData,
         selectedGame: state.selectedGame,
-        currentTime,
+        // Historical replays already have the complete event list. Use it to
+        // infer stable subgame pairings instead of briefly splitting teams
+        // into unreadably narrow singleton groups early in the replay.
+        currentTime: isLiveGameSelected() ? currentTime : Infinity,
         teamIds,
         getTeamTotal: (teamId) => computeTeamTotal(teamId, currentTime),
         policy: getClash3BaseRunPolicy({

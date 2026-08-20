@@ -1,7 +1,55 @@
 import { state } from "./state.js";
-import { COARSE_POINTER_QUERY, GAME_TIMEZONE, LIVE_PRESENTATION_DELAY_SECONDS } from "./config.js";
+import { COARSE_POINTER_QUERY, GAME_TIMEZONE } from "./config.js";
+import { getLivePresentationDelaySeconds } from "./liveDelay.js";
 
 export const normaliseText = (value) => String(value ?? "").trim().toLowerCase();
+
+const PLAYER_HIGHLIGHT_BACKGROUND = [30, 30, 30];
+const MIN_PLAYER_HIGHLIGHT_CONTRAST = 3;
+
+function hslToRgb(hue, saturation, lightness) {
+    const h = ((hue % 360) + 360) % 360 / 360;
+    const s = saturation / 100;
+    const l = lightness / 100;
+    if (s === 0) return [l * 255, l * 255, l * 255];
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const channel = (offset) => {
+        let value = h + offset;
+        if (value < 0) value += 1;
+        if (value > 1) value -= 1;
+        if (value < 1 / 6) return p + (q - p) * 6 * value;
+        if (value < 1 / 2) return q;
+        if (value < 2 / 3) return p + (q - p) * (2 / 3 - value) * 6;
+        return p;
+    };
+    return [channel(1 / 3) * 255, channel(0) * 255, channel(-1 / 3) * 255];
+}
+
+function relativeLuminance(rgb) {
+    const [red, green, blue] = rgb.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function highlightContrast(hue, saturation, lightness) {
+    const foreground = relativeLuminance(hslToRgb(hue, saturation, lightness));
+    const background = relativeLuminance(PLAYER_HIGHLIGHT_BACKGROUND);
+    return (Math.max(foreground, background) + 0.05) /
+        (Math.min(foreground, background) + 0.05);
+}
+
+function readableHighlightLightness(hue, saturation, lightness) {
+    let adjusted = Math.max(0, Math.min(100, lightness));
+    while (
+        adjusted < 100 &&
+        highlightContrast(hue, saturation, adjusted) < MIN_PLAYER_HIGHLIGHT_CONTRAST
+    ) adjusted += 1;
+    return adjusted;
+}
 
 export function addSwipeRightListener(element, listener) {
     let start = null;
@@ -94,13 +142,18 @@ export function getPlayerHighlightColor(pid) {
         const hueOffset = centeredIndex * 16;
         const lightnessOffset = centeredIndex === 0 ? 0 : (centeredIndex < 0 ? 10 : -10);
         const adjustedSaturation = Math.max(45, Math.round(saturation * 100));
-        const adjustedLightness = Math.max(34, Math.min(78, Math.round(lightness * 100) + lightnessOffset));
-        return `hsl(${Math.round((hue + hueOffset + 360) % 360)}, ${adjustedSaturation}%, ${adjustedLightness}%)`;
+        const adjustedHue = Math.round((hue + hueOffset + 360) % 360);
+        const adjustedLightness = readableHighlightLightness(
+            adjustedHue,
+            adjustedSaturation,
+            Math.max(34, Math.min(78, Math.round(lightness * 100) + lightnessOffset)),
+        );
+        return `hsl(${adjustedHue}, ${adjustedSaturation}%, ${adjustedLightness}%)`;
     }
 
     const total = players.length;
     const hue = (index / total) * 360;
-    return `hsl(${hue}, 70%, 60%)`;
+    return `hsl(${hue}, 70%, ${readableHighlightLightness(hue, 70, 60)}%)`;
 }
 
 export function getGameDuration(data = state.gameData) {
@@ -142,7 +195,7 @@ export function getLiveCurrentTime(data, game = data) {
 }
 
 export function getLivePresentationTime(data, game = data) {
-    return Math.max(0, getLiveCurrentTime(data, game) - LIVE_PRESENTATION_DELAY_SECONDS);
+    return Math.max(0, getLiveCurrentTime(data, game) - getLivePresentationDelaySeconds());
 }
 
 
@@ -261,29 +314,66 @@ function normaliseGameType(value) {
     return normaliseText(value).replace(/\s+/g, " ");
 }
 
-export function computePlayerLives(pid, t) {
+function gameTypeConfig(gameType) {
+    const entries = Object.entries(state.reloadReplenishment || {});
+    const exact = entries.find(
+        ([configuredGameType]) => normaliseGameType(configuredGameType) === gameType
+    );
+    if (exact) return exact[1];
+
+    // The live replay helper adds this suffix to avoid colliding with the
+    // source game. It does not change the underlying lives/reload rules.
+    const replaySourceGameType = gameType.replace(/\s*\[test\]$/, "");
+    return entries.find(
+        ([configuredGameType]) =>
+            normaliseGameType(configuredGameType) === replaySourceGameType
+    )?.[1];
+}
+
+export function buildPlayerLifeTimeline(pid) {
     const wantedGameType = normaliseGameType(
         state.gameData?.gameType || state.selectedGame?.gameType || state.selectedGame?.title
     );
-    const rawLives = wantedGameType
-        ? Object.entries(state.reloadReplenishment || {}).find(
-            ([gameType]) => normaliseGameType(gameType) === wantedGameType
-        )?.[1]?.lives
-        : null;
+    const rawLives = wantedGameType ? gameTypeConfig(wantedGameType)?.lives : null;
     if (typeof rawLives !== "number") return null;
     const configuredLives = Number(rawLives);
     if (!Number.isInteger(configuredLives) || configuredLives < 0) return null;
 
     let lives = configuredLives;
+    const timeline = [{ time: 0, lives }];
     for (const event of state.playerEvents[pid] || []) {
-        if (event.time > t) break;
+        const time = Number(event.time);
+        if (!Number.isFinite(time) || time < 0) continue;
         if (event.type === "reload") {
             lives = configuredLives;
         } else if (event.type === "tagged" || event.type === "team-killed") {
-            lives--;
+            lives = Math.max(0, lives - 1);
+        } else {
+            continue;
+        }
+        const previous = timeline[timeline.length - 1];
+        if (previous.time === time) {
+            previous.lives = lives;
+            if (timeline.length > 1 && timeline[timeline.length - 2].lives === lives) {
+                timeline.pop();
+            }
+        } else if (previous.lives !== lives) {
+            timeline.push({ time, lives });
         }
     }
-    return Math.max(0, lives);
+    return timeline;
+}
+
+export function computePlayerLives(pid, t) {
+    const timeline = buildPlayerLifeTimeline(pid);
+    if (!timeline) return null;
+
+    let lives = timeline[0].lives;
+    for (const point of timeline) {
+        if (point.time > t) break;
+        lives = point.lives;
+    }
+    return lives;
 }
 /**
  * tags for against between 2 players up to time t
