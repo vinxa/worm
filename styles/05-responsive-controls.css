@@ -2,11 +2,6 @@
   width: 38px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-bg);
-  color: var(--button-text);
-  transition: var(--button-transition);
 }
 
 .nav-button svg {
@@ -25,7 +20,6 @@
 }
 
 .nav-button:active {
-  background: var(--button-bg-active);
   transform: translateX(-1px) translateY(1px);
 }
 
@@ -98,15 +92,46 @@ button:hover:not(:disabled) {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 24px;
-  box-sizing: border-box;
   overflow: hidden;
-  border: 1px solid #666;
-  border-radius: 12px 9px 12px 8px;
-  background: #202020;
-  color: #8c8c8c;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.worm-checkbox,
+.timeline-display-toggle {
+  box-sizing: border-box;
+  width: var(--button-control-width);
+  height: var(--button-control-height);
+  padding: 0;
+  border: 1px solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg);
+  color: var(--button-text);
+  transition: var(--button-transition);
+}
+
+.split-worm-control:not([hidden]),
+.timeline-display-toggle:not([hidden]) {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 var(--button-control-width);
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.timeline-display-toggle svg {
+  width: 22px;
+  height: 18px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.timeline-display-toggle.comparison-details-toggle svg {
+  width: 26px;
+  height: 22px;
 }
 
 .worm-checkbox svg {
@@ -125,20 +150,32 @@ button:hover:not(:disabled) {
 }
 
 .follow-live-control:hover .worm-checkbox,
-.split-worm-control:hover .worm-checkbox {
+.split-worm-control:hover .worm-checkbox,
+.timeline-display-toggle:hover {
+  background: var(--button-bg-hover);
   border-color: var(--button-accent);
-  color: #c59d32;
+  color: #fff;
 }
 
 .follow-live-control input:checked + .worm-checkbox,
-.split-worm-control input:checked + .worm-checkbox {
+.split-worm-control input:checked + .worm-checkbox,
+.timeline-display-toggle[aria-pressed="true"] {
+  border-color: #f0c94f;
+  background: var(--button-accent);
+  color: #1e1e1e;
+}
+
+/* Keep selected toggles legible while the pointer remains over them. */
+.timeline-display-toggle[aria-pressed="true"]:hover:not(:disabled),
+.timeline-display-toggle[aria-pressed="true"]:active:not(:disabled) {
   border-color: #f0c94f;
   background: var(--button-accent);
   color: #1e1e1e;
 }
 
 .follow-live-control input:focus-visible + .worm-checkbox,
-.split-worm-control input:focus-visible + .worm-checkbox {
+.split-worm-control input:focus-visible + .worm-checkbox,
+.timeline-display-toggle:focus-visible {
   outline: 2px solid var(--button-accent);
   outline-offset: 2px;
 }
@@ -171,8 +208,6 @@ button:hover:not(:disabled) {
     border-radius: 0;
   }
   .games-grid {
-    /* auto-fit as many 140px tiles as will fit */
-
     gap: 12px;
     padding: 12px;
   }
@@ -180,29 +215,7 @@ button:hover:not(:disabled) {
 
 /* Bridge the compact and full desktop layouts without an abrupt card-size jump. */
 @media (min-width: 901px) and (max-width: 1200px) {
-  .players-grid,
-  .base-run-subgame {
-    gap: 5px;
-  }
-
-  .base-run-subgame {
-    padding: 3px;
-  }
-
-  .player-summary {
-    padding: 5px;
-  }
-
-  .player-name {
-    font-size: 0.9rem;
-  }
-
-  .player-score {
-    font-size: 1.05rem;
-  }
-
   .player-summary-details {
-    padding: 2px 0;
     font-size: 0.75rem;
   }
 }
@@ -212,8 +225,9 @@ button:hover:not(:disabled) {
     font-size: 14px;
   }
   .app-header {
-    padding: 6px 8px;
-    gap: 6px;
+    min-height: auto;
+    padding: 2px;
+    gap: 4px;
   }
   .keyboard-shortcuts-button {
     display: none;
@@ -238,10 +252,6 @@ button:hover:not(:disabled) {
     min-height: 28px;
     margin-right: 0;
     font-size: 0.72rem;
-  }
-  .worm-checkbox {
-    width: 30px;
-    height: 22px;
   }
   .nav-button {
     width: 34px;
@@ -300,9 +310,7 @@ button:hover:not(:disabled) {
     padding: 3px;
   }
   .player-summary {
-    width: 100%;
     padding: 4px;
-    min-width: 0;
     display: grid;
     container-type: inline-size;
     container-name: player-tile;
@@ -315,15 +323,19 @@ button:hover:not(:disabled) {
   }
   .player-summary-header {
     grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     min-width: 0;
+    gap: 3px;
+    line-height: 1.05;
   }
   .player-name {
+    font-size: 0.9rem;
     text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .player-score {
+    font-size: 0.95rem;
     text-align: right;
   }
   .player-summary-details {
@@ -339,25 +351,34 @@ button:hover:not(:disabled) {
     padding: 0;
     line-height: 1.05;
   }
-  .detail-left {
+  .detail-left,
+  .detail-right {
     display: contents;
+  }
+  .detail-lives-line,
+  .detail-ratio-line,
+  .detail-denies-line {
+    display: inline-flex;
+    align-items: baseline;
+    align-self: baseline;
+    white-space: nowrap;
+    font-size: 0.82rem;
   }
   .detail-lives-line {
     grid-column: 1;
     grid-row: 1;
-    display: inline-flex;
-    align-items: baseline;
-    align-self: baseline;
     gap: 0;
-    white-space: nowrap;
-    font-size: 0.82rem;
   }
-  .detail-lives-label {
+  .detail-lives-label,
+  .detail-denies-label {
     font-size: 0;
+  }
+  .detail-lives-label::after,
+  .detail-denies-label::after {
+    font-size: 0.82rem;
   }
   .detail-lives-label::after {
     content: "L:";
-    font-size: 0.82rem;
   }
   .detail-bases {
     grid-column: 4;
@@ -379,28 +400,16 @@ button:hover:not(:disabled) {
     gap: 2px;
     white-space: nowrap;
   }
-  .detail-tags-h2h {
-    font-size: 0.85em;
-    color: #9a9a9a;
-  }
   .detail-tags-teamKills {
-    font-size: 0.85em;
     color: #880f0f;
   }
   .detail-tags-label {
     display: none;
   }
-
-
   .detail-ratio-line,
   .detail-denies-line {
     grid-row: 1;
-    display: inline-flex;
-    align-items: baseline;
-    align-self: baseline;
     gap: 1px;
-    white-space: nowrap;
-    font-size: 0.82rem;
   }
   .detail-denies-line {
     grid-column: 2;
@@ -408,34 +417,14 @@ button:hover:not(:disabled) {
   .detail-ratio-line {
     grid-column: 3;
   }
-  .detail-denies-label {
-    font-size: 0;
-  }
   .detail-denies-label::after {
     content: "D:";
-    font-size: 0.82rem;
   }
   .detail-uptime-line {
     display: none;
   }
-  .detail-right {
-    display: contents;
-  }
   .player-summary-details p {
     margin: 0;
-  }
-  .player-summary-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 3px;
-    line-height: 1.05;
-  }
-  .player-name {
-    font-size: 0.9rem;
-  }
-  .player-score {
-    font-size: 0.95rem;
   }
   .timeline-section {
     padding: 6px;
@@ -461,28 +450,9 @@ button:hover:not(:disabled) {
   .worm-speech-bubble {
     display: none;
   }
-  .app-header {
-    padding: 2px;
-    min-height: auto;
-    gap: 4px;
-  }
-  .app-name {
-    font-size: 0.95rem;
-  }
   #youtubeUrl {
     display: none;
   }
-  .header-play-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .header-speed-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   .team-scores {
     gap: 6px;
     margin: 0;
@@ -497,12 +467,42 @@ button:hover:not(:disabled) {
     text-align: left;
     font-size: 1rem;
   }
-  #headerSpeedButton, #headerPlayButton {
-    display: block;
+
+  .players-grid.standard-team-columns .player-summary-details {
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto;
   }
-  #headerSpeedButton:hover, #headerPlayButton:hover {
-  border: none;
-}
+
+  .players-grid.standard-team-columns .detail-lives-line {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .players-grid.standard-team-columns .detail-denies-line {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .players-grid.standard-team-columns .detail-ratio-line {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .players-grid.standard-team-columns .detail-tags-line {
+    grid-column: 4;
+    grid-row: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .players-grid.standard-team-columns .detail-bases {
+    grid-column: 5;
+    grid-row: 1;
+  }
+
+  #headerSpeedButton, #headerPlayButton {
+    display: inline-flex;
+  }
 }
 
 @media (max-width: 480px) {

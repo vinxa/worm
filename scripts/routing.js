@@ -6,6 +6,7 @@ const PLAYER_QUERY_PARAM = "player";
 const TEAM_QUERY_PARAM = "team";
 const SPLIT_WORM_QUERY_PARAM = "split";
 const COMPARISON_DETAILS_QUERY_PARAM = "details";
+const DENIES_QUERY_PARAM = "denies";
 const PLAYBACK_RATES = new Set([0.5, 1, 1.5, 2, 4]);
 const VIEW_QUERY_PARAMS = [
     TIME_QUERY_PARAM,
@@ -15,6 +16,7 @@ const VIEW_QUERY_PARAMS = [
     TEAM_QUERY_PARAM,
     SPLIT_WORM_QUERY_PARAM,
     COMPARISON_DETAILS_QUERY_PARAM,
+    DENIES_QUERY_PARAM,
 ];
 
 function currentUrl() {
@@ -44,6 +46,7 @@ export function getViewStateFromUrl() {
     const params = currentUrl().searchParams;
     const playbackRate = parseNonNegativeNumber(params.get(SPEED_QUERY_PARAM));
     const comparisonDetails = params.get(COMPARISON_DETAILS_QUERY_PARAM)?.toLowerCase();
+    const deniesVisible = params.get(DENIES_QUERY_PARAM)?.toLowerCase();
     return {
         time: parseNonNegativeNumber(params.get(TIME_QUERY_PARAM)),
         playbackRate: PLAYBACK_RATES.has(playbackRate) ? playbackRate : null,
@@ -52,6 +55,7 @@ export function getViewStateFromUrl() {
         selectedTeams: uniqueValues(params.getAll(TEAM_QUERY_PARAM)),
         splitWorm: ["1", "true"].includes(params.get(SPLIT_WORM_QUERY_PARAM)?.toLowerCase()),
         comparisonDetails: !["0", "false"].includes(comparisonDetails),
+        deniesVisible: !["0", "false"].includes(deniesVisible),
     };
 }
 
@@ -63,6 +67,7 @@ export function getShareHref({
     selectedTeams = [],
     splitWorm = false,
     comparisonDetails = true,
+    deniesVisible = true,
 } = {}) {
     const url = clearViewQueryParams(currentUrl());
     const parsedTime = parseNonNegativeNumber(time);
@@ -81,6 +86,7 @@ export function getShareHref({
     );
     if (splitWorm) url.searchParams.set(SPLIT_WORM_QUERY_PARAM, "1");
     if (!comparisonDetails) url.searchParams.set(COMPARISON_DETAILS_QUERY_PARAM, "0");
+    if (!deniesVisible) url.searchParams.set(DENIES_QUERY_PARAM, "0");
     return url.toString();
 }
 

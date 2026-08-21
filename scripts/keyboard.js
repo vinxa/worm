@@ -57,6 +57,7 @@ export function setupKeyboardControls({
     onWiggleWorm,
     onShareGame,
     onToggleComparisonDetails,
+    onToggleDeniedEvents,
     onToggleSplitTimelines,
     onShowHome,
 }) {
@@ -168,6 +169,11 @@ export function setupKeyboardControls({
                 onShareGame();
                 break;
             case "KeyD":
+                if (isTypingField(e.target)) break;
+                e.preventDefault();
+                onToggleDeniedEvents();
+                break;
+            case "KeyT":
                 if (isTypingField(e.target)) break;
                 e.preventDefault();
                 onToggleComparisonDetails();

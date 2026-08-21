@@ -34,16 +34,17 @@
   display: grid;
   grid-auto-flow: row;
   grid-auto-rows: minmax(0, auto);
-  align-items: flex-start;     /* Important: don’t stretch row items */
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   min-width: 0;
-  height: 100%;                /* fill its parent vertically */
+  height: 100%;
   box-sizing: border-box;
   padding: 2px;
 }
 .base-run-subgame {
   display: grid;
+  box-sizing: border-box;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 8px;
@@ -69,7 +70,6 @@
   overflow: hidden;
   transition: background-color 220ms ease, border-color 220ms ease,
     box-shadow 220ms ease, filter 220ms ease, opacity 220ms ease;
-
 }
 .player-summary.is-deactivated {
   background: #242424;
@@ -87,13 +87,11 @@
 }
 
 .player-summary-header .player-name {
-  flex: 1 1 auto;                /* take remaining space */
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-
 .player-summary-details {
   overflow: hidden;
   max-height: 0;
@@ -101,11 +99,10 @@
   transition: max-height 0.3s ease, opacity 0.3s ease;
   font-size: small;
   margin-top: 0;
-  display:grid;
+  display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 12px;
   padding: 4px 0;
-
 }
 
 .player-summary.expanded .player-summary-details {
@@ -208,7 +205,10 @@
   color: #ccc;
 }
 .split-worm-control,
-.comparison-details-toggle {
+.timeline-display-toggle {
+  display: none;
+}
+.tablet-timeline-controls {
   display: none;
 }
 #scoreChart {
@@ -243,24 +243,11 @@
 }
 .chart-controls .transport-button:hover {
   color: #fff;
-  border-color: var(--button-accent);
-  background: var(--button-bg-hover);
   transform: translateY(-1px);
-}
-.chart-controls .transport-button:focus-visible {
-  outline: 2px solid var(--button-accent);
-  outline-offset: 2px;
-}
-.chart-controls .transport-button:active {
-  background: var(--button-bg-active);
-  transform: translateY(1px);
 }
 .chart-controls #speedButton {
   min-width: 52px;
   margin-left: 4px;
-}
-.chart-controls #speedButton:hover {
-  border-color: var(--button-accent);
 }
 .resume-live-button {
   display: inline-flex;
@@ -279,10 +266,6 @@
   background: #ff5252;
   box-shadow: 0 0 0 2px rgba(255, 82, 82, 0.16);
 }
-.chart-controls .button--primary:hover {
-  border-color: var(--button-accent);
-}
-
 @media (max-width: 1200px), (orientation: landscape) and (max-height: 600px) {
   .chart-controls {
     display: none;
@@ -441,14 +424,14 @@
 .results-content {
   display: flex;
   gap: 16px;
-  flex: 1 1 auto;           /* take up all the space between header and bottom */
-  overflow: hidden;         /* prevent internal overflow from growing it */
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .grid-container {
-  flex: 1 1 auto;           /* grows to fill left side */
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: auto;           /* scroll if grid gets too tall */
+  overflow: auto;
 }
 
 /* weird chromium scrollbar */

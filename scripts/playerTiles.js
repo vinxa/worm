@@ -1,5 +1,5 @@
 import { buildPlayerLifeTimeline, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
-import { baseMatchesTargetKey, getBaseRunLayoutPlan } from "./baseRun.js";
+import { baseMatchesTargetKey, getBaseRunLayoutPlan, shouldUseCompactTeamTiles, shouldUseTeamColumns } from "./baseRun.js";
 import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
 import { isLiveGameSelected } from "./live.js";
 import { state } from "./state.js";
@@ -8,6 +8,10 @@ import { SHORT_LANDSCAPE_QUERY } from "./config.js";
 
 const TILE_ORDER_CHECK_INTERVAL_MS = 300;
 const TILE_REORDER_TRANSITION_MS = 240;
+// The team-column variant uses the compact one-line detail row below.
+const STANDARD_MINIMUM_TILE_WIDTH = 150;
+const STANDARD_MINIMUM_TILE_HEIGHT = 25;
+const STANDARD_FULL_TILE_HEIGHT = 110;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
 const DENY_LABEL_MS = 750;
@@ -703,11 +707,84 @@ function updatePlayerTileOrder() {
         );
     });
     const orderedTiles = sortedTeamIds.flatMap((teamId) => byTeam[teamId] || []);
-    const baseRunTeamsAsColumns = !!subgames &&
+    const forceBaseRunTeamColumns = !!subgames &&
         window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
+    const allowResponsiveBaseRunColumns =
+        window.matchMedia("(orientation: landscape)").matches;
+    const subgameWidth = subgames?.length ? grid.clientWidth / subgames.length : Infinity;
+    const subgameLayouts = (subgames || []).map((teamIds) => {
+        const maxTeamSize = Math.max(
+            1,
+            ...teamIds.map((teamId) => (byTeam[teamId] || []).length)
+        );
+        return {
+            maxTeamSize,
+            teamsAsColumns: shouldUseTeamColumns({
+                forceTeamColumns: forceBaseRunTeamColumns,
+                allowResponsiveColumns: allowResponsiveBaseRunColumns,
+                teamCount: teamIds.length,
+                maxTeamSize,
+                subgameWidth,
+                subgameHeight: grid.clientHeight,
+            }),
+        };
+    });
+    const standardTeamCount = sortedTeamIds.length;
+    const standardMaxTeamSize = Math.max(
+        1,
+        ...sortedTeamIds.map((teamId) => (byTeam[teamId] || []).length)
+    );
+    const standardGridRowGap = Number.parseFloat(getComputedStyle(grid).rowGap) || 0;
+    const standardGridColumnGap = Number.parseFloat(getComputedStyle(grid).columnGap) || 0;
+    // Include the grid container's scrollbar in the measured box so a reflow
+    // that removes overflow cannot immediately reverse the width decision.
+    const standardLayoutWidth = grid.parentElement?.getBoundingClientRect().width ||
+        grid.clientWidth;
+    const standardUsableWidth = Math.max(
+        0,
+        standardLayoutWidth - standardGridColumnGap * (standardMaxTeamSize - 1)
+    );
+    // Measure the fixed game section, not the grid's content-driven height, so
+    // changing orientation cannot immediately reverse its own layout decision.
+    const standardLayoutHeight = grid.closest(".top-section")?.clientHeight ||
+        grid.parentElement?.clientHeight || grid.clientHeight;
+    const standardUsableHeight = Math.max(
+        0,
+        standardLayoutHeight - standardGridRowGap * (standardMaxTeamSize - 1)
+    );
+    const standardTeamsAsColumns = !subgames && shouldUseTeamColumns({
+        allowResponsiveColumns: allowResponsiveBaseRunColumns,
+        teamCount: standardTeamCount,
+        maxTeamSize: standardMaxTeamSize,
+        subgameWidth: standardUsableWidth,
+        subgameHeight: standardUsableHeight,
+        minimumTileWidth: STANDARD_MINIMUM_TILE_WIDTH,
+        minimumTileHeight: STANDARD_MINIMUM_TILE_HEIGHT,
+    });
+    // The roomy tablet shell can grow with its content, which masks an
+    // overfull player grid. Cap the measurement at the desktop game's 55vh
+    // player-area budget so every dense orientation switches to compact tiles
+    // before rows overlap or push the chart below the viewport.
+    const standardHeightBudget = window.innerHeight * 0.55;
+    const standardRowCount = standardTeamsAsColumns
+        ? standardMaxTeamSize
+        : standardTeamCount;
+    const standardCompactTiles = !subgames &&
+        shouldUseCompactTeamTiles({
+            maxTeamSize: standardRowCount,
+            availableHeight: standardHeightBudget,
+            rowGap: standardGridRowGap,
+            minimumFullTileHeight: STANDARD_FULL_TILE_HEIGHT,
+        });
     const signature = `${baseRunPlan?.id || "standard"}:${subgames
         ? subgames.map((group) => group.map(String).join(",")).join(";")
-        : ""}:${baseRunTeamsAsColumns ? "team-columns" : "compact"}|${orderedTiles
+        : ""}:${subgames
+            ? subgameLayouts.map(({ teamsAsColumns }) =>
+                teamsAsColumns ? "team-columns" : "player-columns"
+            ).join(",")
+            : standardTeamsAsColumns ? "team-columns" : "player-columns"}:${
+                standardCompactTiles ? "compact" : "full"
+            }|${orderedTiles
         .map((tile) => `${state.gameData.players[tile.dataset.playerId].team}:${tile.dataset.playerId}`)
         .join("|")}`;
     if (signature === lastTileOrderSignature) return;
@@ -716,6 +793,8 @@ function updatePlayerTileOrder() {
     animateReorder(tiles, TILE_REORDER_TRANSITION_MS, () => {
         if (subgames) {
             grid.classList.add("base-run-subgames");
+            grid.classList.remove("standard-team-columns");
+            grid.classList.remove("standard-compact-tiles");
             grid.style.gridTemplateColumns = `repeat(${subgames.length}, minmax(0, 1fr))`;
             grid.style.gridTemplateRows = "auto";
 
@@ -728,11 +807,7 @@ function updatePlayerTileOrder() {
                 );
                 group.setAttribute("aria-label", `${teamNames.join(" versus ")} subgame`);
 
-                const maxTeamSize = Math.max(
-                    1,
-                    ...teamIds.map((teamId) => (byTeam[teamId] || []).length)
-                );
-                const teamsAsColumns = baseRunTeamsAsColumns || teamIds.length >= maxTeamSize;
+                const { maxTeamSize, teamsAsColumns } = subgameLayouts[subgameIndex];
                 const columnCount = teamsAsColumns ? teamIds.length : maxTeamSize;
                 const rowCount = teamsAsColumns ? maxTeamSize : teamIds.length;
                 group.style.gridTemplateColumns = `repeat(${columnCount}, minmax(0, 1fr))`;
@@ -751,22 +826,23 @@ function updatePlayerTileOrder() {
         }
 
         grid.classList.remove("base-run-subgames");
-        const teamCount = sortedTeamIds.length;
-        const maxTeamSize = Math.max(
-            1,
-            ...sortedTeamIds.map((teamId) => (byTeam[teamId] || []).length)
-        );
-
-        const teamsAsColumns = teamCount >= maxTeamSize;
-        const columnCount = teamsAsColumns ? teamCount : maxTeamSize;
-        const rowCount = teamsAsColumns ? maxTeamSize : teamCount;
+        grid.classList.toggle("standard-team-columns", standardTeamsAsColumns);
+        grid.classList.toggle("standard-compact-tiles", standardCompactTiles);
+        const columnCount = standardTeamsAsColumns
+            ? standardTeamCount
+            : standardMaxTeamSize;
+        const rowCount = standardTeamsAsColumns
+            ? standardMaxTeamSize
+            : standardTeamCount;
 
         grid.style.gridTemplateColumns = `repeat(${columnCount}, minmax(0, 1fr))`;
-        grid.style.gridTemplateRows = `repeat(${rowCount}, auto)`;
+        grid.style.gridTemplateRows = standardTeamsAsColumns
+            ? `repeat(${rowCount}, minmax(0, 1fr))`
+            : `repeat(${rowCount}, auto)`;
         sortedTeamIds.forEach((teamId, outerIndex) => {
             (byTeam[teamId] || []).forEach((tile, innerIndex) => {
-                tile.style.gridColumn = (teamsAsColumns ? outerIndex : innerIndex) + 1;
-                tile.style.gridRow = (teamsAsColumns ? innerIndex : outerIndex) + 1;
+                tile.style.gridColumn = (standardTeamsAsColumns ? outerIndex : innerIndex) + 1;
+                tile.style.gridRow = (standardTeamsAsColumns ? innerIndex : outerIndex) + 1;
             });
         });
 

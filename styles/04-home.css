@@ -586,7 +586,6 @@
 
 .button--ghost {
   padding: 5px 8px;
-  border-color: #555;
   background: transparent;
   color: #aaa;
   font-size: 0.7rem;
@@ -687,21 +686,12 @@
   background: transparent;
   color: #aaa;
   font-size: 1.25rem;
-  line-height: 1;
-}
-
-.favourite-player-option {
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 
 .favourites-filter-button {
   width: 28px;
   height: 28px;
   padding: 5px;
-  border: 1px solid var(--button-border);
-  border-radius: var(--button-radius);
   background: transparent;
   color: #aaa;
 }
@@ -746,6 +736,9 @@
 }
 
 .favourite-player-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-height: 30px;
   padding: 3px 5px;
   border-radius: 4px;
@@ -832,7 +825,6 @@
 
 .favourites-clear-button:disabled {
   opacity: 0.4;
-  cursor: default;
   border-color: #444;
   color: #777;
 }
@@ -890,7 +882,6 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.34);
   color: #fff;
-  cursor: pointer;
   font: inherit;
   padding: 0.65rem 1.25rem;
 }

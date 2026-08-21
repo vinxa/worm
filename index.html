@@ -88,7 +88,7 @@
       <div class="filter-bar">
         <div class="filter-toolbar">
           <div class="filter-actions">
-            <button id="clearFiltersButton" class="button--ghost" type="button">Clear all filters</button>
+            <button id="clearFiltersButton" class="button--ghost" type="button" title="Clear all filters" data-keyboard-shortcut="Esc">Clear all filters</button>
           </div>
           <label class="filter-favourites-toggle">
             <input id="favouritesOnlyFilter" type="checkbox" />
@@ -157,7 +157,7 @@
   <dialog id="patchNotesModal" class="modal-surface patch-notes-modal" aria-labelledby="patchNotesTitle">
     <header class="modal__header patch-notes-header">
       <h2 id="patchNotesTitle">CLASH 3 - Update Notes</h2>
-      <button id="patchNotesClose" class="button--icon modal__close patch-notes-close" type="button" aria-label="Close update notes">✕</button>
+      <button id="patchNotesClose" class="button--icon modal__close patch-notes-close" type="button" title="Close update notes" aria-label="Close update notes" data-keyboard-shortcut="Esc">✕</button>
     </header>
     <div class="patch-notes-content">
       <ul>
@@ -185,7 +185,7 @@
   <header class="app-header" style="display:none;" >
     
     <div class="header-left">
-      <button class="button--icon nav-button left" type="button" title="Back to games" aria-label="Back to games" style="display:none;">
+      <button class="button--icon nav-button left" type="button" title="Back to games" aria-label="Back to games" data-keyboard-shortcut="Backspace" style="display:none;">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m14.5 6-6 6 6 6" />
         </svg>
@@ -196,22 +196,64 @@
           <path d="M6 9h1m3 0h1m3 0h1m3 0h1M6 12.5h1m3 0h1m3 0h1m3 0h1M7 16h10" />
         </svg>
       </button>
+      <div class="tablet-timeline-controls" role="group" aria-label="Timeline display controls">
+        <button id="tabletDeniesToggle" class="button--icon timeline-display-toggle denies-toggle tablet-denies-toggle" type="button" data-denies-toggle data-keyboard-shortcut="D" aria-pressed="true" aria-label="Show denied events" title="Show denied events" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m4 7 8 10 8-10Z" />
+          </svg>
+        </button>
+        <button id="tabletComparisonDetailsToggle" class="button--icon timeline-display-toggle comparison-details-toggle tablet-comparison-details-toggle" type="button" data-comparison-details-toggle data-keyboard-shortcut="T" aria-pressed="true" aria-label="Show all tagged events" title="Show all tagged events" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="5" cy="6" r="1.5" />
+            <circle cx="5" cy="12" r="1.5" />
+            <circle cx="5" cy="18" r="1.5" />
+            <path d="M9 6h10M9 12h10M9 18h10" />
+          </svg>
+        </button>
+        <label id="tabletSplitWormControl" class="split-worm-control tablet-split-worm-control" data-split-worm-control data-keyboard-shortcut="S" title="Split worm timelines" hidden>
+          <input id="tabletSplitWormToggle" type="checkbox" data-split-worm-toggle aria-label="Split worm timelines" />
+          <span class="worm-checkbox" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <circle cx="6" cy="4" r="2.5" />
+              <circle cx="6" cy="20" r="2.5" />
+              <circle cx="18" cy="7" r="2.5" />
+              <path d="M6 6.5v11M18 9.5A8.5 8.5 0 0 1 9.5 18H8.5" />
+            </svg>
+          </span>
+        </label>
+      </div>
       <span class="app-name">WORM</span>
+      <button id="mobileDeniesToggle" class="button--icon timeline-display-toggle denies-toggle mobile-denies-toggle" type="button" data-denies-toggle data-keyboard-shortcut="D" aria-pressed="true" aria-label="Show denied events" title="Show denied events" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m4 7 8 10 8-10Z" />
+        </svg>
+      </button>
+      <label id="mobileSplitWormControl" class="split-worm-control mobile-split-worm-control" data-split-worm-control data-keyboard-shortcut="S" title="Split worm timelines" hidden>
+        <input id="mobileSplitWormToggle" type="checkbox" data-split-worm-toggle aria-label="Split worm timelines" />
+        <span class="worm-checkbox" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <circle cx="6" cy="4" r="2.5" />
+            <circle cx="6" cy="20" r="2.5" />
+            <circle cx="18" cy="7" r="2.5" />
+            <path d="M6 6.5v11M18 9.5A8.5 8.5 0 0 1 9.5 18H8.5" />
+          </svg>
+        </span>
+      </label>
       
     <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
     </div>
     <div class="title">GAME LOADING</div>
     <div class="header-right">
       <span id="liveCountdown" class="live-countdown" hidden>00:00</span>
-      <button id="headerResumeLiveButton" class="button--secondary resume-live-button" type="button" hidden>
+      <button id="headerResumeLiveButton" class="button--secondary resume-live-button" type="button" title="Resume live" data-keyboard-shortcut="Shift + →" hidden>
         <span class="resume-live-dot" aria-hidden="true"></span>
         <span>Resume live</span>
       </button>
-      <button class="button--secondary next-game-button" title="Latest Game (L)">
+      <button class="button--secondary next-game-button" title="Latest Game" data-keyboard-shortcut="L">
         <span class="next-game-live-dot" aria-hidden="true"></span>
         <span>Latest Game</span>
       </button>
-      <label id="followLiveControl" class="follow-live-control" title="Follow live games automatically" hidden>
+      <label id="followLiveControl" class="follow-live-control" title="Follow live games automatically" data-keyboard-shortcut="Shift + L" hidden>
         <input id="followLiveCheckbox" type="checkbox" aria-label="Follow live games automatically" />
         <span class="worm-checkbox" aria-hidden="true">
           <svg viewBox="0 0 30 20">
@@ -221,17 +263,17 @@
         </span>
       </label>
       <div class="youtube-input-container">
-      <button id="headerPlayButton" class="button--icon button--primary header-play-button" type="button" title="Play" aria-label="Play"></button>
-      <button id="headerSpeedButton" class="button--secondary header-speed-button" title="Change playback speed (+/-)">1x</button>
+      <button id="headerPlayButton" class="button--icon button--primary header-play-button" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
+      <button id="headerSpeedButton" class="button--secondary header-speed-button" title="Change playback speed" data-keyboard-shortcut="+ / −">1x</button>
       <input id="youtubeUrl" type="text" placeholder="YouTube URL (https://www.youtube.com/watch?v=pjf1uhUrc4M)"/>
-      <button id="loadButton" class="button--icon youtube-load-button" type="button" title="Load YouTube video" aria-label="Load YouTube video">
+      <button id="loadButton" class="button--icon youtube-load-button" type="button" title="Load YouTube video" aria-label="Load YouTube video" data-keyboard-shortcut="V">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="2" y="5" width="20" height="14" rx="4" />
           <path d="m10 9 5 3-5 3Z" />
         </svg>
       </button>
       </div>
-      <button id="shareButton" class="button--icon share-button" type="button" title="Share this game" aria-label="Share this game">
+      <button id="shareButton" class="button--icon share-button" type="button" title="Share this game" aria-label="Share this game" data-keyboard-shortcut="C">
         <svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="18" cy="5" r="2.5" />
           <circle cx="6" cy="12" r="2.5" />
@@ -245,7 +287,7 @@
   <dialog id="keyboardShortcutsModal" class="modal-surface patch-notes-modal keyboard-shortcuts-modal" aria-labelledby="keyboardShortcutsTitle">
     <header class="modal__header patch-notes-header">
       <h2 id="keyboardShortcutsTitle">Keyboard shortcuts</h2>
-      <button id="keyboardShortcutsClose" class="button--icon modal__close patch-notes-close" type="button" aria-label="Close keyboard shortcuts">✕</button>
+      <button id="keyboardShortcutsClose" class="button--icon modal__close patch-notes-close" type="button" title="Close keyboard shortcuts" aria-label="Close keyboard shortcuts" data-keyboard-shortcut="Esc">✕</button>
     </header>
     <div class="patch-notes-content keyboard-shortcuts-content">
       <section class="keyboard-shortcuts-group" aria-label="Playback and analysis">
@@ -265,7 +307,8 @@
           <h3 id="analysisShortcutsTitle">Analysis</h3>
           <dl>
             <div><dt><kbd>Esc</kbd></dt><dd>Clear selections</dd></div>
-            <div><dt><kbd>D</kbd></dt><dd>Show all tagged events</dd></div>
+            <div><dt><kbd>T</kbd></dt><dd>Show all tagged events</dd></div>
+            <div><dt><kbd>D</kbd></dt><dd>Show denied events</dd></div>
             <div><dt><kbd>S</kbd></dt><dd>Split timelines</dd></div>
           </dl>
         </section>
@@ -299,7 +342,7 @@
     <div class="modal__header modal-header">
       <span class="modal-title">YouTube Player</span>
       <input id="videoOffset" type="number" placeholder="Offset (sec)" min="0" title="Video start offset in seconds"/>
-      <button id="modalClose" class="button--icon modal__close modal-close" type="button">✕</button>
+      <button id="modalClose" class="button--icon modal__close modal-close" type="button" title="Close YouTube player" aria-label="Close YouTube player" data-keyboard-shortcut="V">✕</button>
     </div>
 <div class="modal-body">
   <div id="modalPlayer" style="width:560px; height:315px;"></div>
@@ -364,33 +407,38 @@
     <!-- <h2>TIMELINE</h2> -->
     <div id="scoreChart"></div>
     <div class="chart-controls">
-      <button id="skipStartButton" class="button--icon transport-button" type="button" title="Jump to start" aria-label="Jump to start">
+      <button id="skipStartButton" class="button--icon transport-button" type="button" title="Jump to start" aria-label="Jump to start" data-keyboard-shortcut="Shift + ←">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m11 7-7 5 7 5V7Zm9 0-7 5 7 5V7Z" />
         </svg>
       </button>
-      <button id="rewindButton" class="button--icon transport-button" type="button" title="Skip back 15s (←)" aria-label="Skip back 15 seconds">
+      <button id="rewindButton" class="button--icon transport-button" type="button" title="Skip back 15s" aria-label="Skip back 15 seconds" data-keyboard-shortcut="←">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 5v14M18 6l-8 6 8 6V6Z" />
         </svg>
       </button>
-      <button id="playButton" class="button--icon button--primary" type="button" title="Play" aria-label="Play"></button>
-      <button id="forwardButton" class="button--icon transport-button" type="button" title="Skip forward 15s (→)" aria-label="Skip forward 15 seconds">
+      <button id="playButton" class="button--icon button--primary" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
+      <button id="forwardButton" class="button--icon transport-button" type="button" title="Skip forward 15s" aria-label="Skip forward 15 seconds" data-keyboard-shortcut="→">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M19 5v14M6 6l8 6-8 6V6Z" />
         </svg>
       </button>
-      <button id="skipEndButton" class="button--icon transport-button" type="button" title="Jump to end" aria-label="Jump to end">
+      <button id="skipEndButton" class="button--icon transport-button" type="button" title="Jump to end" aria-label="Jump to end" data-keyboard-shortcut="Shift + →">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m4 7 7 5-7 5V7Zm9 0 7 5-7 5V7Z" />
         </svg>
       </button>
-      <button id="resumeLiveButton" class="button--secondary resume-live-button" type="button" hidden>
+      <button id="resumeLiveButton" class="button--secondary resume-live-button" type="button" title="Resume live" data-keyboard-shortcut="Shift + →" hidden>
         <span class="resume-live-dot" aria-hidden="true"></span>
         <span>Resume live</span>
       </button>
-      <button id="speedButton" class="button--secondary" title="Change playback speed (+/-)">1x</button>
-      <button id="comparisonDetailsToggle" class="button--icon comparison-details-toggle" type="button" aria-pressed="true" aria-label="Show all tagged events" title="Show all tagged events" hidden>
+      <button id="speedButton" class="button--secondary" title="Change playback speed" data-keyboard-shortcut="+ / −">1x</button>
+      <button id="deniesToggle" class="button--icon timeline-display-toggle denies-toggle" type="button" data-denies-toggle data-keyboard-shortcut="D" aria-pressed="true" aria-label="Show denied events" title="Show denied events" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m4 7 8 10 8-10Z" />
+        </svg>
+      </button>
+      <button id="comparisonDetailsToggle" class="button--icon timeline-display-toggle comparison-details-toggle" type="button" data-comparison-details-toggle data-keyboard-shortcut="T" aria-pressed="true" aria-label="Show all tagged events" title="Show all tagged events" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="5" cy="6" r="1.5" />
           <circle cx="5" cy="12" r="1.5" />
@@ -398,8 +446,8 @@
           <path d="M9 6h10M9 12h10M9 18h10" />
         </svg>
       </button>
-      <label id="splitWormControl" class="split-worm-control" title="Split worm timelines" hidden>
-        <input id="splitWormToggle" type="checkbox" aria-label="Split worm timelines" />
+      <label id="splitWormControl" class="split-worm-control" data-split-worm-control data-keyboard-shortcut="S" title="Split worm timelines" hidden>
+        <input id="splitWormToggle" type="checkbox" data-split-worm-toggle aria-label="Split worm timelines" />
         <span class="worm-checkbox" aria-hidden="true">
           <svg viewBox="0 0 24 24">
             <circle cx="6" cy="4" r="2.5" />

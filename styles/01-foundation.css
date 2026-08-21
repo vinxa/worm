@@ -20,6 +20,10 @@ html {
   --button-accent: #e2b12a;
   --button-radius: 7px;
   --button-padding: 6px 10px;
+  --button-control-width: 34px;
+  --button-control-height: 30px;
+  --button-control-width-compact: 30px;
+  --button-control-height-compact: 28px;
   --button-transition: background-color 120ms ease, border-color 120ms ease,
     color 120ms ease, transform 120ms ease;
   --modal-bg: #202020;
@@ -49,20 +53,15 @@ html {
 }
 
 .modal__close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: var(--button-radius);
   background: transparent;
   color: var(--button-accent);
   font-size: 1.15rem;
   font-weight: 800;
-  line-height: 1;
 }
 
 .modal__close:hover:not(:disabled),

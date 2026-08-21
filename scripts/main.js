@@ -18,7 +18,13 @@ import {
     markGameNonLiveAfterDeadline,
     normaliseText,
 } from "./utils.js";
-import { isLiveGameSelected, setLiveHandlers, shouldFollowNewLiveGame } from "./live.js";
+import {
+    clearLiveSubscriptionAfterFinalise,
+    isLiveGameSelected,
+    isSelectedCurrentLiveGame,
+    setLiveHandlers,
+    shouldFollowNewLiveGame,
+} from "./live.js";
 import { refreshLiveChartData } from "./timeline.js";
 import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateResumeLiveButtons, updateSpeedButtons } from "./replayHandler.js";
 import { getGameIdFromUrl, getViewStateFromUrl } from "./routing.js";
@@ -255,7 +261,7 @@ function cancelPendingLiveFinalise() {
 function completePendingLiveFinalise() {
     liveFinaliseTimer = null;
     const pending = pendingLiveFinalise;
-    if (!pending || !state.liveSubscribed ||
+    if (!pending || state.liveGameKey !== pending.gameKey ||
         (state.selectedGame?.gameKey && state.selectedGame.gameKey !== pending.gameKey)) {
         pendingLiveFinalise = null;
         return;
@@ -276,8 +282,7 @@ function completePendingLiveFinalise() {
         title: data.title || state.selectedGame?.title,
         dataPath: data.dataPath || state.selectedGame?.dataPath,
     };
-    state.liveGameKey = null;
-    state.liveGameData = null;
+    clearLiveSubscriptionAfterFinalise();
     updateNextGameButtonVisibility(false, false);
     loadGameData(data.dataPath || "", {
         prefetchedData: data.dataPath ? null : data,
@@ -715,6 +720,7 @@ export async function loadGameData(dataPath, options = {}) {
             state.hiddenTeams = new Set(initialViewState.selectedTeams || []);
             state.splitWorm = Boolean(initialViewState.splitWorm);
             state.comparisonDetails = Boolean(initialViewState.comparisonDetails);
+            state.deniesVisible = Boolean(initialViewState.deniesVisible);
             if (!livePlayback && initialViewState.playbackRate) {
                 setPlaybackRate(initialViewState.playbackRate, { restart: false });
             }
@@ -722,6 +728,7 @@ export async function loadGameData(dataPath, options = {}) {
             state.hiddenTeams = null;
             state.splitWorm = false;
             state.comparisonDetails = true;
+            state.deniesVisible = true;
         }
 
         renderGameData();

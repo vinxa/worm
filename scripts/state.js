@@ -15,6 +15,7 @@ export const state = {
     selectedPlayers: new Set(),
     splitWorm: false,
     comparisonDetails: true,
+    deniesVisible: true,
     hiddenTeams: null, // null = all teams visible; otherwise Set of hidden team IDs
     selectedGame: null,
     playbackRate: 1,

@@ -69,11 +69,12 @@
 }
 
 .youtube-input-container input {
-  width: 170px; /* adjust as needed */
+  width: 170px;
+  height: 30px;
+  box-sizing: border-box;
   padding: 6px 10px;
   background: #333;
   border: 1px solid #555;
-  /* border-right: none; */
   border-radius: 4px 0 0 4px;
   color: #eee;
   font-size: 0.7rem;
@@ -91,12 +92,7 @@
 .youtube-input-container button {
   width: 36px;
   padding: 6px;
-  background: var(--button-bg);
-  border: 1px solid var(--button-border);
-  border-radius: var(--button-radius);
-  color: var(--button-text);
   font-size: 1.1rem;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,16 +166,11 @@ button:disabled {
   justify-content: center;
 }
 
-.button--secondary {
-  background: var(--button-bg);
-  color: var(--button-text);
-}
-
 .share-button,
 .keyboard-shortcuts-button {
-  flex: 0 0 34px;
-  width: 34px;
-  height: 30px;
+  flex: 0 0 var(--button-control-width);
+  width: var(--button-control-width);
+  height: var(--button-control-height);
   padding: 0;
 }
 
@@ -194,9 +185,6 @@ button:disabled {
 }
 
 .button--primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   border: 1px solid #d4a522;
   background: #e2b12a;
   color: #1e1e1e;
@@ -254,17 +242,10 @@ button:disabled {
   gap: 5px;
   width: auto;
   padding: 5px 8px;
-  border: 1px solid var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-bg);
   color: var(--button-accent);
-  box-shadow: none;
   font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1;
 }
 
-#installButton:hover,
 #installButton:focus-visible {
   background: var(--button-bg-hover);
   border-color: var(--button-accent);

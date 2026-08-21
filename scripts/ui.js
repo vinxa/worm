@@ -19,6 +19,7 @@ import {
     buildTeamTimeline,
     buildPlayerTimelines,
     setupComparisonDetailsToggle,
+    setupDeniesToggle,
     setupSplitWormToggle,
 } from "./timeline.js";
 import {
@@ -50,6 +51,7 @@ import {
     getLivePresentationDelaySeconds,
     setLivePresentationDelaySeconds,
 } from "./liveDelay.js";
+import { setShortcutTooltip, setupShortcutTooltips } from "./shortcutTooltips.js";
 
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 const GAME_BATCH_SIZE = 60;
@@ -258,7 +260,7 @@ export function updateNextGameButtonVisibility(fade = false, flash = false) {
         state.selectedGame.id === state.latestGame.id);
     const isLatestLive = isSelectedCurrentLiveGame(state.latestGame, state.liveGameKey);
     nextGameBtn.classList.toggle("is-live", isLatestLive);
-    nextGameBtn.title = isLatestLive ? "Latest Game — Live (L)" : "Latest Game (L)";
+    setShortcutTooltip(nextGameBtn, isLatestLive ? "Latest Game — Live" : "Latest Game");
     nextGameBtn.setAttribute("aria-label", isLatestLive ? "Latest Game — Live" : "Latest Game");
     if (followLiveControl) followLiveControl.hidden = !isLatest;
     if (followLiveCheckbox) followLiveCheckbox.checked = state.followLiveGames;
@@ -287,8 +289,13 @@ export function showGame(game, {
     replaceHistory = false,
     viewState = null,
 } = {}) {
-    if (!isSelectedCurrentLiveGame(game, state.liveGameKey)) setFollowLiveGames(false);
-    if (state.liveSubscribed && game?.gameKey !== state.liveGameKey) unsubscribeFromLiveGame();
+    const isLiveGame = isSelectedCurrentLiveGame(game, null) ||
+        isSelectedCurrentLiveGame(game, state.liveGameKey);
+    if (!isLiveGame) setFollowLiveGames(false);
+    if ((state.liveSubscribed || state.liveGameKey) &&
+        game?.gameKey !== state.liveGameKey && !isLiveGame) {
+        unsubscribeFromLiveGame();
+    }
     state.selectedGame = game;
     if (updateHistory) setGameUrl(game, { replace: replaceHistory });
     document.body.classList.add("game-view-active");
@@ -298,11 +305,10 @@ export function showGame(game, {
     updateLiveCountdown();
     gameSections.forEach((section) => (section.style.display = ""));
 
-    const isLiveGame = isSelectedCurrentLiveGame(game, state.liveGameKey);
     const hasTemporaryGameData = Boolean(game.gameKey && !game.dataPath);
     if (isLiveGame || hasTemporaryGameData) {
-        state.liveGameKey = game.gameKey || state.liveGameKey;
-        if (isLiveGame) subscribeToLiveGame();
+        if (isLiveGame) subscribeToLiveGame(game.gameKey || state.liveGameKey);
+        else state.liveGameKey = game.gameKey || state.liveGameKey;
         let liveData = state.liveGameData?.gameKey === game.gameKey
             ? state.liveGameData
             : state.gameData?.gameKey === game.gameKey
@@ -477,6 +483,7 @@ async function shareCurrentPage(button) {
         selectedTeams: selectedPlayers.length ? [] : [...(state.hiddenTeams || [])],
         splitWorm: state.splitWorm,
         comparisonDetails: state.comparisonDetails,
+        deniesVisible: state.deniesVisible,
     });
 
     try {
@@ -493,7 +500,7 @@ async function shareCurrentPage(button) {
             input.remove();
         }
         button.classList.add("is-copied");
-        button.title = "Link copied";
+        setShortcutTooltip(button, "Link copied");
         button.setAttribute("aria-label", "Link copied");
         const toast = document.getElementById("shareToast");
         if (toast) {
@@ -503,7 +510,7 @@ async function shareCurrentPage(button) {
         }
         window.setTimeout(() => {
             button.classList.remove("is-copied");
-            button.title = "Share this game";
+            setShortcutTooltip(button, "Share this game");
             button.setAttribute("aria-label", "Share this game");
         }, 1600);
     } catch (error) {
@@ -536,8 +543,10 @@ function loadAdjacentGame(offset) {
 
 export function initUI(gameLoader) {
     loadGameData = gameLoader;
+    setupShortcutTooltips();
     updateLiveCountdown();
     setupComparisonDetailsToggle();
+    setupDeniesToggle();
     setupSplitWormToggle();
     window.setInterval(updateLiveCountdown, 250);
     leftNavigationButton.addEventListener("click", () => showHome());
@@ -738,12 +747,19 @@ export function initUI(gameLoader) {
             if (shareButton) shareCurrentPage(shareButton);
         },
         onToggleComparisonDetails: () => {
-            const toggle = document.getElementById("comparisonDetailsToggle");
+            const toggle = [...document.querySelectorAll("[data-comparison-details-toggle]")]
+                .find((candidate) => !candidate.hidden);
+            if (toggle && !toggle.hidden) toggle.click();
+        },
+        onToggleDeniedEvents: () => {
+            const toggle = [...document.querySelectorAll("[data-denies-toggle]")]
+                .find((candidate) => !candidate.hidden);
             if (toggle && !toggle.hidden) toggle.click();
         },
         onToggleSplitTimelines: () => {
-            const control = document.getElementById("splitWormControl");
-            const toggle = document.getElementById("splitWormToggle");
+            const control = [...document.querySelectorAll("[data-split-worm-control]")]
+                .find((candidate) => !candidate.hidden);
+            const toggle = control?.querySelector("[data-split-worm-toggle]");
             if (control && !control.hidden && toggle) toggle.click();
         },
         onShowHome: showHome,

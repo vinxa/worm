@@ -6,9 +6,15 @@
   }
 
   body.game-view-active {
+    /* A future resize control can override this property on the game shell. */
+    --game-timeline-size: clamp(116px, 36dvh, 152px);
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
+  }
+
+  body.game-view-active:has(.players-grid.base-run-subgames) {
+    --game-timeline-size: clamp(104px, 34dvh, 204px);
   }
 
   .home-section {
@@ -111,10 +117,6 @@
     padding: 5px 7px;
   }
 
-  .favourites-panel {
-    max-height: calc(100dvh - 48px);
-  }
-
   .games-grid {
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     width: calc(100% - 12px);
@@ -151,6 +153,26 @@
     min-width: 0;
   }
 
+  body > .app-header .header-left {
+    gap: 4px;
+  }
+
+  body > .app-header .app-name {
+    display: none;
+  }
+
+  body > .app-header .mobile-split-worm-control:not([hidden]),
+  body > .app-header .mobile-denies-toggle:not([hidden]) {
+    flex: 0 0 var(--button-control-width-compact);
+    width: var(--button-control-width-compact);
+    height: var(--button-control-height-compact);
+  }
+
+  body > .app-header .worm-checkbox {
+    width: var(--button-control-width-compact);
+    height: var(--button-control-height-compact);
+  }
+
   body > .app-header .header-right,
   .youtube-input-container {
     gap: 4px;
@@ -161,9 +183,16 @@
   }
 
   body > .app-header .title {
-    max-width: 45vw;
+    position: static;
+    left: auto;
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    transform: none;
   }
 
   .top-section {
@@ -224,11 +253,14 @@
   .team-scores.base-run-score-subgames {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
     min-width: 0;
   }
 
   .team-scores.base-run-score-subgames > .team-score-subgame {
     flex: 1 1 0;
+    min-height: 0;
   }
 
   .team-score-subgame li {
@@ -236,9 +268,9 @@
   }
 
   .share-button {
-    flex-basis: 30px;
-    width: 30px;
-    height: 28px;
+    flex-basis: var(--button-control-width-compact);
+    width: var(--button-control-width-compact);
+    height: var(--button-control-height-compact);
   }
 
   #headerPlayButton,
@@ -255,8 +287,8 @@
 
   #headerPlayButton {
     display: inline-flex;
-    flex: 0 0 30px;
-    width: 30px;
+    flex: 0 0 var(--button-control-width-compact);
+    width: var(--button-control-width-compact);
   }
 
   .share-button.is-copied::after {
@@ -278,16 +310,32 @@
     align-content: stretch;
   }
 
+  .players-grid.base-run-subgames {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) !important;
+    align-content: stretch;
+  }
+
   .base-run-subgame {
     align-self: stretch;
     align-content: stretch;
+    min-height: 0;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(0, 1fr);
   }
 
   .player-summary {
     align-self: stretch;
     align-content: center;
+    min-height: 0;
     padding: 2px 3px;
     margin-bottom: 0;
+  }
+
+  body.game-view-active > .top-section .players-grid.base-run-subgames .player-summary {
+    align-content: start;
+    padding: 2px 3px;
   }
 
   .base-box {
@@ -312,13 +360,70 @@
   }
 
   .timeline-section {
-    flex: 0 0 clamp(116px, 36dvh, 152px);
-    min-height: 116px;
+    flex: 0 0 var(--game-timeline-size);
+    min-height: 0;
     padding: 3px 5px;
   }
 
   #scoreChart {
     min-height: 0;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-height: 400px) {
+  body.game-view-active > .top-section .team-scores.base-run-score-subgames {
+    gap: 2px;
+  }
+
+  body.game-view-active > .top-section .team-scores.base-run-score-subgames > .team-score-subgame {
+    gap: 2px;
+    padding: 2px;
+  }
+
+  body.game-view-active > .top-section .team-score-subgame li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    gap: 0 3px;
+    padding: 2px 3px;
+  }
+
+  body.game-view-active > .top-section .team-score-subgame .team-name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  body.game-view-active > .top-section .team-score-subgame .team-tags {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 0.65rem;
+    line-height: 1;
+  }
+
+  body.game-view-active > .top-section .team-score-subgame .team-score {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  body.game-view-active > .top-section .players-grid.base-run-subgames .player-summary-details {
+    grid-template-rows: repeat(2, auto);
+  }
+
+  body.game-view-active > .top-section .players-grid.base-run-subgames .detail-uptime-line {
+    display: none;
+  }
+
+  body.game-view-active > .top-section .players-grid.base-run-subgames .detail-tags-line {
+    grid-column: 1 / 3;
+  }
+
+  body.game-view-active > .top-section .players-grid.base-run-subgames .detail-bases {
+    grid-column: 3;
+    grid-row: 2;
   }
 }
 

@@ -75,6 +75,13 @@
     display: inline-flex;
   }
 
+  body > .app-header .tablet-timeline-controls {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+  }
+
   body > .app-header .title {
     position: static;
     left: auto;
@@ -97,8 +104,6 @@
   body > .app-header #headerPlayButton,
   body > .app-header #headerSpeedButton {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 
   body > .top-section {
@@ -592,4 +597,111 @@ body > .top-section .players-grid.base-run-subgames .detail-tags-label {
 body > .app-header .app-logo {
   width: 36px;
   margin-right: 6px;
+}
+
+/* Keep the compact combat stats as one consistently sized, left-aligned row. */
+@media screen and (orientation: landscape) and (min-width: 700px) and (min-height: 700px) and (max-width: 1200px) {
+  body > .top-section .players-grid.base-run-subgames .detail-combat-line {
+    display: inline-flex;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    align-items: baseline;
+    justify-self: start;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line,
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line,
+  body > .top-section .players-grid.base-run-subgames .detail-denies-label::after {
+    font-size: var(
+      --player-tile-combat-font-size,
+      clamp(0.72rem, 1vw, 0.82rem)
+    );
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line,
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: auto;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line {
+    order: 1;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+    order: 2;
+  }
+}
+
+/* Fit Base Run's narrow portrait cards into two readable detail rows. */
+@media screen and (orientation: portrait) and (min-width: 700px) and (min-height: 700px) and (max-width: 1200px) {
+  body > .top-section .players-grid.base-run-subgames .player-summary {
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 3px 4px;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .player-summary-details {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: repeat(2, auto);
+    align-content: center;
+    column-gap: 4px;
+    row-gap: 2px;
+    font-size: clamp(0.6rem, 1.2vw, 0.72rem);
+    line-height: 1.15;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-combat-line {
+    display: inline-flex;
+    grid-column: 2;
+    grid-row: 1;
+    align-items: baseline;
+    justify-self: end;
+    gap: 3px;
+    white-space: nowrap;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line,
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+    grid-column: auto;
+    grid-row: auto;
+    justify-self: auto;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-denies-line {
+    order: 1;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-ratio-line {
+    order: 2;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-tags-line {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: stretch;
+    overflow: hidden;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-tags {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-uptime-line {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  body > .top-section .players-grid.base-run-subgames .detail-bases {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    padding: 0;
+  }
 }

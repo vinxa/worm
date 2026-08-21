@@ -22,6 +22,46 @@ export function isBaseRunGame(gameData, selectedGame) {
     return normaliseText(getGameType(gameData, selectedGame)).includes("base run");
 }
 
+export function shouldUseTeamColumns({
+    forceTeamColumns = false,
+    allowResponsiveColumns = true,
+    teamCount = 0,
+    maxTeamSize = 0,
+    subgameWidth = Infinity,
+    subgameHeight = Infinity,
+    minimumTileWidth = 120,
+    minimumTileHeight = 90,
+} = {}) {
+    const teams = Math.max(1, Number(teamCount) || 0);
+    const players = Math.max(1, Number(maxTeamSize) || 0);
+    if (forceTeamColumns || teams >= players) return true;
+    if (!allowResponsiveColumns) return false;
+
+    const width = Number(subgameWidth);
+    const height = Number(subgameHeight);
+    const minimum = Math.max(0, Number(minimumTileWidth) || 0);
+    const minimumHeight = Math.max(0, Number(minimumTileHeight) || 0);
+    const hasEnoughHeight = !Number.isFinite(height) ||
+        height / players >= minimumHeight;
+    return Number.isFinite(width) && width / players < minimum && hasEnoughHeight;
+}
+
+export function shouldUseCompactTeamTiles({
+    maxTeamSize = 0,
+    availableHeight = Infinity,
+    rowGap = 0,
+    minimumFullTileHeight = 110,
+} = {}) {
+    const players = Math.max(1, Number(maxTeamSize) || 0);
+    const height = Number(availableHeight);
+    if (!Number.isFinite(height)) return false;
+
+    const gap = Math.max(0, Number(rowGap) || 0);
+    const usableHeight = Math.max(0, height - gap * (players - 1));
+    const minimumHeight = Math.max(0, Number(minimumFullTileHeight) || 0);
+    return usableHeight / players < minimumHeight;
+}
+
 export function getCanonicalColourName(subject) {
     const colourFromHex = COLOUR_NAME_BY_HEX[normaliseText(subject?.color)];
     if (colourFromHex) return colourFromHex;

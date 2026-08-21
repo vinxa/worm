@@ -5,6 +5,7 @@ import { getGameDuration, getLivePresentationTime, initTeamScores } from "./util
 import { closeYouTubeModal } from "./video.js";
 import { isLiveGameSelected } from "./live.js";
 import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
+import { setShortcutTooltip } from "./shortcutTooltips.js";
 
 const LIVE_MANUAL_SEEK_TOLERANCE_SECONDS = 0.75;
 
@@ -34,7 +35,7 @@ export function updatePlayButtonsLabel(label) {
     const isPlaying = label !== "▶";
     button.textContent = "";
     button.classList.toggle("is-playing", isPlaying);
-    button.title = isPlaying ? "Pause" : "Play";
+    setShortcutTooltip(button, isPlaying ? "Pause" : "Play");
     button.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
   });
 }
@@ -44,13 +45,13 @@ export function updateSpeedButtons() {
     const locked = isLiveSpeedLocked();
     const title = locked
         ? "Playback speed is locked at 1x while following a live game"
-        : "Change playback speed (+/-)";
+        : "Change playback speed";
     ["speedButton", "headerSpeedButton"].forEach((id) => {
         const button = document.getElementById(id);
         if (!button) return;
         button.textContent = label;
         button.disabled = locked;
-        button.title = title;
+        setShortcutTooltip(button, title);
     });
 }
 

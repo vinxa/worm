@@ -1,8 +1,9 @@
 import { buildPlayerLifeTimeline, hexToRGBA, formatTime, getGameDuration, getLivePresentationTime, getPlayerHighlightColor, normaliseText } from "./utils.js";
 import { jumpTo } from "./replayHandler.js";
 import { state } from "./state.js";
-import { COMPACT_LAYOUT_QUERY, DESKTOP_TIMELINE_QUERY, SHORT_LANDSCAPE_QUERY } from "./config.js";
+import { COMPACT_LAYOUT_QUERY, DESKTOP_TIMELINE_QUERY, SHORT_LANDSCAPE_QUERY, TABLET_LAYOUT_QUERY } from "./config.js";
 import { buildPlayerStatusPeriods } from "./playerStatus.js";
+import { setShortcutTooltip } from "./shortcutTooltips.js";
 
 const BASE_MARKER_DESKTOP = {
     offset: 12,
@@ -21,7 +22,6 @@ const BASE_MARKER_SHORT_LANDSCAPE = {
 const PLAYER_EVENT_MARKER_DESKTOP = {
     offset: 20,
     deniedOffset: 32,
-    denySize: 14,
     deniedSize: 12,
     tagSize: 8,
     headToHeadSize: 12,
@@ -30,7 +30,6 @@ const PLAYER_EVENT_MARKER_DESKTOP = {
 const PLAYER_EVENT_MARKER_SHORT_LANDSCAPE = {
     offset: 14,
     deniedOffset: 24,
-    denySize: 12,
     deniedSize: 10,
     tagSize: 7,
     headToHeadSize: 10,
@@ -42,7 +41,10 @@ const PLAYER_SELECTION_ANIMATION_MS = 180;
 const PLAYER_EVENT_HALO_ANIMATION_MS = 90;
 const PLAYER_EVENT_MARKER_ANIMATION_MS = 60;
 let splitWormMediaQuery = null;
+let mobileTimelineMediaQuery = null;
+let tabletTimelineMediaQuery = null;
 let comparisonDetailsToggleSetup = false;
+let deniesToggleSetup = false;
 
 function getWormSelectionAnimation() {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -111,34 +113,84 @@ function animateWormSeriesEntrance(series, animation) {
     });
 }
 
-function getSplitWormToggle() {
-    return document.getElementById("splitWormToggle");
+function getSplitWormControls() {
+    return [...document.querySelectorAll("[data-split-worm-control]")];
 }
 
-function getComparisonDetailsToggle() {
-    return document.getElementById("comparisonDetailsToggle");
+function getSplitWormToggles() {
+    return [...document.querySelectorAll("[data-split-worm-toggle]")];
+}
+
+function getComparisonDetailsToggles() {
+    return [...document.querySelectorAll("[data-comparison-details-toggle]")];
+}
+
+function getDeniesToggles() {
+    return [...document.querySelectorAll("[data-denies-toggle]")];
+}
+
+function releasePointerFocus(event) {
+    if (event.detail > 0 || event.pointerType) event.currentTarget.blur();
 }
 
 function isDesktopTimeline() {
     return window.matchMedia(DESKTOP_TIMELINE_QUERY).matches;
 }
 
-function updateSplitWormControl() {
-    const control = document.getElementById("splitWormControl");
-    const toggle = getSplitWormToggle();
-    const detailsToggle = getComparisonDetailsToggle();
-    const controlsHidden = state.selectedPlayers.size < 1 || !isDesktopTimeline();
-    if (control && toggle) {
-        control.hidden = controlsHidden;
+function isMobileTimeline() {
+    return window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
+}
+
+function isTabletTimeline() {
+    return window.matchMedia(TABLET_LAYOUT_QUERY).matches;
+}
+
+function comparisonDetailsEnabled() {
+    return state.comparisonDetails && !isMobileTimeline();
+}
+
+function updateTimelineDisplayControls() {
+    const noPlayersSelected = state.selectedPlayers.size < 1;
+    const desktopTimeline = isDesktopTimeline();
+    const mobileTimeline = isMobileTimeline();
+    const tabletTimeline = isTabletTimeline();
+    getSplitWormControls().forEach((control) => {
+        const mobileControl = control.classList.contains("mobile-split-worm-control");
+        const tabletControl = control.classList.contains("tablet-split-worm-control");
+        const correctLayout = mobileControl
+            ? mobileTimeline
+            : tabletControl
+                ? tabletTimeline
+                : desktopTimeline && !tabletTimeline;
+        control.hidden = noPlayersSelected || !correctLayout;
+    });
+    getSplitWormToggles().forEach((toggle) => {
         toggle.checked = Boolean(state.splitWorm);
-    }
-    if (detailsToggle) {
+    });
+    getComparisonDetailsToggles().forEach((detailsToggle) => {
+        const tabletControl = detailsToggle.classList.contains("tablet-comparison-details-toggle");
         const detailsEnabled = Boolean(state.comparisonDetails);
-        detailsToggle.hidden = controlsHidden;
+        detailsToggle.hidden = noPlayersSelected || (tabletControl
+            ? !tabletTimeline
+            : !desktopTimeline || tabletTimeline);
         detailsToggle.setAttribute("aria-pressed", String(detailsEnabled));
         detailsToggle.setAttribute("aria-label", "Show all tagged events");
-        detailsToggle.title = "Show all tagged events";
-    }
+        setShortcutTooltip(detailsToggle, "Show all tagged events");
+    });
+    getDeniesToggles().forEach((deniesToggle) => {
+        const mobileControl = deniesToggle.classList.contains("mobile-denies-toggle");
+        const tabletControl = deniesToggle.classList.contains("tablet-denies-toggle");
+        const correctLayout = mobileControl
+            ? mobileTimeline
+            : tabletControl
+                ? tabletTimeline
+                : desktopTimeline && !tabletTimeline;
+        deniesToggle.hidden = !correctLayout;
+        deniesToggle.classList.toggle("denies-toggle--standalone", noPlayersSelected);
+        deniesToggle.setAttribute("aria-pressed", String(Boolean(state.deniesVisible)));
+        deniesToggle.setAttribute("aria-label", "Show denied events");
+        setShortcutTooltip(deniesToggle, "Show denied events");
+    });
 }
 
 function getSplitWormAxisId(playerId) {
@@ -157,64 +209,68 @@ function setPlayerSeriesYAxis(playerId, yAxisId) {
 }
 
 export function setupSplitWormToggle() {
-    const toggle = getSplitWormToggle();
-    if (!toggle || splitWormMediaQuery) return;
+    const toggles = getSplitWormToggles();
+    if (!toggles.length || splitWormMediaQuery) return;
 
-    toggle.checked = Boolean(state.splitWorm);
-    toggle.addEventListener("change", () => {
-        state.splitWorm = toggle.checked;
-        updatePlayerSeriesDisplay();
+    toggles.forEach((toggle) => {
+        toggle.checked = Boolean(state.splitWorm);
+        toggle.addEventListener("click", releasePointerFocus);
+        toggle.addEventListener("change", () => {
+            state.splitWorm = toggle.checked;
+            updateTimelineDisplayControls();
+            updatePlayerSeriesDisplay();
+        });
     });
 
     splitWormMediaQuery = window.matchMedia(DESKTOP_TIMELINE_QUERY);
+    mobileTimelineMediaQuery = window.matchMedia(SHORT_LANDSCAPE_QUERY);
+    tabletTimelineMediaQuery = window.matchMedia(TABLET_LAYOUT_QUERY);
     const handleLayoutChange = () => {
-        updateSplitWormControl();
+        updateTimelineDisplayControls();
         if (state.chart) updatePlayerSeriesDisplay();
     };
-    if (typeof splitWormMediaQuery.addEventListener === "function") {
-        splitWormMediaQuery.addEventListener("change", handleLayoutChange);
-    } else {
-        splitWormMediaQuery.addListener(handleLayoutChange);
-    }
-    updateSplitWormControl();
+    [splitWormMediaQuery, mobileTimelineMediaQuery, tabletTimelineMediaQuery]
+        .forEach((mediaQuery) => {
+            if (typeof mediaQuery.addEventListener === "function") {
+                mediaQuery.addEventListener("change", handleLayoutChange);
+            } else {
+                mediaQuery.addListener(handleLayoutChange);
+            }
+        });
+    updateTimelineDisplayControls();
 }
 
 export function setupComparisonDetailsToggle() {
-    const toggle = getComparisonDetailsToggle();
-    if (!toggle || comparisonDetailsToggleSetup) return;
+    const toggles = getComparisonDetailsToggles();
+    if (!toggles.length || comparisonDetailsToggleSetup) return;
 
     comparisonDetailsToggleSetup = true;
-    toggle.addEventListener("click", () => {
-        state.comparisonDetails = !state.comparisonDetails;
-        updateSplitWormControl();
-        updatePlayerSeriesDisplay();
+    toggles.forEach((toggle) => {
+        toggle.addEventListener("click", (event) => {
+            state.comparisonDetails = !state.comparisonDetails;
+            updateTimelineDisplayControls();
+            updatePlayerSeriesDisplay();
+            releasePointerFocus(event);
+        });
     });
-    updateSplitWormControl();
+    updateTimelineDisplayControls();
 }
 
-{
-    const symbols = globalThis.Highcharts?.SVGRenderer?.prototype?.symbols;
-    if (symbols && !symbols.star) {
-        symbols.star = (x, y, width, height) => {
-            const centerX = x + width / 2;
-            const centerY = y + height / 2;
-            const outerRadius = Math.min(width, height) / 2;
-            const innerRadius = outerRadius * 0.45;
-            const path = [];
+export function setupDeniesToggle() {
+    const toggles = getDeniesToggles();
+    if (!toggles.length || deniesToggleSetup) return;
 
-            for (let point = 0; point < 10; point++) {
-                const radius = point % 2 === 0 ? outerRadius : innerRadius;
-                const angle = -Math.PI / 2 + point * Math.PI / 5;
-                path.push([
-                    point === 0 ? "M" : "L",
-                    centerX + Math.cos(angle) * radius,
-                    centerY + Math.sin(angle) * radius,
-                ]);
-            }
-            path.push(["Z"]);
-            return path;
-        };
-    }
+    deniesToggleSetup = true;
+    toggles.forEach((toggle) => {
+        toggle.addEventListener("click", (event) => {
+            state.deniesVisible = !state.deniesVisible;
+            updateTimelineDisplayControls();
+            filterTeamDeniedSeries(state.hiddenTeams);
+            updatePlayerSeriesDisplay();
+            releasePointerFocus(event);
+        });
+    });
+    updateTimelineDisplayControls();
 }
 
 function getBaseDisplayName(base, team, fallback = "?") {
@@ -318,6 +374,56 @@ function buildBaseDestroyPoints(data) {
     }, []);
 }
 
+function buildTeamDeniedPoints(data) {
+    const totals = {};
+    const teamsById = {};
+
+    data.teams.forEach((team) => {
+        totals[team.id] = 0;
+        teamsById[normaliseText(team.id)] = team;
+    });
+
+    const sortedEvents = [...data.events].sort((a, b) => a.time - b.time);
+
+    return sortedEvents.reduce((points, event) => {
+        const scoringPlayer = data.players[event.entity];
+        if (!scoringPlayer) return points;
+
+        const scoringTeamId = scoringPlayer.team;
+        if (!(scoringTeamId in totals)) return points;
+        totals[scoringTeamId] += event.delta ?? 0;
+        if (event.type !== "denied") return points;
+
+        const deniedPlayer = scoringPlayer;
+        const deniedTeamId = scoringTeamId;
+        const deniedTeam = teamsById[normaliseText(deniedTeamId)];
+        const denier = data.players[event.target];
+        const denierTeamId = denier?.team;
+        const denierTeam = teamsById[normaliseText(denierTeamId)];
+        const defendedBase = findBaseByTarget(data.active_bases, denierTeamId);
+        const defendedBaseName = getBaseDisplayName(
+            defendedBase,
+            denierTeam,
+            denierTeam?.name || denierTeamId || "?"
+        );
+
+        points.push({
+            x: event.time,
+            y: totals[deniedTeamId],
+            color: defendedBase?.color || denierTeam?.color || "#ffffff",
+            stemColor: deniedTeam?.color || "#ffffff",
+            deniedTeamId,
+            deniedTeamName: deniedTeam?.name || deniedTeamId,
+            denierTeamId,
+            denierTeamName: denierTeam?.name || denierTeamId,
+            denierName: denier?.name || denier?.id || event.target || "Unknown player",
+            deniedName: deniedPlayer.name || deniedPlayer.id || event.entity,
+            targetBaseName: defendedBaseName,
+        });
+        return points;
+    }, []);
+}
+
 function filterBaseDestroySeries(selectedSet) {
     if (!state.chart) return;
     const series = state.chart.get("base-destroys");
@@ -329,6 +435,19 @@ function filterBaseDestroySeries(selectedSet) {
         : allPoints;
     const payload = filtered.map((pt) => ({ ...pt }));
     series.setData(payload, false, false);
+}
+
+function filterTeamDeniedSeries(selectedSet) {
+    if (!state.chart) return;
+    const series = state.chart.get("team-denied");
+    if (!series) return;
+    const allPoints = state.chart.teamDeniedAllPoints || [];
+    const filtered = state.deniesVisible
+        ? selectedSet && selectedSet.size
+            ? allPoints.filter((point) => !selectedSet.has(point.deniedTeamId))
+            : allPoints
+        : [];
+    series.setData(filtered.map((point) => ({ ...point })), false, false);
 }
 
 function applyTeamSeriesVisibility(selectedSet) {
@@ -354,6 +473,7 @@ function applyTeamSeriesVisibility(selectedSet) {
         });
     });
     filterBaseDestroySeries(selectedSet);
+    filterTeamDeniedSeries(selectedSet);
     chart.redraw(selectionAnimation || undefined);
     enteringSeries.forEach((series) =>
         animateWormSeriesEntrance(series, selectionAnimation)
@@ -424,8 +544,7 @@ function updateSplitWormAxes(selectedPlayerIds) {
     const splitActive = Boolean(
         state.chart.yAxis?.[0] &&
         state.splitWorm &&
-        selectedPlayerIds.length >= 2 &&
-        isDesktopTimeline()
+        selectedPlayerIds.length >= 2
     );
 
     if (!splitActive) {
@@ -488,7 +607,9 @@ function getSplitWormScorePadding(playerId, selectedPlayerCount) {
     const marker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
         ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
         : PLAYER_EVENT_MARKER_DESKTOP;
-    const largestTaggedSize = Math.max(marker.tagSize, marker.headToHeadSize);
+    const largestTaggedSize = isMobileTimeline()
+        ? marker.tagSize
+        : Math.max(marker.tagSize, marker.headToHeadSize);
     const taggedHoverSize = largestTaggedSize + marker.hoverGrowth;
     const taggedHitSize = Math.max(taggedHoverSize + 4, 14);
     const taggedExtent = Math.max(10, taggedHoverSize / 2, taggedHitSize / 2);
@@ -560,10 +681,11 @@ function updateSelectedPlayerSeries(pid, {
     const tagSeriesId = pid + "-tags";
     const color = getPlayerHighlightColor(pid);
     const hideUnselectedIncomingTags =
-        !state.comparisonDetails && state.selectedPlayers.size > 0;
+        !comparisonDetailsEnabled() && state.selectedPlayers.size > 0;
     const tagEventOccurrences = new Map();
     const tagPoints = (state.playerEvents?.[pid] || [])
-        .filter((ev) => ["tag", "deny", "tagged", "denied"].includes(ev.type))
+        .filter((ev) => ["tag", "tagged", "denied"].includes(ev.type))
+        .filter((ev) => state.deniesVisible || ev.type !== "denied")
         .filter((ev) =>
             !hideUnselectedIncomingTags ||
             ev.type !== "tagged" ||
@@ -575,24 +697,20 @@ function updateSelectedPlayerSeries(pid, {
             const player = state.gameData.players?.[pid];
             const target = state.gameData.players?.[ev.target];
             const isIncoming = ev.type === "tagged" || ev.type === "denied";
-            const isDeny = ev.type === "deny" || ev.type === "denied";
-            const deniedPlayer = ev.type === "deny" ? target : player;
-            const denierPlayer = ev.type === "denied" ? target : player;
-            const deniedTeam = state.gameData.teams?.find(
-                (item) => String(item.id) === String(deniedPlayer?.team)
-            );
+            const isDenied = ev.type === "denied";
+            const denierPlayer = isDenied ? target : null;
             const denierTeam = state.gameData.teams?.find(
                 (item) => String(item.id) === String(denierPlayer?.team)
             );
-            // Deny records identify the two players but not the base. A
+            // Denied records identify the two players but not the base. A
             // deny happens while the denying player defends their team base.
-            const targetBase = isDeny
+            const targetBase = isDenied
                 ? findBaseByTarget(
                     state.gameData.active_bases,
                     denierTeam?.id ?? denierPlayer?.team
                 )
                 : null;
-            const targetBaseTeam = isDeny
+            const targetBaseTeam = isDenied
                 ? state.gameData.teams?.find(
                     (item) => String(item.id) === String(targetBase?.team)
                 )
@@ -600,14 +718,15 @@ function updateSelectedPlayerSeries(pid, {
             const isSharedSelectedTag =
                 (ev.type === "tag" || ev.type === "tagged") &&
                 state.selectedPlayers.has(String(ev.target));
+            const sharedSelectedMarker = compactMarkers
+                ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
+                : PLAYER_EVENT_MARKER_DESKTOP;
             const markerPlayer = state.gameData.players?.[String(ev.target ?? "")];
             const markerTeam = markerPlayer && state.gameData.teams?.find(
                 (item) => String(item.id) === String(markerPlayer.team)
             );
             let markerColor = markerTeam?.color || color;
-            if (ev.type === "deny") {
-                markerColor = deniedTeam?.color || markerColor;
-            } else if (ev.type === "denied") {
+            if (isDenied) {
                 markerColor = targetBase?.color || targetBaseTeam?.color ||
                     denierTeam?.color || markerColor;
             }
@@ -617,7 +736,7 @@ function updateSelectedPlayerSeries(pid, {
                 y: scorePoint?.[1] || 0,
                 color: markerColor,
                 targetName: target?.name || ev.target || "Unknown player",
-                targetBaseName: isDeny
+                targetBaseName: isDenied
                     ? getBaseDisplayName(
                         targetBase,
                         targetBaseTeam,
@@ -627,7 +746,7 @@ function updateSelectedPlayerSeries(pid, {
                 eventType: ev.type,
                 playerBorderColor: color,
                 isSharedSelectedTag,
-                marker: (isDeny || isIncoming)
+                marker: isIncoming
                     ? {
                         enabled: false,
                         states: { hover: { enabled: false } },
@@ -637,13 +756,16 @@ function updateSelectedPlayerSeries(pid, {
                         lineColor: color,
                         ...(isSharedSelectedTag ? {
                             radius: (compactMarkers
-                                ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
-                                : PLAYER_EVENT_MARKER_DESKTOP).headToHeadSize / 2,
-                            lineWidth: 2,
+                                ? sharedSelectedMarker.tagSize
+                                : sharedSelectedMarker.headToHeadSize) / 2,
+                            lineWidth: compactMarkers ? 1 : 2,
                             states: {
                                 hover: {
                                     enabled: true,
-                                    radius: compactMarkers ? 7 : 8,
+                                    radius: ((compactMarkers
+                                        ? sharedSelectedMarker.tagSize
+                                        : sharedSelectedMarker.headToHeadSize) +
+                                        sharedSelectedMarker.hoverGrowth) / 2,
                                 },
                             },
                         } : {}),
@@ -731,7 +853,7 @@ function updateSelectedPlayerSeries(pid, {
 }
 
 export function updatePlayerSeriesDisplay(redraw = true) {
-    updateSplitWormControl();
+    updateTimelineDisplayControls();
     if (!state.chart || !state.gameData || !state.gameData.players) return;
     const compactMarkers = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
     const selectedPlayerSignature = [...state.selectedPlayers].join("\u001f");
@@ -1056,7 +1178,10 @@ export function updateCursorPosition(sec) {
             Math.max(plotLeft + halfWidth + labelPadding, x)
         );
         const isShortLandscape = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches;
-        const labelY = isShortLandscape ? chart.plotTop + 10 : chart.plotTop - 2;
+        const isTabletLayout = window.matchMedia(TABLET_LAYOUT_QUERY).matches;
+        const labelY = isShortLandscape || isTabletLayout
+            ? chart.plotTop + 10
+            : chart.plotTop - 2;
         if (!Number.isFinite(labelCenter) || !Number.isFinite(labelY)) return;
         cursorLabel.attr({
             x: labelCenter,
@@ -1213,7 +1338,60 @@ function renderLiveChartOverlays(chart) {
         chart.baseDestroyOverlayGroup = overlay;
     }
 
-    const eventMarker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
+    const teamDeniedSeries = chart.get("team-denied");
+    if (teamDeniedSeries) {
+        const marker = window.matchMedia(SHORT_LANDSCAPE_QUERY).matches
+            ? BASE_MARKER_SHORT_LANDSCAPE
+            : BASE_MARKER_DESKTOP;
+        chart.teamDeniedStemOverlayGroup?.destroy();
+        chart.teamDeniedOverlayGroup?.destroy();
+        const stemOverlay = chart.renderer.g().attr({ zIndex: 2 }).add();
+        const overlay = chart.renderer.g().attr({ zIndex: 7 }).add();
+        overlay.element.style.pointerEvents = "auto";
+
+        teamDeniedSeries.points.forEach((point) => {
+            const {
+                plotX,
+                plotY,
+                color = "#ffffff",
+                stemColor = "#ffffff",
+            } = point;
+            if (!Number.isFinite(plotX) || !Number.isFinite(plotY)) return;
+            const x = chart.plotLeft + plotX;
+            const y = chart.plotTop + plotY;
+            const raisedEndY = y - marker.offset;
+            const renderBelow = raisedEndY - marker.size / 2 < chart.plotTop;
+            const endY = y + (renderBelow ? marker.offset : -marker.offset);
+            point.tooltipPos = [point.plotX, endY - chart.plotTop];
+            const stem = chart.renderer.path(["M", x, y, "L", x, endY]).attr({
+                stroke: stemColor,
+                "stroke-width": 1,
+                "stroke-opacity": 0.6,
+            }).add(stemOverlay);
+            const triangle = chart.renderer.symbol(
+                "triangle-down",
+                x - marker.size / 2,
+                endY - marker.size / 2,
+                marker.size,
+                marker.size
+            ).addClass("team-denied-symbol").attr({
+                fill: color,
+                stroke: "#111",
+                "stroke-width": 2,
+                "data-team-id": String(point.deniedTeamId || ""),
+                "data-event-type": "denied",
+            }).add(overlay);
+            [stem, triangle].forEach((element) => {
+                element.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
+                element.element.addEventListener("mouseleave", () => chart.tooltip.hide());
+            });
+        });
+        chart.teamDeniedStemOverlayGroup = stemOverlay;
+        chart.teamDeniedOverlayGroup = overlay;
+    }
+
+    const mobileTimeline = isMobileTimeline();
+    const eventMarker = mobileTimeline
         ? PLAYER_EVENT_MARKER_SHORT_LANDSCAPE
         : PLAYER_EVENT_MARKER_DESKTOP;
     const overlayState = getPlayerEventOverlayState(chart);
@@ -1228,11 +1406,11 @@ function renderLiveChartOverlays(chart) {
             // point IDs, so remove it explicitly to guarantee that an incoming
             // tagged dot never appears directly on the player worm.
             tagSeries.points.forEach((point) => {
-                if (!["deny", "tagged", "denied"].includes(point.eventType)) return;
+                if (!["tagged", "denied"].includes(point.eventType)) return;
                 if (point.graphic) point.graphic = point.graphic.destroy();
             });
             tagSeries.points
-                .filter((point) => ["deny", "tagged", "denied"].includes(point.eventType))
+                .filter((point) => ["tagged", "denied"].includes(point.eventType))
                 .forEach((point) => {
                     if (!Number.isFinite(point.plotX) || !Number.isFinite(point.plotY)) return;
                     const x = chart.plotLeft + point.plotX;
@@ -1241,15 +1419,14 @@ function renderLiveChartOverlays(chart) {
                     const y = axisTop + point.plotY;
                     const isTagged = point.eventType === "tagged";
                     const isDenied = point.eventType === "denied";
-                    const isDeny = point.eventType === "deny" || isDenied;
                     const isSharedSelectedTag = isTagged && point.isSharedSelectedTag;
                     const preferredOffset = isDenied
                         ? eventMarker.deniedOffset
-                        : (isTagged ? eventMarker.offset : -eventMarker.offset);
+                        : eventMarker.offset;
                     const baseMarkerSize = isDenied
                         ? eventMarker.deniedSize
-                        : (isTagged ? eventMarker.tagSize : eventMarker.denySize);
-                    const markerSize = isSharedSelectedTag
+                        : eventMarker.tagSize;
+                    const markerSize = isSharedSelectedTag && !mobileTimeline
                         ? eventMarker.headToHeadSize
                         : baseMarkerSize;
                     const hoverSize = markerSize + eventMarker.hoverGrowth;
@@ -1275,10 +1452,9 @@ function renderLiveChartOverlays(chart) {
                     const markerPlotY = markerY - chart.plotTop;
                     const markerSymbol = isDenied
                         ? "triangle-down"
-                        : (isTagged ? "circle" : "star");
-                    const markerStrokeWidth = markerSymbol === "star"
-                        ? 1
-                        : (isDeny || isSharedSelectedTag ? 2 : 1);
+                        : "circle";
+                    const markerStrokeWidth = isDenied ||
+                        (isSharedSelectedTag && !mobileTimeline) ? 2 : 1;
                     const color = point.color || tagSeries.color || "#ffffff";
                     const borderColor = point.playerBorderColor || tagSeries.color || "#ffffff";
                     const stemColor = tagSeries.color || "#ffffff";
@@ -1354,6 +1530,7 @@ function renderLiveChartOverlays(chart) {
 function createLiveScoreChart(data) {
     const fullTimeline = buildTeamTimeline(data);
     const baseDestroyPoints = buildBaseDestroyPoints(data);
+    const teamDeniedPoints = buildTeamDeniedPoints(data);
     const liveSeries = data.teams.map((t) => ({
         name: t.name,
         id: t.id + "-live",
@@ -1375,6 +1552,37 @@ function createLiveScoreChart(data) {
         type: "scatter",
         name: "Base destroyed",
         data: baseDestroyPoints,
+        color: "#ffffff",
+        marker: {
+            enabled: true,
+            symbol: "circle",
+            radius: 6,
+            lineWidth: 0,
+            fillOpacity: 0,
+            fillColor: "rgba(0,0,0,0)",
+            lineColor: "rgba(0,0,0,0)",
+            states: {
+                hover: {
+                    enabled: true,
+                    radius: 7,
+                    lineWidth: 0,
+                    fillOpacity: 0,
+                    fillColor: "rgba(0,0,0,0)",
+                    lineColor: "rgba(0,0,0,0)",
+                    halo: false,
+                },
+            },
+        },
+        dataLabels: { enabled: false },
+        showInLegend: false,
+        enableMouseTracking: true,
+        zIndex: 7,
+    };
+    const teamDeniedSeries = {
+        id: "team-denied",
+        type: "scatter",
+        name: "Denied",
+        data: state.deniesVisible ? teamDeniedPoints : [],
         color: "#ffffff",
         marker: {
             enabled: true,
@@ -1458,7 +1666,7 @@ function createLiveScoreChart(data) {
                 dashStyle: "Dash",
             }],
         },
-        series: [...ghostSeries, ...liveSeries, baseDestroySeries],
+        series: [...ghostSeries, ...liveSeries, baseDestroySeries, teamDeniedSeries],
         credits: { enabled: false },
         legend: { enabled: false, itemStyle: { color: "#eee" } },
         plotOptions: {
@@ -1487,18 +1695,20 @@ function createLiveScoreChart(data) {
                     );
                 }
 
+                if (id === "team-denied") {
+                    const base = this.point.targetBaseName
+                        ? ` at ${this.point.targetBaseName} Base`
+                        : "";
+                    return (
+                        `<span style="color:${this.point.color}">▼</span> ` +
+                        `${formatTime(this.x)} — <b>${this.point.deniedName}</b> ` +
+                        `(${this.point.deniedTeamName}) was denied by ` +
+                        `<b>${this.point.denierName}</b>${base}`
+                    );
+                }
+
                 if (id.endsWith("-tags")) {
                     const playerName = this.series.name.replace(/ tags$/, "");
-                    if (this.point.eventType === "deny") {
-                        const base = this.point.targetBaseName
-                            ? ` at ${this.point.targetBaseName} Base`
-                            : "";
-                        return (
-                            `<span style="color:${this.point.color}">\u2605</span> ` +
-                            `${formatTime(this.x)} — <b>${playerName}</b> denied ` +
-                            `<b>${this.point.targetName}</b>${base}`
-                        );
-                    }
                     if (this.point.eventType === "denied") {
                         const base = this.point.targetBaseName
                             ? ` at ${this.point.targetBaseName} Base`
@@ -1569,11 +1779,12 @@ function createLiveScoreChart(data) {
             }],
         },
     });
-    return { chart, baseDestroyPoints };
+    return { chart, baseDestroyPoints, teamDeniedPoints };
 }
 
-function setupLiveChartInteractions(chart, baseDestroyPoints) {
+function setupLiveChartInteractions(chart, baseDestroyPoints, teamDeniedPoints) {
     chart.baseDestroyAllPoints = baseDestroyPoints.map((pt) => ({ ...pt }));
+    chart.teamDeniedAllPoints = teamDeniedPoints.map((point) => ({ ...point }));
     const left = chart.plotLeft;
     const top = chart.plotTop;
     const height = chart.plotHeight;
@@ -1702,8 +1913,8 @@ export function initLiveChart(data) {
         state.chart = null;
     }
 
-    const { chart, baseDestroyPoints } = createLiveScoreChart(data);
-    setupLiveChartInteractions(chart, baseDestroyPoints);
+    const { chart, baseDestroyPoints, teamDeniedPoints } = createLiveScoreChart(data);
+    setupLiveChartInteractions(chart, baseDestroyPoints, teamDeniedPoints);
     applyTeamSeriesVisibility(state.hiddenTeams);
     updatePlayerStatusBands();
     return chart;
@@ -1785,7 +1996,10 @@ export function refreshLiveChartData(data, currentTime) {
 
     const baseDestroyPoints = buildBaseDestroyPoints(data);
     chart.baseDestroyAllPoints = baseDestroyPoints.map((pt) => ({ ...pt }));
+    const teamDeniedPoints = buildTeamDeniedPoints(data);
+    chart.teamDeniedAllPoints = teamDeniedPoints.map((point) => ({ ...point }));
     filterBaseDestroySeries(state.hiddenTeams);
+    filterTeamDeniedSeries(state.hiddenTeams);
     updatePlayerSeriesDisplay(false);
     return true;
 }
