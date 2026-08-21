@@ -78,22 +78,27 @@ export function getCanonicalColourName(subject) {
 
 /**
  * Some Comp modes report the physical Yellow target as the Green team's base.
- * Once ownership says Green, exposing Yellow in labels or marker colours is
- * misleading, so canonicalise the base at the data boundary.
+ * Once ownership or the event policy says Green, exposing Yellow in labels or
+ * marker colours is misleading, so canonicalise the base at the data boundary.
  */
-export function normaliseBaseForOwningTeam(base, teams = []) {
+export function normaliseBaseForOwningTeam(base, teams = [], {
+    forceYellowToGreen = false,
+} = {}) {
     const owningTeam = teams.find(
         (team) => normaliseText(team?.id) === normaliseText(base?.team)
     );
-    if (
-        getCanonicalColourName(base) !== "yellow" ||
-        getCanonicalColourName(owningTeam) !== "green"
-    ) return base;
+    if (getCanonicalColourName(base) !== "yellow") return base;
+
+    const greenTeam = forceYellowToGreen
+        ? teams.find((team) => getCanonicalColourName(team) === "green")
+        : owningTeam;
+    if (getCanonicalColourName(greenTeam) !== "green") return base;
 
     return {
         ...base,
         name: "Green Base",
-        color: owningTeam?.color || "#40FF00",
+        team: String(greenTeam?.id ?? base?.team ?? ""),
+        color: greenTeam?.color || "#40FF00",
         colorName: "Green",
     };
 }
@@ -118,6 +123,63 @@ export function baseMatchesTargetKey(base, targetKey) {
     return false;
 }
 
+function getInferredBaseRunAssignment({ gameData, currentTime, teamIds }) {
+    const availableTeamIds = new Set(teamIds.map(normaliseText));
+    const targetKeyById = new Map();
+    (gameData?.active_bases || []).forEach((base) => {
+        const entityId = normaliseText(base?.entityId);
+        if (entityId) targetKeyById.set(entityId, getBaseTargetKey(base));
+    });
+    (gameData?.teams || []).forEach((team) => {
+        const teamId = normaliseText(team?.id);
+        if (teamId && !targetKeyById.has(teamId)) {
+            targetKeyById.set(teamId, getBaseTargetKey(team));
+        }
+    });
+
+    const statsByTeam = new Map();
+    (gameData?.events || []).forEach((event, eventIndex) => {
+        if (Number(event?.time) > currentTime ||
+            (event?.type !== "base hit" && event?.type !== "base destroy")) return;
+        const teamId = normaliseText(gameData?.players?.[event.entity]?.team);
+        const targetId = normaliseText(event.target);
+        // Legacy payloads may stringify a missing target as "None".
+        if (!teamId || !availableTeamIds.has(teamId) ||
+            !targetId || targetId === "none" || targetId === "null") return;
+        const targetKey = targetKeyById.get(targetId) || `id:${targetId}`;
+        if (!statsByTeam.has(teamId)) statsByTeam.set(teamId, new Map());
+        const targetStats = statsByTeam.get(teamId);
+        const stats = targetStats.get(targetKey) || { count: 0, firstEventIndex: eventIndex };
+        stats.count++;
+        targetStats.set(targetKey, stats);
+    });
+
+    const targetByTeam = new Map();
+    statsByTeam.forEach((targetStats, teamId) => {
+        const [winner] = [...targetStats.entries()].sort(([, a], [, b]) =>
+            (b.count - a.count) || (a.firstEventIndex - b.firstEventIndex)
+        );
+        if (winner) targetByTeam.set(teamId, winner[0]);
+    });
+    if (!targetByTeam.size) return null;
+
+    const originalTeamIds = new Map(teamIds.map((teamId) => [normaliseText(teamId), teamId]));
+    const teamsByTarget = new Map();
+    targetByTeam.forEach((targetKey, teamId) => {
+        if (!teamsByTarget.has(targetKey)) teamsByTarget.set(targetKey, []);
+        teamsByTarget.get(targetKey).push(originalTeamIds.get(teamId));
+    });
+    const groups = [...teamsByTarget.values()];
+    teamIds.forEach((teamId) => {
+        if (!targetByTeam.has(normaliseText(teamId))) groups.push([teamId]);
+    });
+    return {
+        groups,
+        baseTargetKeyByTeamId: Object.fromEntries(targetByTeam),
+        complete: teamIds.every((teamId) => targetByTeam.has(normaliseText(teamId))),
+    };
+}
+
 export function getBaseRunLayoutPlan({
     gameData,
     selectedGame,
@@ -129,6 +191,11 @@ export function getBaseRunLayoutPlan({
     if (!isBaseRunGame(gameData, selectedGame) || !teamIds.length) return null;
     let groups;
     let baseTargetKeyByTeamId;
+    const inferredAssignment = getInferredBaseRunAssignment({
+        gameData,
+        currentTime,
+        teamIds,
+    });
 
     if (policy) {
         const availableTeamIds = new Map(teamIds.map((teamId) => [normaliseText(teamId), teamId]));
@@ -170,57 +237,15 @@ export function getBaseRunLayoutPlan({
                 ];
             })
         );
+        Object.assign(
+            baseTargetKeyByTeamId,
+            inferredAssignment?.baseTargetKeyByTeamId || {},
+        );
+        if (inferredAssignment?.complete) groups = inferredAssignment.groups;
     } else {
-        const availableTeamIds = new Set(teamIds.map(normaliseText));
-        const targetKeyById = new Map();
-        (gameData?.active_bases || []).forEach((base) => {
-            const entityId = normaliseText(base?.entityId);
-            if (entityId) targetKeyById.set(entityId, getBaseTargetKey(base));
-        });
-        (gameData?.teams || []).forEach((team) => {
-            const teamId = normaliseText(team?.id);
-            if (teamId && !targetKeyById.has(teamId)) {
-                targetKeyById.set(teamId, getBaseTargetKey(team));
-            }
-        });
-
-        const statsByTeam = new Map();
-        (gameData?.events || []).forEach((event, eventIndex) => {
-            if (Number(event?.time) > currentTime ||
-                (event?.type !== "base hit" && event?.type !== "base destroy")) return;
-            const teamId = normaliseText(gameData?.players?.[event.entity]?.team);
-            const targetId = normaliseText(event.target);
-            // Legacy payloads may stringify a missing target as "None".
-            if (!teamId || !availableTeamIds.has(teamId) ||
-                !targetId || targetId === "none" || targetId === "null") return;
-            const targetKey = targetKeyById.get(targetId) || `id:${targetId}`;
-            if (!statsByTeam.has(teamId)) statsByTeam.set(teamId, new Map());
-            const targetStats = statsByTeam.get(teamId);
-            const stats = targetStats.get(targetKey) || { count: 0, firstEventIndex: eventIndex };
-            stats.count++;
-            targetStats.set(targetKey, stats);
-        });
-
-        const targetByTeam = new Map();
-        statsByTeam.forEach((targetStats, teamId) => {
-            const [winner] = [...targetStats.entries()].sort(([, a], [, b]) =>
-                (b.count - a.count) || (a.firstEventIndex - b.firstEventIndex)
-            );
-            if (winner) targetByTeam.set(teamId, winner[0]);
-        });
-        if (!targetByTeam.size) return null;
-
-        const originalTeamIds = new Map(teamIds.map((teamId) => [normaliseText(teamId), teamId]));
-        const teamsByTarget = new Map();
-        targetByTeam.forEach((targetKey, teamId) => {
-            if (!teamsByTarget.has(targetKey)) teamsByTarget.set(targetKey, []);
-            teamsByTarget.get(targetKey).push(originalTeamIds.get(teamId));
-        });
-        groups = [...teamsByTarget.values()];
-        teamIds.forEach((teamId) => {
-            if (!targetByTeam.has(normaliseText(teamId))) groups.push([teamId]);
-        });
-        baseTargetKeyByTeamId = Object.fromEntries(targetByTeam);
+        if (!inferredAssignment) return null;
+        groups = inferredAssignment.groups;
+        baseTargetKeyByTeamId = inferredAssignment.baseTargetKeyByTeamId;
     }
     if (!groups.length) return null;
 

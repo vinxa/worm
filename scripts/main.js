@@ -29,6 +29,7 @@ import { refreshLiveChartData } from "./timeline.js";
 import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateResumeLiveButtons, updateSpeedButtons } from "./replayHandler.js";
 import { getGameIdFromUrl, getViewStateFromUrl } from "./routing.js";
 import { isBaseRunGame, normaliseBaseForOwningTeam } from "./baseRun.js";
+import { isClash3BaseRunGame } from "./events/clash3BaseRun.js";
 import { animateLiveBaseEvents, animateLiveLifeEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
 import { closeYouTubeModal, loadYouTubeUrl } from "./video.js";
 import { normaliseGamePlayerIdentity } from "./playerIdentity.js";
@@ -98,6 +99,7 @@ function prepareGameData(gameData) {
     const gameType = identifiedGameData?.gameType ||
         state.selectedGame?.gameType || state.selectedGame?.title || "";
     const isLeagueLaserforce = normaliseText(gameType).startsWith("league laserforce");
+    const isClash3BaseRun = isClash3BaseRunGame(identifiedGameData, state.selectedGame);
     const rawTeams = toTeamArray(identifiedGameData?.teams).map((team) => {
         const normalisedTeam = {
             ...team,
@@ -142,7 +144,9 @@ function prepareGameData(gameData) {
             const presentationBase = isLeagueLaserforce
                 ? normaliseLeagueLaserforceYellow(normalisedBase, "Green Base")
                 : normalisedBase;
-            return normaliseBaseForOwningTeam(presentationBase, rawTeams);
+            return normaliseBaseForOwningTeam(presentationBase, rawTeams, {
+                forceYellowToGreen: isClash3BaseRun,
+            });
         });
     const baseByEntityId = new Map(
         allActiveBases

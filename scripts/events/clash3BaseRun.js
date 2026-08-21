@@ -9,8 +9,12 @@ const SUBGAMES = [
     { teams: ["pink", "yellow"], base: "red" },
 ];
 
+export function isClash3BaseRunGame(gameData, selectedGame) {
+    return normaliseText(getGameType(gameData, selectedGame)) === GAME_TYPE;
+}
+
 export function getClash3BaseRunPolicy({ gameData, selectedGame, events }) {
-    if (normaliseText(getGameType(gameData, selectedGame)) !== GAME_TYPE) return null;
+    if (!isClash3BaseRunGame(gameData, selectedGame)) return null;
     const gameStart = parseGameStart(selectedGame || gameData);
     const isClash3Game = gameStart && (events || []).some((event) =>
         normaliseText(event?.name || event?.label || event?.id) === EVENT_NAME &&
