@@ -462,11 +462,28 @@
 
   <script type="module" src="scripts/main.js"></script>
   <script>
-    if (navigator.serviceWorker) {
-      navigator.serviceWorker.register (
-          '/worm/sw.js',
-          {scope: '/worm/'}
-        )
+    if ("serviceWorker" in navigator) {
+      const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
+      let reloadingForServiceWorkerUpdate = false;
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadServiceWorkerController || reloadingForServiceWorkerUpdate) return;
+        reloadingForServiceWorkerUpdate = true;
+        window.location.reload();
+      });
+
+      navigator.serviceWorker.register("/worm/sw.js", {
+        scope: "/worm/",
+        updateViaCache: "none",
+      }).then((registration) => {
+        const checkForServiceWorkerUpdate = () => registration.update().catch(() => {});
+
+        checkForServiceWorkerUpdate();
+        window.setInterval(checkForServiceWorkerUpdate, 60_000);
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") checkForServiceWorkerUpdate();
+        });
+      }).catch(() => {});
     }
   </script>
 </body>
