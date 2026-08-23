@@ -22,6 +22,7 @@ const BASE_MARKER_SHORT_LANDSCAPE = {
 const PLAYER_EVENT_MARKER_DESKTOP = {
     offset: 20,
     deniedOffset: 32,
+    denySize: 14,
     deniedSize: 12,
     tagSize: 8,
     headToHeadSize: 12,
@@ -30,6 +31,7 @@ const PLAYER_EVENT_MARKER_DESKTOP = {
 const PLAYER_EVENT_MARKER_SHORT_LANDSCAPE = {
     offset: 14,
     deniedOffset: 24,
+    denySize: 12,
     deniedSize: 10,
     tagSize: 7,
     headToHeadSize: 10,
@@ -40,6 +42,8 @@ const SPLIT_WORM_AXIS_PREFIX = "split-worm-axis:";
 const PLAYER_SELECTION_ANIMATION_MS = 180;
 const PLAYER_EVENT_HALO_ANIMATION_MS = 90;
 const PLAYER_EVENT_MARKER_ANIMATION_MS = 60;
+const LEGACY_BASE_ATTEMPT_SECONDS = 5;
+const INCOMING_DENIED_EVENT_TYPES = new Set(["denied", "team-denied"]);
 let splitWormMediaQuery = null;
 let mobileTimelineMediaQuery = null;
 let tabletTimelineMediaQuery = null;
@@ -273,6 +277,31 @@ export function setupDeniesToggle() {
     updateTimelineDisplayControls();
 }
 
+{
+    const symbols = globalThis.Highcharts?.SVGRenderer?.prototype?.symbols;
+    if (symbols && !symbols.star) {
+        symbols.star = (x, y, width, height) => {
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const outerRadius = Math.min(width, height) / 2;
+            const innerRadius = outerRadius * 0.45;
+            const path = [];
+
+            for (let point = 0; point < 10; point++) {
+                const radius = point % 2 === 0 ? outerRadius : innerRadius;
+                const angle = -Math.PI / 2 + point * Math.PI / 5;
+                path.push([
+                    point === 0 ? "M" : "L",
+                    centerX + Math.cos(angle) * radius,
+                    centerY + Math.sin(angle) * radius,
+                ]);
+            }
+            path.push(["Z"]);
+            return path;
+        };
+    }
+}
+
 function getBaseDisplayName(base, team, fallback = "?") {
     const colorName = ["none", "???"].includes(normaliseText(base?.colorName))
         ? ""
@@ -311,6 +340,31 @@ function findBaseByTarget(activeBases, target) {
         (base) => normaliseText(base?.team) === targetId
     );
     return teamMatches.length === 1 ? teamMatches[0] : null;
+}
+
+function findDeniedAtBase(data, event, denierTeamId, deniedPlayerId = event?.entity) {
+    const explicitBase = findBaseByTarget(data.active_bases, event?.base);
+    if (explicitBase) return explicitBase;
+
+    // Older completed games do not carry the denial's base ID. Recover it
+    // from the denied player's latest base hit when possible.
+    const eventTime = Number(event?.time);
+    const precedingHit = [...(data.events || [])]
+        .filter((candidate) =>
+            candidate?.type === "base hit" &&
+            String(candidate.entity) === String(deniedPlayerId) &&
+            Number(candidate.time) <= eventTime &&
+            eventTime - Number(candidate.time) <= LEGACY_BASE_ATTEMPT_SECONDS
+        )
+        .sort((a, b) => Number(b.time) - Number(a.time))[0];
+    const attemptedBase = findBaseByTarget(data.active_bases, precedingHit?.target);
+    if (attemptedBase) return attemptedBase;
+
+    return findBaseByTarget(data.active_bases, denierTeamId);
+}
+
+function isIncomingDeniedEvent(event) {
+    return INCOMING_DENIED_EVENT_TYPES.has(event?.eventType ?? event?.type);
 }
 
 function buildBaseDestroyPoints(data) {
@@ -392,7 +446,7 @@ function buildTeamDeniedPoints(data) {
         const scoringTeamId = scoringPlayer.team;
         if (!(scoringTeamId in totals)) return points;
         totals[scoringTeamId] += event.delta ?? 0;
-        if (event.type !== "denied") return points;
+        if (!isIncomingDeniedEvent(event)) return points;
 
         const deniedPlayer = scoringPlayer;
         const deniedTeamId = scoringTeamId;
@@ -400,17 +454,18 @@ function buildTeamDeniedPoints(data) {
         const denier = data.players[event.target];
         const denierTeamId = denier?.team;
         const denierTeam = teamsById[normaliseText(denierTeamId)];
-        const defendedBase = findBaseByTarget(data.active_bases, denierTeamId);
+        const defendedBase = findDeniedAtBase(data, event, denierTeamId);
+        const defendedBaseTeam = teamsById[normaliseText(defendedBase?.team)] || denierTeam;
         const defendedBaseName = getBaseDisplayName(
             defendedBase,
-            denierTeam,
+            defendedBaseTeam,
             denierTeam?.name || denierTeamId || "?"
         );
 
         points.push({
             x: event.time,
             y: totals[deniedTeamId],
-            color: defendedBase?.color || denierTeam?.color || "#ffffff",
+            color: defendedBase?.color || defendedBaseTeam?.color || "#ffffff",
             stemColor: deniedTeam?.color || "#ffffff",
             deniedTeamId,
             deniedTeamName: deniedTeam?.name || deniedTeamId,
@@ -419,6 +474,7 @@ function buildTeamDeniedPoints(data) {
             denierName: denier?.name || denier?.id || event.target || "Unknown player",
             deniedName: deniedPlayer.name || deniedPlayer.id || event.entity,
             targetBaseName: defendedBaseName,
+            eventType: event.type,
         });
         return points;
     }, []);
@@ -643,6 +699,7 @@ function getPlayerEventPointId(seriesKind, playerId, event, occurrences) {
         Number(event?.time) || 0,
         event?.type || "",
         event?.target ?? null,
+        event?.base ?? null,
         event?.delta ?? null,
     ]);
     const occurrence = occurrences.get(identity) || 0;
@@ -684,8 +741,8 @@ function updateSelectedPlayerSeries(pid, {
         !comparisonDetailsEnabled() && state.selectedPlayers.size > 0;
     const tagEventOccurrences = new Map();
     const tagPoints = (state.playerEvents?.[pid] || [])
-        .filter((ev) => ["tag", "tagged", "denied"].includes(ev.type))
-        .filter((ev) => state.deniesVisible || ev.type !== "denied")
+        .filter((ev) => ["tag", "deny", "tagged"].includes(ev.type) || isIncomingDeniedEvent(ev))
+        .filter((ev) => state.deniesVisible || (ev.type !== "deny" && !isIncomingDeniedEvent(ev)))
         .filter((ev) =>
             !hideUnselectedIncomingTags ||
             ev.type !== "tagged" ||
@@ -696,21 +753,29 @@ function updateSelectedPlayerSeries(pid, {
             const scorePoint = timeline[Math.min(Math.floor(ev.time), timeline.length - 1)];
             const player = state.gameData.players?.[pid];
             const target = state.gameData.players?.[ev.target];
-            const isIncoming = ev.type === "tagged" || ev.type === "denied";
-            const isDenied = ev.type === "denied";
+            const isDeny = ev.type === "deny";
+            const isDenied = isIncomingDeniedEvent(ev);
+            const isIncoming = ev.type === "tagged" || isDenied;
+            const isDenyEvent = isDeny || isDenied;
+            const deniedPlayer = isDeny ? target : player;
             const denierPlayer = isDenied ? target : null;
-            const denierTeam = state.gameData.teams?.find(
-                (item) => String(item.id) === String(denierPlayer?.team)
+            const deniedTeam = state.gameData.teams?.find(
+                (item) => String(item.id) === String(deniedPlayer?.team)
             );
-            // Denied records identify the two players but not the base. A
-            // deny happens while the denying player defends their team base.
-            const targetBase = isDenied
-                ? findBaseByTarget(
-                    state.gameData.active_bases,
-                    denierTeam?.id ?? denierPlayer?.team
+            const denierTeam = state.gameData.teams?.find(
+                (item) => String(item.id) === String((denierPlayer || player)?.team)
+            );
+            // Current denied records carry the attempted base. Older games
+            // recover it from the denied player's preceding base hit.
+            const targetBase = isDenyEvent
+                ? findDeniedAtBase(
+                    state.gameData,
+                    ev,
+                    denierTeam?.id ?? denierPlayer?.team,
+                    isDeny ? ev.target : ev.entity
                 )
                 : null;
-            const targetBaseTeam = isDenied
+            const targetBaseTeam = isDenyEvent
                 ? state.gameData.teams?.find(
                     (item) => String(item.id) === String(targetBase?.team)
                 )
@@ -726,7 +791,9 @@ function updateSelectedPlayerSeries(pid, {
                 (item) => String(item.id) === String(markerPlayer.team)
             );
             let markerColor = markerTeam?.color || color;
-            if (isDenied) {
+            if (isDeny) {
+                markerColor = deniedTeam?.color || markerColor;
+            } else if (isDenied) {
                 markerColor = targetBase?.color || targetBaseTeam?.color ||
                     denierTeam?.color || markerColor;
             }
@@ -736,7 +803,7 @@ function updateSelectedPlayerSeries(pid, {
                 y: scorePoint?.[1] || 0,
                 color: markerColor,
                 targetName: target?.name || ev.target || "Unknown player",
-                targetBaseName: isDenied
+                targetBaseName: isDenyEvent
                     ? getBaseDisplayName(
                         targetBase,
                         targetBaseTeam,
@@ -746,7 +813,7 @@ function updateSelectedPlayerSeries(pid, {
                 eventType: ev.type,
                 playerBorderColor: color,
                 isSharedSelectedTag,
-                marker: isIncoming
+                marker: (isDenyEvent || isIncoming)
                     ? {
                         enabled: false,
                         states: { hover: { enabled: false } },
@@ -1379,7 +1446,7 @@ function renderLiveChartOverlays(chart) {
                 stroke: "#111",
                 "stroke-width": 2,
                 "data-team-id": String(point.deniedTeamId || ""),
-                "data-event-type": "denied",
+                "data-event-type": point.eventType,
             }).add(overlay);
             [stem, triangle].forEach((element) => {
                 element.element.addEventListener("mouseenter", () => chart.tooltip.refresh(point));
@@ -1406,11 +1473,13 @@ function renderLiveChartOverlays(chart) {
             // point IDs, so remove it explicitly to guarantee that an incoming
             // tagged dot never appears directly on the player worm.
             tagSeries.points.forEach((point) => {
-                if (!["tagged", "denied"].includes(point.eventType)) return;
+                if (point.eventType !== "deny" && point.eventType !== "tagged" &&
+                    !isIncomingDeniedEvent(point)) return;
                 if (point.graphic) point.graphic = point.graphic.destroy();
             });
             tagSeries.points
-                .filter((point) => ["tagged", "denied"].includes(point.eventType))
+                .filter((point) => point.eventType === "deny" ||
+                    point.eventType === "tagged" || isIncomingDeniedEvent(point))
                 .forEach((point) => {
                     if (!Number.isFinite(point.plotX) || !Number.isFinite(point.plotY)) return;
                     const x = chart.plotLeft + point.plotX;
@@ -1418,14 +1487,15 @@ function renderLiveChartOverlays(chart) {
                     const axisBottom = axisTop + (tagSeries.yAxis?.len ?? chart.plotHeight);
                     const y = axisTop + point.plotY;
                     const isTagged = point.eventType === "tagged";
-                    const isDenied = point.eventType === "denied";
+                    const isDenied = isIncomingDeniedEvent(point);
+                    const isDeny = point.eventType === "deny" || isDenied;
                     const isSharedSelectedTag = isTagged && point.isSharedSelectedTag;
                     const preferredOffset = isDenied
                         ? eventMarker.deniedOffset
-                        : eventMarker.offset;
+                        : (isTagged ? eventMarker.offset : -eventMarker.offset);
                     const baseMarkerSize = isDenied
                         ? eventMarker.deniedSize
-                        : eventMarker.tagSize;
+                        : (isTagged ? eventMarker.tagSize : eventMarker.denySize);
                     const markerSize = isSharedSelectedTag && !mobileTimeline
                         ? eventMarker.headToHeadSize
                         : baseMarkerSize;
@@ -1452,9 +1522,10 @@ function renderLiveChartOverlays(chart) {
                     const markerPlotY = markerY - chart.plotTop;
                     const markerSymbol = isDenied
                         ? "triangle-down"
-                        : "circle";
-                    const markerStrokeWidth = isDenied ||
-                        (isSharedSelectedTag && !mobileTimeline) ? 2 : 1;
+                        : (isTagged ? "circle" : "star");
+                    const markerStrokeWidth = markerSymbol === "star"
+                        ? 1
+                        : (isDeny || (isSharedSelectedTag && !mobileTimeline) ? 2 : 1);
                     const color = point.color || tagSeries.color || "#ffffff";
                     const borderColor = point.playerBorderColor || tagSeries.color || "#ffffff";
                     const stemColor = tagSeries.color || "#ffffff";
@@ -1699,23 +1770,38 @@ function createLiveScoreChart(data) {
                     const base = this.point.targetBaseName
                         ? ` at ${this.point.targetBaseName} Base`
                         : "";
+                    const deniedVerb = this.point.eventType === "team-denied"
+                        ? "was team denied by"
+                        : "was denied by";
                     return (
                         `<span style="color:${this.point.color}">▼</span> ` +
-                        `${formatTime(this.x)} — <b>${this.point.deniedName}</b> ` +
-                        `(${this.point.deniedTeamName}) was denied by ` +
+                        `${formatTime(this.x)} — <b>${this.point.deniedName}</b> ${deniedVerb} ` +
                         `<b>${this.point.denierName}</b>${base}`
                     );
                 }
 
                 if (id.endsWith("-tags")) {
                     const playerName = this.series.name.replace(/ tags$/, "");
-                    if (this.point.eventType === "denied") {
+                    if (this.point.eventType === "deny") {
                         const base = this.point.targetBaseName
                             ? ` at ${this.point.targetBaseName} Base`
                             : "";
                         return (
+                            `<span style="color:${this.point.color}">\u2605</span> ` +
+                            `${formatTime(this.x)} — <b>${playerName}</b> denied ` +
+                            `<b>${this.point.targetName}</b>${base}`
+                        );
+                    }
+                    if (isIncomingDeniedEvent(this.point)) {
+                        const base = this.point.targetBaseName
+                            ? ` at ${this.point.targetBaseName} Base`
+                            : "";
+                        const deniedVerb = this.point.eventType === "team-denied"
+                            ? "was team denied by"
+                            : "was denied by";
+                        return (
                             `<span style="color:${this.point.color}">\u25BC</span> ` +
-                            `${formatTime(this.x)} — <b>${playerName}</b> was denied by ` +
+                            `${formatTime(this.x)} — <b>${playerName}</b> ${deniedVerb} ` +
                             `<b>${this.point.targetName}</b>${base}`
                         );
                     }

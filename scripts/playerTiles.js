@@ -88,10 +88,14 @@ function getPlayerColor(pid) {
     return team?.color || "";
 }
 
+function isIncomingDeniedEvent(event) {
+    return event?.type === "denied" || event?.type === "team-denied";
+}
+
 function animateDenyEvent(event, tile = getPlayerTile(event?.entity)) {
-    if (!event?.entity || !tile || (event.type !== "deny" && event.type !== "denied")) return;
+    if (!event?.entity || !tile || (event.type !== "deny" && !isIncomingDeniedEvent(event))) return;
     const pid = String(event.entity);
-    const isDenied = event.type === "denied";
+    const isDenied = isIncomingDeniedEvent(event);
     tile.classList.remove("flash-denies", "flash-denied");
     void tile.offsetWidth;
     animateTileEffect(pid, tile, {
@@ -120,7 +124,7 @@ function animateLifeState(pid, className) {
 export function animateLiveLifeEvents(events) {
     const lifeEventsByPlayer = new Map();
     (Array.isArray(events) ? events : [events]).forEach((event) => {
-        if (!event?.entity || !["reload", "tagged", "team-killed"].includes(event.type)) {
+        if (!event?.entity || !["reload", "tagged", "team-killed", "team-denied"].includes(event.type)) {
             return;
         }
         const pid = String(event.entity);
@@ -143,7 +147,7 @@ function getLatestLifeAnimation(pid, events, windowStart = -Infinity, windowEnd 
             className = "life-reloaded";
             return;
         }
-        if (event.type !== "tagged" && event.type !== "team-killed") return;
+        if (!["tagged", "team-killed", "team-denied"].includes(event.type)) return;
         const livesBefore = computePlayerLives(pid, Math.max(0, eventTime - 0.001));
         const livesAfter = computePlayerLives(pid, eventTime);
         if (livesBefore > 0 && livesAfter === 0) className = "life-depleted";
@@ -173,7 +177,7 @@ export function animateLiveShotEvents(events) {
 
     const latestDenyEventByPlayer = new Map();
     shotEvents.forEach((event) => {
-        if (!event?.entity || (event.type !== "deny" && event.type !== "denied")) return;
+        if (!event?.entity || (event.type !== "deny" && !isIncomingDeniedEvent(event))) return;
         const pid = String(event.entity);
         const previous = latestDenyEventByPlayer.get(pid);
         if (!previous || Number(event.time) >= Number(previous.time)) {
@@ -275,7 +279,7 @@ export function updatePlayerTiles(currentTime) {
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
             if (SHOT_EVENT_TYPES.has(ev.type)) latestShotEvent = ev;
-            if (ev.type === "deny" || ev.type === "denied") latestDenyEvent = ev;
+            if (ev.type === "deny" || isIncomingDeniedEvent(ev)) latestDenyEvent = ev;
             if (ev.type === "base hit" || ev.type === "base destroy") {
                 if (
                     !latestBaseEvent ||

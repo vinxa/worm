@@ -266,7 +266,7 @@ export function computePlayerStats(pid, t) {
         .forEach((ev) => {
             if (ev.type === "team-kill") {
                 stats.teamKillsFor++;
-            } else if (ev.type === "team-killed") {
+            } else if (ev.type === "team-killed" || ev.type === "team-denied") {
                 stats.teamKillsAgainst++;
             } else if (ev.type === "tag") {
                 stats[sameTeam(ev.target) ? "teamKillsFor" : "tagsFor"]++;
@@ -336,7 +336,7 @@ export function buildPlayerLifeTimeline(pid) {
         if (!Number.isFinite(time) || time < 0) continue;
         if (event.type === "reload") {
             lives = configuredLives;
-        } else if (event.type === "tagged" || event.type === "team-killed") {
+        } else if (["tagged", "team-killed", "team-denied"].includes(event.type)) {
             lives = Math.max(0, lives - 1);
         } else {
             continue;

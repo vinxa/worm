@@ -126,6 +126,7 @@ function prepareGameData(gameData) {
         ...event,
         entity: event?.entity == null ? event?.entity : String(event.entity),
         target: event?.target == null ? event?.target : String(event.target),
+        base: event?.base == null ? event?.base : String(event.base),
         time: Number(event?.time) || 0,
         delta: Number(event?.delta) || 0,
     }));
