@@ -463,15 +463,6 @@
   <script type="module" src="scripts/main.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
-      const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
-      let reloadingForServiceWorkerUpdate = false;
-
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (!hadServiceWorkerController || reloadingForServiceWorkerUpdate) return;
-        reloadingForServiceWorkerUpdate = true;
-        window.location.reload();
-      });
-
       navigator.serviceWorker.register("/worm/sw.js", {
         scope: "/worm/",
         updateViaCache: "none",
