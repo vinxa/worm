@@ -1,4 +1,5 @@
-const CACHE_NAME = "worm-static-__BUILD_ID__";
+const BUILD_ID = "__BUILD_ID__";
+const CACHE_NAME = `worm-static-${BUILD_ID}`;
 const FAVOURITES_DATABASE = "worm-local-preferences";
 const FAVOURITES_DATABASE_VERSION = 1;
 const FAVOURITES_STORE = "followedPlayers";
@@ -33,6 +34,15 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request).catch(() => caches.match("./index.html"))
     );
+    return;
+  }
+
+  // GitHub Pages gives assets stable URLs and allows browsers to cache them.
+  // Give each deployed build a unique URL so a service-worker-driven reload
+  // cannot reuse stale CSS, JavaScript, or nested imports.
+  if (["script", "style"].includes(event.request.destination)) {
+    url.searchParams.set("worm-build", BUILD_ID);
+    event.respondWith(fetch(new Request(url, event.request)));
     return;
   }
 
