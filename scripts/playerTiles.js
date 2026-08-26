@@ -34,7 +34,8 @@ const shotAnimationTimeouts = new Map();
 const lifeStateAnimationTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
 let tileOrderCheckIntervalId = null;
-let lastTileOrderSignature = "";
+let lastPlayerTileOrderSignature = "";
+let lastTeamTileOrderSignature = "";
 
 function animateTileEffect(pid, tile, {
     className,
@@ -459,7 +460,6 @@ export function generatePlayerTiles() {
     const grid = document.getElementById("playerGrid");
     grid.innerHTML = "";
     lastTileUpdateTime = -Infinity;
-    lastTileOrderSignature = "";
     const ids = Object.keys(state.gameData.playerStats);
 
     ids.forEach((pid) => {
@@ -504,17 +504,18 @@ export function generatePlayerTiles() {
     });
 
     updatePlayerTiles(state.currentTime);
-    stopPlayerTileOrderChecks();
-    updatePlayerTileOrder();
-    tileOrderCheckIntervalId = setInterval(updatePlayerTileOrder, TILE_ORDER_CHECK_INTERVAL_MS);
+    stopTileOrderChecks();
+    updateTileOrder();
+    tileOrderCheckIntervalId = setInterval(updateTileOrder, TILE_ORDER_CHECK_INTERVAL_MS);
 }
 
-export function stopPlayerTileOrderChecks() {
+export function stopTileOrderChecks() {
     if (tileOrderCheckIntervalId !== null) {
         clearInterval(tileOrderCheckIntervalId);
         tileOrderCheckIntervalId = null;
     }
-    lastTileOrderSignature = "";
+    lastPlayerTileOrderSignature = "";
+    lastTeamTileOrderSignature = "";
 }
 
 export function setupTeamSeriesFilter() {
@@ -588,16 +589,32 @@ export function updateTeamScoresUI() {
         const color = team ? team.color : "";
         name.style.color = color;
     });
+}
 
+function updateTileOrder() {
+    updatePlayerTileOrder();
+    updateTeamTileOrder();
+}
+
+function updateTeamTileOrder() {
     const scores = document.querySelector(".team-scores");
-    if (!scores) return;
+    if (!scores || !state.gameData) return;
     const items = Array.from(scores.querySelectorAll("li[data-team-id]"));
+    if (!items.length) return;
     const subgames = getCurrentBaseRunLayoutPlan(
         items.map((item) => item.dataset.teamId)
     )?.subgames || null;
+    const sortedTeamIds = subgames ? subgames.flat() : getSortedTeamIds();
+    const signature = subgames
+        ? `base-run:${subgames
+            .map((group) => group.map(String).join(","))
+            .join(";")}`
+        : `standard:${sortedTeamIds.map(String).join("|")}`;
+    if (signature === lastTeamTileOrderSignature) return;
+    lastTeamTileOrderSignature = signature;
     const sidebar = scores.closest(".scores-sidebar");
 
-    animateReorder(items, 300, () => {
+    animateReorder(items, TILE_REORDER_TRANSITION_MS, () => {
         if (subgames) {
             scores.classList.add("base-run-score-subgames");
             sidebar?.classList.add("base-run-score-sidebar");
@@ -621,7 +638,7 @@ export function updateTeamScoresUI() {
 
         scores.classList.remove("base-run-score-subgames");
         sidebar?.classList.remove("base-run-score-sidebar");
-        scores.replaceChildren(...getSortedTeamIds()
+        scores.replaceChildren(...sortedTeamIds
             .map((id) => scores.querySelector(`li[data-team-id="${id}"]`))
             .filter(Boolean)
         );
@@ -791,8 +808,8 @@ function updatePlayerTileOrder() {
             }|${orderedTiles
         .map((tile) => `${state.gameData.players[tile.dataset.playerId].team}:${tile.dataset.playerId}`)
         .join("|")}`;
-    if (signature === lastTileOrderSignature) return;
-    lastTileOrderSignature = signature;
+    if (signature === lastPlayerTileOrderSignature) return;
+    lastPlayerTileOrderSignature = signature;
 
     animateReorder(tiles, TILE_REORDER_TRANSITION_MS, () => {
         if (subgames) {

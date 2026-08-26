@@ -27,7 +27,7 @@ import {
     generatePlayerTiles,
     setupPlayerSeriesToggles,
     setupTeamSeriesFilter,
-    stopPlayerTileOrderChecks,
+    stopTileOrderChecks,
 } from "./playerTiles.js";
 import { applyFilter, populateFilterOptions, setupFilterListeners } from "./gameFilters.js";
 import { hasActiveFilters } from "./filterSession.js";
@@ -239,7 +239,7 @@ export function showHome({
 } = {}) {
     if (disableLiveFollow) setFollowLiveGames(false);
     if (unsubscribe) unsubscribeFromLiveGame();
-    stopPlayerTileOrderChecks();
+    stopTileOrderChecks();
     if (updateHistory) clearGameUrl({ replace: replaceHistory });
     document.body.classList.remove("game-view-active");
     homeView.style.display = "block";
@@ -381,7 +381,6 @@ export function renderGameData() {
     state.teamFullTimeline = buildTeamTimeline(state.gameData);
     state.playerTimelines = buildPlayerTimelines(state.gameData);
 
-    generatePlayerTiles();
     const teamScores = document.querySelector(".team-scores");
     if (teamScores) {
         const teamLabelMap = getTeamLabelMapForGame(
@@ -407,6 +406,7 @@ export function renderGameData() {
             return item;
         }));
     }
+    generatePlayerTiles();
     setupPlayerSeriesToggles();
     setupTeamSeriesFilter();
     applySelectedTileState();

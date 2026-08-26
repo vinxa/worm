@@ -12,7 +12,7 @@ export function normaliseLivePresentationDelay(
     if (value === null || String(value).trim() === "") return fallback;
     const seconds = Number(value);
     if (!Number.isFinite(seconds) || seconds < 0) return fallback;
-    return Math.min(seconds, MAX_LIVE_PRESENTATION_DELAY_SECONDS);
+    return Math.min(Math.round(seconds), MAX_LIVE_PRESENTATION_DELAY_SECONDS);
 }
 
 let livePresentationDelaySeconds = normaliseLivePresentationDelay(
