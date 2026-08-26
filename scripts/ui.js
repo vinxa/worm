@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { formatGameDatetime, getGameDuration, getLivePresentationTime } from "./utils.js";
+import { formatGameDatetime, getGameDuration, getGameKey, getLivePresentationTime, isSameGame } from "./utils.js";
 import {
     handleSkip,
     jumpToStart,
@@ -145,7 +145,7 @@ export function buildGrid(games, highlightIds = [], { resetLimit = false } = {})
     visibleGames.forEach((game) => {
         const tile = document.createElement("a");
         tile.className = "game-tile";
-        tile.dataset.gameId = game.id;
+        tile.dataset.gameId = getGameKey(game);
         tile.href = getGameHref(game);
         if (gameHasFollowedPlayer(game)) tile.classList.add("has-favourite");
         if (isSelectedCurrentLiveGame(game, state.liveGameKey)) {
@@ -206,7 +206,7 @@ export function buildGrid(games, highlightIds = [], { resetLimit = false } = {})
         });
         fragment.appendChild(tile);
 
-        if (highlightSet.has(game.id)) {
+        if (highlightSet.has(getGameKey(game))) {
             tile.classList.add("flash-new");
             setTimeout(() => tile.classList.remove("flash-new"), 3000);
         }
@@ -256,8 +256,10 @@ export function showHome({
 export function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (!nextGameBtn) return;
     const isLive = isSelectedCurrentLiveGame(state.selectedGame, state.liveGameKey);
-    const isLatest = Boolean(state.selectedGame && state.latestGame &&
-        state.selectedGame.id === state.latestGame.id);
+    const isLatest = Boolean(
+        state.selectedGame && state.latestGame &&
+        isSameGame(state.selectedGame, state.latestGame)
+    );
     const isLatestLive = isSelectedCurrentLiveGame(state.latestGame, state.liveGameKey);
     nextGameBtn.classList.toggle("is-live", isLatestLive);
     setShortcutTooltip(nextGameBtn, isLatestLive ? "Latest Game — Live" : "Latest Game");
@@ -266,7 +268,7 @@ export function updateNextGameButtonVisibility(fade = false, flash = false) {
     if (followLiveCheckbox) followLiveCheckbox.checked = state.followLiveGames;
     nextGameBtn.hidden = isLive;
     const shouldShow = !isLive && state.selectedGame && state.latestGame &&
-        state.selectedGame.id !== state.latestGame.id;
+        !isSameGame(state.selectedGame, state.latestGame);
 
     if (!shouldShow) {
         nextGameBtn.classList.remove("is-visible", "flash-new");
@@ -291,7 +293,7 @@ export function showGame(game, {
 } = {}) {
     const isLiveGame = isSelectedCurrentLiveGame(game, null) ||
         isSelectedCurrentLiveGame(game, state.liveGameKey);
-    if (!isLiveGame) setFollowLiveGames(false);
+    setFollowLiveGames(isLiveGame);
     if ((state.liveSubscribed || state.liveGameKey) &&
         game?.gameKey !== state.liveGameKey && !isLiveGame) {
         unsubscribeFromLiveGame();
@@ -532,7 +534,7 @@ async function shareCurrentPage(button) {
 
 function loadAdjacentGame(offset) {
     const games = state.games;
-    const currentIndex = games.findIndex((game) => game.id === state.selectedGame?.id);
+    const currentIndex = games.findIndex((game) => isSameGame(game, state.selectedGame));
     if (currentIndex < 0) return false;
     const index = currentIndex + offset;
     if (index < 0 || index >= games.length) return false;
@@ -708,7 +710,7 @@ export function initUI(gameLoader) {
                     buildGrid(state.games, [], { resetLimit: true });
                     return;
                 }
-                const gamesById = new Map(state.games.map((game) => [String(game.id), game]));
+                const gamesById = new Map(state.games.map((game) => [getGameKey(game), game]));
                 document.querySelectorAll("#gamesGrid .game-tile[data-game-id]").forEach((tile) => {
                     const game = gamesById.get(tile.dataset.gameId);
                     tile.classList.toggle("has-favourite", Boolean(game && gameHasFollowedPlayer(game)));
@@ -730,7 +732,7 @@ export function initUI(gameLoader) {
         onLatestGame: () => goToLatestGame({ showGame }),
         onToggleFollowLive: () => {
             const viewingLatestGame = gameHeader?.style.display !== "none" &&
-                state.selectedGame?.id === state.latestGame?.id;
+                isSameGame(state.selectedGame, state.latestGame);
             if (!viewingLatestGame && !goToLatestGame({ showGame })) return false;
             setFollowLiveGames(!state.followLiveGames);
             if (followLiveCheckbox) followLiveCheckbox.checked = state.followLiveGames;

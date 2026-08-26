@@ -15,6 +15,7 @@ const STANDARD_FULL_TILE_HEIGHT = 110;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
 const DENY_LABEL_MS = 750;
+const PENALTY_LABEL_MS = 2200;
 const SHOT_ANIMATION_MS = 260;
 const LIFE_STATE_ANIMATION_MS = 900;
 const SHOT_EVENT_TYPES = new Set([
@@ -23,6 +24,7 @@ const SHOT_EVENT_TYPES = new Set([
     "stun",
     "tag",
     "team-kill",
+    "team-deny",
     "deny",
     "team-stun",
     "base hit",
@@ -30,6 +32,7 @@ const SHOT_EVENT_TYPES = new Set([
 ]);
 const baseHitFlashTimeouts = new Map();
 const denyLabelTimeouts = new Map();
+const penaltyLabelTimeouts = new Map();
 const shotAnimationTimeouts = new Map();
 const lifeStateAnimationTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
@@ -89,14 +92,27 @@ function getPlayerColor(pid) {
     return team?.color || "";
 }
 
-function isIncomingDeniedEvent(event) {
-    return event?.type === "denied" || event?.type === "team-denied";
+function getDenyEventPresentation(event) {
+    if (event?.type === "deny") return { incoming: false, label: "DENY" };
+    if (event?.type === "denied") return { incoming: true, label: "DENIED" };
+    if (event?.type === "team-denied") {
+        return { incoming: true, label: "TEAM DENIED" };
+    }
+    // The parser preserves the outgoing event as a team kill and marks both
+    // halves with the attempted base when that team kill is also a deny.
+    if (event?.type === "team-deny" || (event?.type === "team-kill" && event?.base)) {
+        return { incoming: false, label: "TEAM DENY" };
+    }
+    return null;
 }
 
 function animateDenyEvent(event, tile = getPlayerTile(event?.entity)) {
-    if (!event?.entity || !tile || (event.type !== "deny" && !isIncomingDeniedEvent(event))) return;
+    const presentation = getDenyEventPresentation(event);
+    if (!event?.entity || !tile || !presentation) return;
     const pid = String(event.entity);
-    const isDenied = isIncomingDeniedEvent(event);
+    const isDenied = presentation.incoming;
+    const label = tile.querySelector(isDenied ? ".denied-label" : ".denies-label");
+    if (label) label.textContent = presentation.label;
     tile.classList.remove("flash-denies", "flash-denied");
     void tile.offsetWidth;
     animateTileEffect(pid, tile, {
@@ -106,6 +122,18 @@ function animateDenyEvent(event, tile = getPlayerTile(event?.entity)) {
         timeoutMap: denyLabelTimeouts,
         color: getPlayerColor(event.target) || getPlayerColor(event.entity) || "#e2b12a",
         colorProperty: "--deny-color",
+    });
+}
+
+function animatePenaltyEvent(event, tile = getPlayerTile(event?.entity)) {
+    if (!event?.entity || event.type !== "penalty" || !tile) return;
+    const pid = String(event.entity);
+    animateTileEffect(pid, tile, {
+        className: "flash-penalty",
+        durationMs: PENALTY_LABEL_MS,
+        durationProperty: "--penalty-duration",
+        timeoutMap: penaltyLabelTimeouts,
+        restart: true,
     });
 }
 
@@ -178,7 +206,7 @@ export function animateLiveShotEvents(events) {
 
     const latestDenyEventByPlayer = new Map();
     shotEvents.forEach((event) => {
-        if (!event?.entity || (event.type !== "deny" && !isIncomingDeniedEvent(event))) return;
+        if (!event?.entity || !getDenyEventPresentation(event)) return;
         const pid = String(event.entity);
         const previous = latestDenyEventByPlayer.get(pid);
         if (!previous || Number(event.time) >= Number(previous.time)) {
@@ -186,6 +214,19 @@ export function animateLiveShotEvents(events) {
         }
     });
     latestDenyEventByPlayer.forEach((event) => animateDenyEvent(event));
+}
+
+export function animateLivePenaltyEvents(events) {
+    const latestPenaltyByPlayer = new Map();
+    (Array.isArray(events) ? events : [events]).forEach((event) => {
+        if (!event?.entity || event.type !== "penalty") return;
+        const pid = String(event.entity);
+        const previous = latestPenaltyByPlayer.get(pid);
+        if (!previous || Number(event.time) >= Number(previous.time)) {
+            latestPenaltyByPlayer.set(pid, event);
+        }
+    });
+    latestPenaltyByPlayer.forEach((event) => animatePenaltyEvent(event));
 }
 
 export function animateLiveBaseEvents(events) {
@@ -227,7 +268,7 @@ export function updatePlayerTiles(currentTime) {
     // cancel an in-flight effect when the next live delta arrives immediately
     // afterwards (for example, tag followed by deactivated).
     if (!state.isPlaying && !isLiveGameSelected()) {
-        [baseHitFlashTimeouts, denyLabelTimeouts, shotAnimationTimeouts, lifeStateAnimationTimeouts].forEach((timeouts) => {
+        [baseHitFlashTimeouts, denyLabelTimeouts, penaltyLabelTimeouts, shotAnimationTimeouts, lifeStateAnimationTimeouts].forEach((timeouts) => {
             timeouts.forEach((timeoutId) => clearTimeout(timeoutId));
             timeouts.clear();
         });
@@ -238,11 +279,12 @@ export function updatePlayerTiles(currentTime) {
                 "flash-base-destroy",
                 "flash-denies",
                 "flash-denied",
+                "flash-penalty",
                 "shot-fired",
                 "life-depleted",
                 "life-reloaded"
             );
-            ["--flash-color", "--flash-duration", "--deny-color", "--deny-duration", "--shot-duration", "--life-state-duration"]
+            ["--flash-color", "--flash-duration", "--deny-color", "--deny-duration", "--penalty-duration", "--shot-duration", "--life-state-duration"]
                 .forEach((property) => tile.style.removeProperty(property));
         });
     }
@@ -273,14 +315,23 @@ export function updatePlayerTiles(currentTime) {
         let isActive = true;
         let latestBaseEvent = null;
         let latestDenyEvent = null;
+        let latestPenaltyEvent = null;
         let latestShotEvent = null;
+        let penaltyCount = 0;
+        let penaltyScoreDelta = 0;
         for (const ev of events) {
             if (ev.time > currentTime) break;
-            score += ev.delta ?? 0;
+            const scoreDelta = Number(ev.delta) || 0;
+            score += scoreDelta;
+            if (ev.type === "penalty") {
+                penaltyCount++;
+                penaltyScoreDelta += scoreDelta;
+            }
             if (ev.type === "deactivated") isActive = false;
             if (ev.type === "reactivated") isActive = true;
             if (SHOT_EVENT_TYPES.has(ev.type)) latestShotEvent = ev;
-            if (ev.type === "deny" || isIncomingDeniedEvent(ev)) latestDenyEvent = ev;
+            if (getDenyEventPresentation(ev)) latestDenyEvent = ev;
+            if (ev.type === "penalty") latestPenaltyEvent = ev;
             if (ev.type === "base hit" || ev.type === "base destroy") {
                 if (
                     !latestBaseEvent ||
@@ -393,7 +444,7 @@ export function updatePlayerTiles(currentTime) {
         const container = tile.querySelector(".detail-bases");
 
         if (container) {
-        container.innerHTML = activeBases
+        const basesMarkup = activeBases
             .map(({ entityId, team, color }) => {
             // Match timeline markers: bases represent their owning Comp team,
             // even when the physical base has a different colour.
@@ -414,12 +465,21 @@ export function updatePlayerTiles(currentTime) {
                 border-color: ${baseColor};
                 ${stat.destroyed ? `background:${baseColor}; color:#ffffff;` : ""}
             ">
-            ${stat.count}
+            ${stat.count > 0 ? stat.count : ""}
             ${destroyBadge}
         </div>
         `;
             })
             .join("");
+        const penaltyLabel = penaltyCount === 1 ? "Penalty" : `${penaltyCount} penalties`;
+        const penaltyMarkup = penaltyCount > 0
+            ? `<span class="penalty-card" role="img"
+                aria-label="${penaltyLabel}: ${penaltyScoreDelta.toLocaleString()} points"
+                title="${penaltyLabel}: ${penaltyScoreDelta.toLocaleString()} points">${
+                    penaltyCount > 1 ? penaltyCount : ""
+                }</span>`
+            : "";
+        container.innerHTML = basesMarkup + penaltyMarkup;
         }
 
         if (state.isPlaying && latestBaseEvent && latestBaseEvent.time > flashWindowStart) {
@@ -441,6 +501,9 @@ export function updatePlayerTiles(currentTime) {
         }
         if (state.isPlaying && latestDenyEvent && latestDenyEvent.time > flashWindowStart) {
             animateDenyEvent(latestDenyEvent, tile);
+        }
+        if (state.isPlaying && latestPenaltyEvent && latestPenaltyEvent.time > flashWindowStart) {
+            animatePenaltyEvent(latestPenaltyEvent, tile);
         }
         if (state.isPlaying && latestShotEvent && latestShotEvent.time > flashWindowStart) {
             animateTileEffect(pid, tile, {
@@ -471,8 +534,9 @@ export function generatePlayerTiles() {
         tile.innerHTML = `
         <span class="player-event-label base-event-label base-hit-label" aria-hidden="true">BASE HIT</span>
         <span class="player-event-label base-event-label base-destroy-label" aria-hidden="true">BASE DESTROY</span>
-        <span class="player-event-label deny-event-label denies-label" aria-hidden="true">DENIES</span>
+        <span class="player-event-label deny-event-label denies-label" aria-hidden="true">DENY</span>
         <span class="player-event-label deny-event-label denied-label" aria-hidden="true">DENIED</span>
+        <span class="player-event-label penalty-event-label" aria-hidden="true">⚠️ TERM</span>
         <div class="player-summary-header">
             <div class="player-name">${stats.name || "–"}</div>
             <div class="player-score">${stats.score ?? "0"}</div>

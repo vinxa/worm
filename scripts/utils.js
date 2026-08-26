@@ -5,6 +5,70 @@ import { getLivePresentationDelaySeconds } from "./liveDelay.js";
 export const normaliseText = (value) => String(value ?? "").trim().toLowerCase();
 export const LIVE_END_GRACE_SECONDS = 30;
 
+const gameValue = (value) => String(value ?? "").trim();
+
+/** Return the stable gameKey, or the timestamp ID used by older indexes. */
+export const getGameKey = (game) => gameValue(game?.gameKey) || gameValue(game?.id);
+
+export function isSameGame(left, right) {
+    const leftKey = gameValue(left?.gameKey);
+    const rightKey = gameValue(right?.gameKey);
+    if (leftKey && rightKey) return leftKey === rightKey;
+    const leftId = gameValue(left?.id);
+    return Boolean(leftId && leftId === gameValue(right?.id));
+}
+
+/** Combine the completed index with the current and recently finished game. */
+export function combineGameLists(completedGames = [], liveGame = null, finishedGame = null) {
+    const keysById = new Map();
+    [...completedGames, liveGame, finishedGame].forEach((game) => {
+        const id = gameValue(game?.id);
+        const key = gameValue(game?.gameKey);
+        if (!id || !key) return;
+        if (!keysById.has(id)) keysById.set(id, new Set());
+        keysById.get(id).add(key);
+    });
+
+    const games = new Map();
+    const add = (game, overlay = false) => {
+        const key = gameValue(game.gameKey);
+        const id = gameValue(game.id);
+        const knownKeys = keysById.get(id);
+        const matchingKey = key || (knownKeys?.size === 1 ? [...knownKeys][0] : "");
+        if ((!matchingKey && knownKeys?.size > 1) || (!matchingKey && !id)) return;
+        const mapKey = matchingKey ? `key:${matchingKey}` : `id:${id}`;
+        const current = games.get(mapKey);
+        if (!current) return games.set(mapKey, { ...game });
+        if (overlay) {
+            return games.set(mapKey, { ...current, ...game, gameKey: key || current.gameKey });
+        }
+        const preferGame = Boolean(game.dataPath) !== Boolean(current.dataPath)
+            ? Boolean(game.dataPath)
+            : Boolean(key) && !current.gameKey;
+        games.set(mapKey, {
+            ...(preferGame ? current : game),
+            ...(preferGame ? game : current),
+            gameKey: key || current.gameKey,
+        });
+    };
+
+    completedGames.forEach((game) => add(game));
+    const isCompleted = (game) => [...games.values()].some((candidate) =>
+        isSameGame(candidate, game) && gameValue(candidate.dataPath)
+    );
+    if (getGameKey(finishedGame) && !isCompleted(finishedGame)) add(finishedGame, true);
+    if (getGameKey(liveGame) && !isSameGame(liveGame, finishedGame) && !isCompleted(liveGame)) {
+        add(liveGame, true);
+    }
+
+    return [...games.values()]
+        .map((game) => markGameNonLiveAfterDeadline(game))
+        .sort((left, right) =>
+            gameValue(right.id).localeCompare(gameValue(left.id)) ||
+            gameValue(right.gameKey).localeCompare(gameValue(left.gameKey))
+        );
+}
+
 const PLAYER_HIGHLIGHT_BACKGROUND = [30, 30, 30];
 const MIN_PLAYER_HIGHLIGHT_CONTRAST = 3;
 

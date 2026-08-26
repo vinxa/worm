@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { addSwipeRightListener, normaliseText } from "./utils.js";
+import { addSwipeRightListener, getGameKey, normaliseText } from "./utils.js";
 import {
     latestSummaryPlayerRecords,
     summaryPlayerAliases,
@@ -20,33 +20,33 @@ let onFavouritesChanged = null;
 let elements = null;
 let panelAnimationTimer = null;
 let showSelectedOnly = false;
-let isHydratingPlayers = false;
-let identityHydrationPromise = null;
+let isLoadingPlayerIds = false;
+let playerIdLoadPromise = null;
 let favouritesScopeVersion = 0;
-const hydratedPlayers = new Map();
-const hydratedPlayerGameIds = new Map();
-const hydratedPlayerIdsByGameId = new Map();
-const hydratedGamePaths = new Set();
+const resolvedPlayers = new Map();
+const resolvedPlayerGameIds = new Map();
+const resolvedPlayerIdsByGameKey = new Map();
+const checkedGamePaths = new Set();
 const PANEL_ANIMATION_MS = 180;
-const IDENTITY_FALLBACK_GAME_LIMIT = 12;
-const IDENTITY_FALLBACK_PLAYER_TARGET = 40;
-const IDENTITY_FALLBACK_BATCH_SIZE = 3;
+const PLAYER_ID_LOOKUP_GAME_LIMIT = 12;
+const PLAYER_ID_LOOKUP_PLAYER_TARGET = 40;
+const PLAYER_ID_LOOKUP_BATCH_SIZE = 3;
 
 function warnOnFailure(promise, message) {
     return promise.catch((error) => console.warn(message, error));
 }
 
-function hasPlayerIdentity(playerId, player) {
+function hasStablePlayerId(playerId, player) {
     return String(playerId || "").startsWith("#") ||
         String(player?.id || "").startsWith("#") ||
         Boolean(player?.memberId);
 }
 
 export function followablePlayers(games = [], aliasGames = games) {
-    const scoped = latestSummaryPlayerRecords(games);
+    const playerRecords = latestSummaryPlayerRecords(games);
     const latest = latestSummaryPlayerRecords(aliasGames);
-    return Object.entries(scoped)
-        .filter(([id, player]) => hasPlayerIdentity(id, player))
+    return Object.entries(playerRecords)
+        .filter(([id, player]) => hasStablePlayerId(id, player))
         .map(([id, player]) => {
             const latestPlayer = latest[id] || {};
             const memberId = latestPlayer.memberId || player.memberId;
@@ -74,17 +74,17 @@ function candidatePlayers() {
     const candidates = new Map(
         followablePlayers(currentGames, allCurrentGames).map((player) => [player.id, player])
     );
-    hydratedPlayers.forEach((player, playerId) => {
+    resolvedPlayers.forEach((player, playerId) => {
         if (
             restrictCandidatesToCurrentGames &&
             !currentGames.some((game) =>
-                hydratedPlayerIdsByGameId.get(String(game?.id || ""))?.has(playerId)
+                resolvedPlayerIdsByGameKey.get(getGameKey(game))?.has(playerId)
             )
         ) return;
         if (!candidates.has(playerId)) candidates.set(playerId, player);
     });
     state.followedPlayers.forEach((player, playerId) => {
-        if (!hasPlayerIdentity(playerId, player)) return;
+        if (!hasStablePlayerId(playerId, player)) return;
         if (restrictCandidatesToCurrentGames) {
             const selectedPlayer = new Map([[playerId, player]]);
             if (!currentGames.some((game) => gameHasFollowedPlayer(game, selectedPlayer))) return;
@@ -96,72 +96,73 @@ function candidatePlayers() {
     );
 }
 
-function loadMissingPlayerIdentities() {
-    if (identityHydrationPromise) return identityHydrationPromise;
-    const hydrationScopeVersion = favouritesScopeVersion;
+function loadMissingPlayerIds() {
+    if (playerIdLoadPromise) return playerIdLoadPromise;
+    const loadScopeVersion = favouritesScopeVersion;
     const candidates = [...currentGames]
         .sort((left, right) => String(right?.id || "").localeCompare(String(left?.id || "")))
         .filter((game) =>
             typeof game?.dataPath === "string" &&
             game.dataPath &&
-            !hydratedGamePaths.has(game.dataPath) &&
+            !checkedGamePaths.has(game.dataPath) &&
             followablePlayers([game]).length === 0
         )
-        .slice(0, IDENTITY_FALLBACK_GAME_LIMIT);
+        .slice(0, PLAYER_ID_LOOKUP_GAME_LIMIT);
     if (!candidates.length) return Promise.resolve();
-    const candidateGameIds = new Set(candidates.map((game) => String(game?.id || "")));
+    const candidateGameKeys = new Set(candidates.map(getGameKey));
 
-    isHydratingPlayers = true;
+    isLoadingPlayerIds = true;
     renderPlayers();
-    identityHydrationPromise = (async () => {
-        for (let index = 0; index < candidates.length; index += IDENTITY_FALLBACK_BATCH_SIZE) {
+    playerIdLoadPromise = (async () => {
+        for (let index = 0; index < candidates.length; index += PLAYER_ID_LOOKUP_BATCH_SIZE) {
             await Promise.allSettled(
                 candidates
-                    .slice(index, index + IDENTITY_FALLBACK_BATCH_SIZE)
+                    .slice(index, index + PLAYER_ID_LOOKUP_BATCH_SIZE)
                     .map(async (game) => {
-                        if (hydratedGamePaths.has(game.dataPath)) return;
-                        hydratedGamePaths.add(game.dataPath);
+                        if (checkedGamePaths.has(game.dataPath)) return;
+                        checkedGamePaths.add(game.dataPath);
                         const response = await fetch(game.dataPath, { cache: "force-cache" });
                         if (!response.ok) return;
                         const payload = await response.json();
-                        const gameId = String(game.id || "");
+                        const gameKey = getGameKey(game);
+                        const gameSortId = String(game.id || "");
                         const playerIds = new Set();
                         followablePlayers([{ id: game.id, players: payload?.players }])
                             .forEach((player) => {
                                 playerIds.add(player.id);
-                                const previousGameId = hydratedPlayerGameIds.get(player.id) || "";
+                                const previousGameId = resolvedPlayerGameIds.get(player.id) || "";
                                 if (
-                                    !hydratedPlayers.has(player.id) ||
-                                    gameId.localeCompare(previousGameId) > 0
+                                    !resolvedPlayers.has(player.id) ||
+                                    gameSortId.localeCompare(previousGameId) > 0
                                 ) {
-                                    hydratedPlayers.set(player.id, player);
-                                    hydratedPlayerGameIds.set(player.id, gameId);
+                                    resolvedPlayers.set(player.id, player);
+                                    resolvedPlayerGameIds.set(player.id, gameSortId);
                                 }
                             });
-                        hydratedPlayerIdsByGameId.set(gameId, playerIds);
+                        resolvedPlayerIdsByGameKey.set(gameKey, playerIds);
                     })
             );
             renderPlayers();
-            const hydratedCandidatePlayerIds = new Set();
-            candidateGameIds.forEach((gameId) => {
-                hydratedPlayerIdsByGameId.get(gameId)?.forEach((playerId) => {
-                    hydratedCandidatePlayerIds.add(playerId);
+            const resolvedCandidatePlayerIds = new Set();
+            candidateGameKeys.forEach((gameKey) => {
+                resolvedPlayerIdsByGameKey.get(gameKey)?.forEach((playerId) => {
+                    resolvedCandidatePlayerIds.add(playerId);
                 });
             });
-            if (hydratedCandidatePlayerIds.size >= IDENTITY_FALLBACK_PLAYER_TARGET) break;
+            if (resolvedCandidatePlayerIds.size >= PLAYER_ID_LOOKUP_PLAYER_TARGET) break;
         }
     })().finally(() => {
-        isHydratingPlayers = false;
-        identityHydrationPromise = null;
+        isLoadingPlayerIds = false;
+        playerIdLoadPromise = null;
         renderPlayers();
         if (
-            favouritesScopeVersion !== hydrationScopeVersion &&
+            favouritesScopeVersion !== loadScopeVersion &&
             elements?.button.getAttribute("aria-expanded") === "true"
         ) {
-            loadMissingPlayerIdentities();
+            loadMissingPlayerIds();
         }
     });
-    return identityHydrationPromise;
+    return playerIdLoadPromise;
 }
 
 function updateButton() {
@@ -217,7 +218,7 @@ function renderPlayers() {
     });
     elements.empty.textContent = showSelectedOnly
         ? "No selected players."
-        : isHydratingPlayers
+        : isLoadingPlayerIds
             ? "Loading identified players…"
             : "No identified players available.";
     elements.empty.hidden = players.length > 0;
@@ -237,7 +238,7 @@ function setPanelOpen(open) {
         elements.panel.classList.add("is-open");
         elements.search.focus();
         renderPlayers();
-        loadMissingPlayerIdentities();
+        loadMissingPlayerIds();
         return;
     }
     elements.panel.classList.remove("is-open");
@@ -284,7 +285,7 @@ export function refreshFavouritesPanel(
     });
     if (elements?.button.getAttribute("aria-expanded") === "true") {
         renderPlayers();
-        loadMissingPlayerIdentities();
+        loadMissingPlayerIds();
     } else {
         updateButton();
     }
@@ -361,8 +362,8 @@ export async function setupFavourites({ onChange } = {}) {
     });
 
     const stored = await warnOnFailure(loadFollowedPlayers(), "Unable to load followed players:") || [];
-    const identified = stored.filter((player) => hasPlayerIdentity(player?.id, player));
-    const unidentified = stored.filter((player) => !hasPlayerIdentity(player?.id, player));
+    const identified = stored.filter((player) => hasStablePlayerId(player?.id, player));
+    const unidentified = stored.filter((player) => !hasStablePlayerId(player?.id, player));
     state.followedPlayers = new Map(identified.map((player) => [player.id, player]));
     if (unidentified.length) {
         warnOnFailure(

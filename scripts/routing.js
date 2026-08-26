@@ -1,3 +1,5 @@
+import { getGameKey } from "./utils.js";
+
 const GAME_QUERY_PARAM = "game";
 const TIME_QUERY_PARAM = "t";
 const SPEED_QUERY_PARAM = "speed";
@@ -92,12 +94,12 @@ export function getShareHref({
 
 export function getGameHref(game) {
     const url = clearViewQueryParams(currentUrl());
-    url.searchParams.set(GAME_QUERY_PARAM, String(game?.id || ""));
+    url.searchParams.set(GAME_QUERY_PARAM, getGameKey(game));
     return url.toString();
 }
 
 export function setGameUrl(game, { replace = false } = {}) {
-    const gameId = String(game?.id || "");
+    const gameId = getGameKey(game);
     if (!gameId || getGameIdFromUrl() === gameId) return;
 
     const method = replace ? "replaceState" : "pushState";

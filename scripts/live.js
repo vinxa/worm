@@ -179,6 +179,49 @@ function messageGameKey(message) {
     return message?.gameKey || data?.gameKey || data?.game?.gameKey || null;
 }
 
+function handleGameListUpdate(index, message, { allowClear = false } = {}) {
+    const seqNo = messageSequence(message?.seqNo);
+    let accepted = false;
+
+    if (!index || typeof index !== "object") {
+        if (allowClear && !liveListSeenOnSocket) {
+            listedLiveGameKey = null;
+            liveListSeqNo = -1;
+            handlers.onGameListUpdate?.(null, message);
+        }
+    } else {
+        const gameKey = String(index.gameKey || messageGameKey(message) || "");
+        const live = message?.data?.live ?? index.live;
+        if (gameKey && live === false) {
+            if (!finalisedGameKey || !isOlderGameKey(gameKey, finalisedGameKey)) {
+                finalisedGameKey = gameKey;
+            }
+            if (gameKey === listedLiveGameKey) {
+                listedLiveGameKey = null;
+                liveListSeqNo = -1;
+            }
+            handlers.onGameListUpdate?.({ ...index, gameKey, live: false }, message);
+            accepted = true;
+        } else if (gameKey && gameKey !== finalisedGameKey &&
+            !isOlderGameKey(gameKey, finalisedGameKey) &&
+            !isOlderGameKey(gameKey, listedLiveGameKey)) {
+            if (gameKey !== listedLiveGameKey) {
+                listedLiveGameKey = gameKey;
+                liveListSeqNo = -1;
+            }
+            if (seqNo === null || seqNo > liveListSeqNo) {
+                if (seqNo !== null) liveListSeqNo = seqNo;
+                liveListSeenOnSocket = true;
+                handlers.onGameListUpdate?.({ ...index, gameKey, live: true }, message);
+                accepted = true;
+            }
+        }
+    }
+
+    handlers.onGameListReady?.(message);
+    return accepted;
+}
+
 function isOlderGameKey(candidate, current) {
     return Boolean(candidate && current && String(candidate) < String(current));
 }
@@ -206,34 +249,34 @@ function applyLiveMessage(message) {
         const incomingPlayers = data?.players || {};
         const incomingTeams = Array.isArray(data?.teams) ? data.teams : [];
         const incomingBases = Array.isArray(data?.active_bases) ? data.active_bases : [];
-        const structuralCandidates = [state.liveGameData, state.gameData]
+        const snapshotCandidates = [state.liveGameData, state.gameData]
             .filter((game) => game?.gameKey === data?.gameKey)
             .sort((left, right) =>
                 Object.keys(right?.players || {}).length - Object.keys(left?.players || {}).length ||
                 (right?.teams || []).length - (left?.teams || []).length ||
                 (right?.active_bases || []).length - (left?.active_bases || []).length
             );
-        const structuralSource = structuralCandidates[0] || null;
+        const snapshotSource = snapshotCandidates[0] || null;
         // finaliseGame is deliberately a compact completion summary, not an
-        // authoritative structural snapshot. Keep the richest matching roster
-        // already assembled or displayed until the completed S3 file loads.
-        const preserveFinaliseStructure = action === "finaliseGame" && sameGame &&
-            structuralSource;
+        // authoritative player/team/base snapshot. Keep the richest matching
+        // roster until the completed S3 file loads.
+        const keepExistingFinalRoster = action === "finaliseGame" && sameGame &&
+            snapshotSource;
         state.liveGameData = {
             ...(sameGame ? state.liveGameData : {}),
             ...data,
             gameKey: data?.gameKey || currentGameKey,
-            players: preserveFinaliseStructure
-                ? structuralSource.players || {}
+            players: keepExistingFinalRoster
+                ? snapshotSource.players || {}
                 : incomingPlayers,
-            teams: preserveFinaliseStructure
-                ? structuralSource.teams || []
+            teams: keepExistingFinalRoster
+                ? snapshotSource.teams || []
                 : incomingTeams,
-            active_bases: preserveFinaliseStructure
-                ? structuralSource.active_bases || []
+            active_bases: keepExistingFinalRoster
+                ? snapshotSource.active_bases || []
                 : incomingBases,
             events: sameGame
-                ? mergeEvents(structuralSource?.events, state.liveGameData?.events, data?.events)
+                ? mergeEvents(snapshotSource?.events, state.liveGameData?.events, data?.events)
                 : mergeEvents(data?.events),
         };
     } else {
@@ -275,17 +318,17 @@ function applyLiveMessage(message) {
     if (!replaying && action !== "finaliseGame" && state.liveGameData) handlers.onUpdate?.(state.liveGameData, message);
 }
 
-function dispatchLiveMessage(message) {
+function handleLiveMessage(message) {
     const gameKey = messageGameKey(message);
     if (!acceptMessageGameKey(gameKey)) return false;
 
     const seqNo = messageSequence(message.seqNo);
     if (seqNo !== null) {
         // API Gateway can deliver concurrent live Lambda broadcasts out of
-        // order. Event deltas have their own identity and must not advance the
-        // snapshot watermark: a slightly older structural snapshot may be the
-        // message that introduces a newly joined player or team. Apply this
-        // guard to replay snapshots too, so replay cannot regress live state.
+        // order. Events have their own sequence numbers and must not change the
+        // latest snapshot sequence: a slightly older snapshot may introduce a
+        // newly joined player or team. Apply the same check during replay so an
+        // older replay snapshot cannot replace newer live state.
         if (SNAPSHOT_ACTIONS.has(message.action)) {
             if (seqNo <= liveSnapshotSeqNo) return false;
             liveSnapshotSeqNo = seqNo;
@@ -306,39 +349,55 @@ function dispatchLiveMessage(message) {
     return true;
 }
 
-function dispatchCurrentGame(message) {
-    // A bounded replay is authoritative and has an exact sequence boundary.
-    // The separate CURRENT response can contain structurally older data.
-    if (replaying) return;
-    const data = message.data || null;
-    if (!data?.game || !acceptMessageGameKey(messageGameKey(message))) return;
+function handleCurrentGame(message) {
+    const current = message.data || null;
+    const listUpdateAccepted = handleGameListUpdate(
+        current?.index || null,
+        message,
+        { allowClear: current === null },
+    );
 
-    // Events advance CURRENT.seqNo without replacing CURRENT.data. Use the
-    // compact game only as a fallback until an actual sequenced snapshot has
-    // arrived, and only give it a structural watermark when CURRENT.action
-    // proves that the envelope sequence belongs to a snapshot.
+    // A replay has a fixed final sequence number. The separate CURRENT
+    // response may contain an older player/team/base snapshot.
+    if (replaying || !current?.game) return;
+
+    const gameKey = String(messageGameKey(message) || "");
     const seqNo = messageSequence(message.seqNo);
+    if (
+        (gameKey && listedLiveGameKey && (
+            isOlderGameKey(gameKey, listedLiveGameKey) ||
+            (seqNo !== null && gameKey === listedLiveGameKey &&
+                seqNo < liveListSeqNo)
+        )) ||
+        (!listUpdateAccepted && gameKey && finalisedGameKey &&
+            (gameKey === finalisedGameKey || isOlderGameKey(gameKey, finalisedGameKey))) ||
+        !acceptMessageGameKey(gameKey)
+    ) return;
+
+    // Events can raise CURRENT.seqNo without replacing CURRENT.data. Use this
+    // compact game only until a sequenced snapshot arrives. Record its sequence
+    // as the latest snapshot only when CURRENT.action identifies a snapshot.
     if (liveSnapshotSeqNo >= 0 ||
         (seqNo !== null && seqNo < currentGameSeqNo)) return;
     applyLiveMessage({
-        action: data.action === "finaliseGame" ? "finaliseGame" : "broadcastGameData",
-        data: data.game,
+        action: current.action === "finaliseGame" ? "finaliseGame" : "broadcastGameData",
+        data: current.game,
         seqNo: message.seqNo,
     });
     if (seqNo !== null) {
         currentGameSeqNo = seqNo;
-        if (SNAPSHOT_ACTIONS.has(data.action)) liveSnapshotSeqNo = seqNo;
+        if (SNAPSHOT_ACTIONS.has(current.action)) liveSnapshotSeqNo = seqNo;
     }
-    if (data.action === "finaliseGame") {
-        // CURRENT can briefly expose the terminal item between the Lambda's
-        // store and delete. Remember that fence so a stale live-index click
-        // cannot re-subscribe to the already completed game.
+    if (current.action === "finaliseGame") {
+        // CURRENT can briefly expose the final item between the Lambda's store
+        // and delete. Remember the completed game so an old live-index click
+        // cannot subscribe to it again.
         finalisedGameKey = messageGameKey(message) || state.liveGameKey;
         state.liveSubscribed = false;
     }
 }
 
-function dispatchReplayStart(message) {
+function handleReplayStart(message) {
     if (!replaying) return;
     const data = message.data;
     const gameKey = data?.gameKey || null;
@@ -356,12 +415,11 @@ function dispatchReplayStart(message) {
     replayStarted = true;
     replayGameKey = gameKey;
     replayToSeqNo = seqNo;
-    replayLastSeqNo = -1;
     replayCanCompleteWithoutStart = false;
     armReplayWatchdog();
 }
 
-function dispatchReplayBatch(message) {
+function handleReplayBatch(message) {
     if (!replaying || !replayStarted) return;
     const data = message.data;
     const seqNo = messageSequence(message.seqNo);
@@ -373,22 +431,24 @@ function dispatchReplayBatch(message) {
         const replaySeqNo = messageSequence(replayMessage?.seqNo);
         if (!LIVE_ACTIONS.has(replayMessage?.action) ||
             messageGameKey(replayMessage) !== replayGameKey ||
-            replaySeqNo === null || replaySeqNo > replayToSeqNo ||
-            replaySeqNo < replayLastSeqNo) return;
-        replayLastSeqNo = replaySeqNo;
-        dispatchLiveMessage(replayMessage);
+            replaySeqNo === null || replaySeqNo > replayToSeqNo) return;
+        handleLiveMessage(replayMessage);
     });
+    // Surface every accepted historical batch immediately. Replay event
+    // sequence checks make duplicate or reordered batches safe, while halfway
+    // viewers no longer wait for one final bulk render.
+    if (state.liveGameData) handlers.onUpdate?.(state.liveGameData, message);
 }
 
 function completeReplay(message) {
     const queuedMessages = pendingReplayLiveMessages;
     clearReplayWatchdog();
     resetReplayTracking();
-    queuedMessages.forEach((queuedMessage) => dispatch(queuedMessage));
+    queuedMessages.forEach((queuedMessage) => handleMessage(queuedMessage));
     if (state.liveGameData) handlers.onUpdate?.(state.liveGameData, message);
 }
 
-function dispatchReplayComplete(message) {
+function handleReplayComplete(message) {
     if (!replaying) return;
     const data = message.data;
     const seqNo = messageSequence(message.seqNo);
@@ -408,28 +468,34 @@ function dispatchReplayComplete(message) {
     completeReplay(message);
 }
 
-function dispatch(message) {
+function handleMessage(message) {
     if (!message || typeof message !== "object") return;
+    if (message.action === "liveGameMetadata") {
+        handleGameListUpdate(message.data?.index || null, message);
+        return;
+    }
     if (message.action === "currentGame" || message.action === "currentGameState") {
-        dispatchCurrentGame(message);
+        handleCurrentGame(message);
         return;
     }
     if (message.action === "replayStart") {
-        dispatchReplayStart(message);
+        handleReplayStart(message);
         return;
     }
     if (message.action === "replayBatch") {
-        dispatchReplayBatch(message);
+        handleReplayBatch(message);
         return;
     }
     if (message.action === "replayComplete") {
-        dispatchReplayComplete(message);
+        handleReplayComplete(message);
         return;
     }
     if (!LIVE_ACTIONS.has(message.action)) return;
 
+    const gameKey = messageGameKey(message);
+    if (message.action === "finaliseGame" && gameKey === finalisedGameKey &&
+        state.liveGameKey !== gameKey && state.liveGameData?.gameKey !== gameKey) return;
     if (replaying) {
-        const gameKey = messageGameKey(message);
         const expectedGameKey = replayGameKey || replayRequestedGameKey || state.liveGameKey;
         if (isOlderGameKey(gameKey, expectedGameKey)) return;
         // Finalisation is a terminal fence and the server clears subscriptions
@@ -437,13 +503,13 @@ function dispatch(message) {
         // reconnect cannot lose the client's logical unsubscribe. Its snapshot
         // sequence also prevents older replay snapshots from regressing it.
         if (message.action === "finaliseGame") {
-            dispatchLiveMessage(message);
+            handleLiveMessage(message);
             return;
         }
         pendingReplayLiveMessages.push(message);
         return;
     }
-    dispatchLiveMessage(message);
+    handleLiveMessage(message);
 }
 
 function connect() {
@@ -451,6 +517,7 @@ function connect() {
     ws = socket;
     socket.onopen = () => {
         if (ws !== socket) return;
+        liveListSeenOnSocket = false;
         send("getCurrentGame");
         const queued = pendingActions.splice(0)
             .filter((action) => action !== "subscribe" && action !== "unsubscribe");
@@ -459,7 +526,7 @@ function connect() {
     };
     socket.onmessage = (event) => {
         if (ws !== socket) return;
-        try { dispatch(JSON.parse(event.data)); }
+        try { handleMessage(JSON.parse(event.data)); }
         catch (error) { console.error("Invalid live websocket message", error); }
     };
     socket.onerror = (error) => {

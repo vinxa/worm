@@ -10,11 +10,14 @@ import {
     wiggleLogos,
 } from "./ui.js";
 import {
+    combineGameLists,
+    getGameKey,
     parseGameStart,
     initTeamScores,
     getGameDuration,
     getLivePresentationTime,
     isPastScheduledGameLiveDeadline,
+    isSameGame,
     markGameNonLiveAfterDeadline,
     normaliseText,
 } from "./utils.js";
@@ -29,7 +32,7 @@ import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButto
 import { getGameIdFromUrl, getViewStateFromUrl } from "./routing.js";
 import { isBaseRunGame, normaliseBaseForOwningTeam } from "./baseRun.js";
 import { isClash3BaseRunGame } from "./events/clash3BaseRun.js";
-import { animateLiveBaseEvents, animateLiveLifeEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
+import { animateLiveBaseEvents, animateLiveLifeEvents, animateLivePenaltyEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
 import { closeYouTubeModal, loadYouTubeUrl } from "./video.js";
 import { normaliseGamePlayerIdentity } from "./playerIdentity.js";
 import { applyInitialEventFilter } from "./filterSession.js";
@@ -53,6 +56,14 @@ const bufferedLiveEventKeys = new Set();
 let liveFinaliseTimer = null;
 let pendingLiveFinalise = null;
 const LEAGUE_LASERFORCE_GREEN = "#008140";
+const LIVE_GAME_LIST_TIMEOUT_MS = 5000;
+let completedGames = [];
+let liveListGame = null;
+let finishedListGame = null;
+let liveListReady = false;
+let initialViewPending = true;
+let nextIndexRequest = 0;
+let newestIndexResponse = 0;
 
 function isInternalParserPayload(data) {
     if (!data || typeof data !== "object") return false;
@@ -256,17 +267,14 @@ function cancelPendingLiveRender() {
     bufferedLiveEventKeys.clear();
 }
 
-function cancelPendingLiveFinalise() {
-    if (liveFinaliseTimer !== null) clearTimeout(liveFinaliseTimer);
-    liveFinaliseTimer = null;
-    pendingLiveFinalise = null;
-}
-
 function completePendingLiveFinalise() {
     liveFinaliseTimer = null;
     const pending = pendingLiveFinalise;
-    if (!pending || state.liveGameKey !== pending.gameKey ||
-        (state.selectedGame?.gameKey && state.selectedGame.gameKey !== pending.gameKey)) {
+    const pendingGame = pending ? {
+        ...(pending.data || {}),
+        gameKey: pending.gameKey || pending.data?.gameKey,
+    } : null;
+    if (!pending || (state.selectedGame && !isSameGame(state.selectedGame, pendingGame))) {
         pendingLiveFinalise = null;
         return;
     }
@@ -286,7 +294,7 @@ function completePendingLiveFinalise() {
         title: data.title || state.selectedGame?.title,
         dataPath: data.dataPath || state.selectedGame?.dataPath,
     };
-    clearLiveSubscriptionAfterFinalise();
+    clearLiveSubscriptionAfterFinalise(pending.gameKey);
     updateNextGameButtonVisibility(false, false);
     loadGameData(data.dataPath || "", {
         prefetchedData: data.dataPath ? null : data,
@@ -315,6 +323,7 @@ function animatePendingLiveEffects(events) {
     animateLiveShotEvents(events);
     animateLiveBaseEvents(events);
     animateLiveLifeEvents(events);
+    animateLivePenaltyEvents(events);
 }
 
 function schedulePendingLiveRender() {
@@ -429,12 +438,95 @@ window.addEventListener(
     },
 );
 
+function maybeShowInitialView() {
+    if (!initialViewPending || !uiReady || !state.gamesIndexLoaded || !liveListReady) return;
+    initialViewPending = !showViewFromUrl({ showMissingHome: false });
+}
+
+function rebuildGameList({ fromPoll = false, newLiveGame = false } = {}) {
+    const announceChanges = fromPoll || newLiveGame;
+    const previousLatestGame = state.latestGame;
+    const previousGameKeys = announceChanges
+        ? new Set(state.games.map(getGameKey))
+        : null;
+
+    if (finishedListGame && completedGames.some((game) =>
+        isSameGame(game, finishedListGame) && game.dataPath
+    )) {
+        finishedListGame = null;
+    }
+
+    state.games = combineGameLists(completedGames, liveListGame, finishedListGame);
+    state.latestGame = state.games[0] || null;
+
+    const highlighted = announceChanges
+        ? state.games
+            .filter((game) => !previousGameKeys.has(getGameKey(game)))
+            .map(getGameKey)
+        : [];
+    if (state.gamesIndexLoaded) buildGrid(state.games, highlighted);
+
+    const latestChanged = Boolean(announceChanges &&
+        state.latestGame && !isSameGame(state.latestGame, previousLatestGame)
+    );
+    updateNextGameButtonVisibility(latestChanged, latestChanged);
+
+    if (newLiveGame) {
+        const followPreviousGame = isSameGame(previousLatestGame, liveListGame)
+            ? completedGames.find((game) =>
+                game.dataPath && !isSameGame(game, liveListGame)
+            )
+            : previousLatestGame;
+        const previousKey = getGameKey(followPreviousGame);
+        if (uiReady && state.followLiveGames && previousKey &&
+            getGameKey(state.latestGame) !== previousKey &&
+            isSelectedCurrentLiveGame(state.latestGame, null) &&
+            !isSameGame(state.selectedGame, state.latestGame)) {
+            state.selectedPlayers = new Set();
+            showGame(state.latestGame);
+        }
+    }
+
+    maybeShowInitialView();
+}
+
+function finishGameInList(game) {
+    const useLiveGame = liveListGame && (!getGameKey(game) || isSameGame(game, liveListGame));
+    finishedListGame = {
+        ...(useLiveGame ? liveListGame : {}),
+        ...(game || {}),
+        live: false,
+    };
+    if (!getGameKey(finishedListGame)) finishedListGame = null;
+    if (isSameGame(liveListGame, finishedListGame)) liveListGame = null;
+    rebuildGameList();
+}
+
 setLiveHandlers({
+    onGameListUpdate: (game) => {
+        if (game?.live === false) {
+            finishGameInList(game);
+            return;
+        }
+
+        const previousLiveGame = liveListGame;
+        liveListGame = game;
+        rebuildGameList({
+            newLiveGame: Boolean(
+                game?.live === true && !initialViewPending &&
+                !isSameGame(previousLiveGame, game)
+            ),
+        });
+    },
+    onGameListReady: () => {
+        liveListReady = true;
+        maybeShowInitialView();
+    },
     onUpdate: (data, message) => {
-        state.liveGameKey = data.gameKey || state.liveGameKey;
-        if (!isLiveGameSelected()) return;
         const gameKey = data.gameKey || state.liveGameKey;
-        if (!gameKey) return;
+        state.liveGameKey = gameKey;
+        if (!gameKey || !isLiveGameSelected() ||
+            (state.selectedGame?.gameKey && state.selectedGame.gameKey !== gameKey)) return;
 
         const startingBuffer = bufferedLiveGameKey !== gameKey;
         if (bufferedLiveGameKey && bufferedLiveGameKey !== gameKey) {
@@ -475,14 +567,12 @@ setLiveHandlers({
             });
         schedulePendingLiveRender();
     },
-    onNewGame: (data) => {
-        cancelPendingLiveFinalise();
-        state.liveGameKey = data?.gameKey || state.liveGameKey;
-        fetchGamesIndex(true);
-    },
     onFinalise: (data) => {
-        cancelPendingLiveFinalise();
+        if (liveFinaliseTimer !== null) clearTimeout(liveFinaliseTimer);
+        liveFinaliseTimer = null;
+        pendingLiveFinalise = null;
         const gameKey = data?.gameKey || state.liveGameKey;
+        finishGameInList(data);
         pendingLiveFinalise = { data, gameKey };
         schedulePendingLiveFinalise();
     },
@@ -505,9 +595,7 @@ function expireOverdueLiveGames(now = Date.now()) {
 
     if (state.latestGame) {
         state.latestGame = state.games.find((game) =>
-            game.gameKey
-                ? game.gameKey === state.latestGame.gameKey
-                : game.id === state.latestGame.id
+            isSameGame(game, state.latestGame)
         ) || markGameNonLiveAfterDeadline(state.latestGame, now);
     }
 
@@ -537,50 +625,22 @@ async function fetchConfig(path, label, apply) {
 }
 
 async function fetchGamesIndex(fromPoll = false) {
+    const requestId = ++nextIndexRequest;
     try {
         const res = await fetch(state.S3_BASE_URL + "/live/index.json", { cache: "no-cache" });
         if (!res.ok) throw new Error("Couldn't fetch games index");
         const list = await res.json();
         if (!Array.isArray(list)) throw new Error("Games index wasn't an array");
-        const gamesByIdentity = new Map();
-        list.forEach((game, index) => {
-            if (!game || typeof game !== "object") return;
-            const identity = String(game.gameKey || game.id || `index:${index}`);
-            gamesByIdentity.set(identity, game);
-        });
-        const uniqueList = [...gamesByIdentity.values()]
-            .map((game) => markGameNonLiveAfterDeadline(game));
-        const previousIds = new Set(state.games.map((game) => game.id));
-        const previousLatestId = state.latestGame?.id;
-        const wasIndexLoaded = state.gamesIndexLoaded;
-
-        state.games = uniqueList;
-        state.gamesIndexLoaded = true;
-        state.latestGame = uniqueList.length
-            ? [...uniqueList].sort((a, b) => b.id.localeCompare(a.id))[0]
-            : null;
-        if (!wasIndexLoaded && uiReady) showViewFromUrl();
-        buildGrid(uniqueList, fromPoll
-            ? uniqueList.filter((game) => !previousIds.has(game.id)).map((game) => game.id)
-            : []
+        if (requestId < newestIndexResponse) return;
+        newestIndexResponse = requestId;
+        completedGames = list.filter((game) =>
+            game && typeof game === "object"
         );
-
-        const latestChanged = state.latestGame?.id && state.latestGame.id !== previousLatestId;
-        updateNextGameButtonVisibility(fromPoll && latestChanged, fromPoll && latestChanged);
-
-        if (shouldFollowNewLiveGame({
-            enabled: state.followLiveGames,
-            fromPoll,
-            previousLatestId,
-            latestGame: state.latestGame,
-            selectedGame: state.selectedGame,
-        })) {
-            state.selectedPlayers = new Set();
-            showGame(state.latestGame);
-        }
+        state.gamesIndexLoaded = true;
+        rebuildGameList({ fromPoll });
 
         const viewingLatest = fromPoll && state.selectedGame && state.latestGame &&
-            state.selectedGame.id === state.latestGame.id;
+            isSameGame(state.selectedGame, state.latestGame);
         const viewingLiveLatest = viewingLatest &&
             isSelectedCurrentLiveGame(state.latestGame, state.liveGameKey);
         const start = parseGameStart(state.latestGame);
@@ -591,7 +651,8 @@ async function fetchGamesIndex(fromPoll = false) {
             state.latestGame.dataPath !== state.selectedGame?.dataPath
         );
         if (viewingLatest && (isFresh || completedIndexAvailable) &&
-            !viewingLiveLatest && !state.isGameLoading) {
+            !viewingLiveLatest && !state.livePlaybackLocked &&
+            !pendingLiveFinalise && !state.isGameLoading) {
             state.selectedGame = state.latestGame;
             loadGameData(state.latestGame.dataPath, {
                 skipIfSignatureUnchanged: true,
@@ -604,26 +665,29 @@ async function fetchGamesIndex(fromPoll = false) {
     }
 }
 
-function showViewFromUrl() {
+function showViewFromUrl({ showMissingHome = true } = {}) {
     const gameId = getGameIdFromUrl();
     if (!gameId) {
         showHome({ updateHistory: false });
-        return;
+        return true;
     }
 
     const game = state.games.find((entry) =>
         String(entry.id) === gameId || String(entry.gameKey || "") === gameId
     );
     if (!game) {
-        console.warn(`Game not found in index: ${gameId}`);
-        showHome({ updateHistory: false });
-        return;
+        if (showMissingHome) {
+            console.warn(`Game not found in index: ${gameId}`);
+            showHome({ updateHistory: false });
+        }
+        return false;
     }
 
     showGame(game, {
         updateHistory: false,
         viewState: getViewStateFromUrl(),
     });
+    return true;
 }
 
 export async function loadGameData(dataPath, options = {}) {
@@ -671,7 +735,7 @@ export async function loadGameData(dataPath, options = {}) {
         }
         if (!data) return;
 
-        const sigKey = state.selectedGame?.id || data.id || dataPath;
+        const sigKey = getGameKey(state.selectedGame) || getGameKey(data) || dataPath;
         const explicitVersion = data.lastUpdated || data.updatedAt || data.timestamp || data.generatedAt;
         let newSig = String(explicitVersion || "");
         if (!explicitVersion) {
@@ -783,16 +847,21 @@ fetchConfig("static/config/reload-amounts.json", "reload replenishment config", 
 fetchGamesIndex(false);
 setInterval(() => fetchGamesIndex(true), 15000);
 setInterval(expireOverdueLiveGames, 250);
+setTimeout(() => {
+    if (liveListReady) return;
+    liveListReady = true;
+    maybeShowInitialView();
+}, LIVE_GAME_LIST_TIMEOUT_MS);
 
 document.addEventListener("DOMContentLoaded", () => {
     initUI(loadGameData);
     uiReady = true;
-    if (state.gamesIndexLoaded) {
+    showHome({ unsubscribe: false, updateHistory: false, disableLiveFollow: false });
+    maybeShowInitialView();
+    window.addEventListener("popstate", () => {
+        initialViewPending = false;
         showViewFromUrl();
-    } else {
-        showHome({ unsubscribe: false, updateHistory: false, disableLiveFollow: false });
-    }
-    window.addEventListener("popstate", showViewFromUrl);
+    });
 
     let deferredPrompt;
     const installButton = document.getElementById('installButton');
