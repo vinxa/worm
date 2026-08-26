@@ -1,5 +1,6 @@
 const BUILD_ID = "__BUILD_ID__";
-const CACHE_NAME = `worm-static-${BUILD_ID}`;
+const CACHE_PREFIX = "worm-static-";
+const CACHE_NAME = `${CACHE_PREFIX}${BUILD_ID}`;
 const FAVOURITES_DATABASE = "worm-local-preferences";
 const FAVOURITES_DATABASE_VERSION = 1;
 const FAVOURITES_STORE = "followedPlayers";
@@ -18,11 +19,28 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
+  const activation = caches.keys().then((keys) =>
+    Promise.all(
+      keys
+        .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME)
+        .map((k) => caches.delete(k))
+    )
+  ).then(() => self.clients.claim());
+
+  event.waitUntil(activation);
+
+  // WindowClient.navigate requires an active worker, so queue the refresh for
+  // the first task after this activation event has finished.
+  activation.then(() => setTimeout(() => {
+    self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    }).then((windowClients) => Promise.all(
+      windowClients
+        .filter((client) => client.url.startsWith(self.registration.scope))
+        .map((client) => client.navigate(client.url).catch(() => null))
+    )).catch(() => {});
+  }, 0)).catch(() => {});
 });
 
 self.addEventListener("fetch", (event) => {
@@ -32,7 +50,8 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("./index.html"))
+      fetch(event.request, { cache: "reload" })
+        .catch(() => caches.match("./index.html"))
     );
     return;
   }
