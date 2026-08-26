@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #2a2a2a;
+  background: var(--app-surface);
   padding: 6px 20px;
   flex: 0 0 auto;
   position: relative;
@@ -75,7 +75,7 @@
   height: 30px;
   box-sizing: border-box;
   padding: 6px 10px;
-  background: #333;
+  background: #303030;
   border: 1px solid #555;
   border-radius: 4px 0 0 4px;
   color: #eee;
@@ -108,7 +108,7 @@
   padding: 4px 7px;
   border-left: 0;
   border-radius: 0 var(--button-radius) var(--button-radius) 0;
-  background: #333;
+  background: #303030;
   color: #ff4b4b;
 }
 
@@ -125,7 +125,7 @@
 
 #loadButton.youtube-load-button:hover,
 #loadButton.youtube-load-button:focus-visible {
-  background: #444;
+  background: #3e3e3e;
   color: #ff6262;
   border-color: #e2b12a;
   border-left: 1px solid #e2b12a;
@@ -189,7 +189,7 @@ button:disabled {
 .button--primary {
   border: 1px solid #d4a522;
   background: #e2b12a;
-  color: #1e1e1e;
+  color: #000;
 }
 
 #playButton {
@@ -204,7 +204,7 @@ button:disabled {
   height: 0;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
-  border-left: 8px solid currentColor;
+  border-left: 8px solid #000;
   transform: translateX(1px);
 }
 
@@ -212,8 +212,8 @@ button:disabled {
   width: 9px;
   height: 10px;
   border: 0;
-  border-left: 3px solid currentColor;
-  border-right: 3px solid currentColor;
+  border-left: 3px solid #000;
+  border-right: 3px solid #000;
   background: none;
   transform: none;
 }
@@ -261,7 +261,7 @@ button:disabled {
   padding: 6px 10px;
   border: 1px solid #555;
   border-radius: 6px;
-  background: rgba(42, 42, 42, 0.97);
+  background: rgb(38 38 38 / 97%);
   color: #eee;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
   font-size: 0.78rem;

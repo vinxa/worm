@@ -60,7 +60,7 @@
   align-self: flex-start;
   box-sizing: border-box;
   padding: 8px;
-  background: #2a2a2a;
+  background: var(--player-tile-bg);
   border: 1px solid #444;
   border-radius: 4px;
   display: flex;
@@ -72,12 +72,13 @@
     box-shadow 220ms ease, filter 220ms ease, opacity 220ms ease;
 }
 .player-summary.is-deactivated {
-  background: #242424;
+  background: var(--player-tile-bg-muted);
   border-color: #555;
-  opacity: 0.55;
   filter: grayscale(0.6);
 }
-.player-summary.is-deactivated .player-name,
+.player-summary.is-deactivated .player-name {
+  color: var(--player-name-color, #b0b0b0);
+}
 .player-summary.is-deactivated .player-score {
   color: #b0b0b0;
 }
@@ -110,6 +111,10 @@
   opacity: 1;
 }
 
+body.game-view-active .player-summary.is-deactivated.expanded .player-summary-details {
+  opacity: 0.55;
+}
+
 .player-summary-details p {
   margin: 2px 0;
   white-space: nowrap;
@@ -127,8 +132,20 @@
 .player-name {
   font-size: 1rem;
   font-weight: bold;
-  color: #e2b12a;
+  color: var(--player-name-color, #e2b12a);
   text-align: center;
+}
+
+.player-name,
+.team-scores .team-name,
+.base-destroy-count,
+.game-title-team,
+.title-game-team {
+  text-shadow:
+    -0.5px -0.5px 0 #000,
+     0.5px -0.5px 0 #000,
+    -0.5px  0.5px 0 #000,
+     0.5px  0.5px 0 #000;
 }
 
 .player-score {
@@ -185,7 +202,7 @@
   margin: 5px 0;
 }
 .detail-map {
-  background: #1e1e1e;
+  background: #1d1d1d;
   border: 1px dashed #555;
   flex: 1;
   margin-top: 10px;
@@ -445,14 +462,14 @@
 .results-section::-webkit-scrollbar-track,
 .grid-container::-webkit-scrollbar-track,
 .top-section::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: var(--app-canvas);
 }
 
 .results-section::-webkit-scrollbar-thumb,
 .grid-container::-webkit-scrollbar-thumb,
 .top-section::-webkit-scrollbar-thumb {
   background: #555;
-  border: 2px solid #1e1e1e;
+  border: 2px solid var(--app-canvas);
   border-radius: 999px;
 }
 
@@ -465,7 +482,7 @@
 .results-section::-webkit-scrollbar-corner,
 .grid-container::-webkit-scrollbar-corner,
 .top-section::-webkit-scrollbar-corner {
-  background: #1e1e1e;
+  background: var(--app-canvas);
 }
 
 .scores-sidebar {
@@ -542,7 +559,7 @@
   min-width: 11px;
   height: 11px;
   padding: 0 2px;
-  background: #2a2a2a;
+  background: #272727;
   border-radius: 999px;
   box-sizing: border-box;
   display: inline-flex;

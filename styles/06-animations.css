@@ -141,13 +141,13 @@
 }
 
 .player-summary.is-out-of-lives {
-  background: #242424;
+  background: #211f20;
   border-color: #9c4650;
   box-shadow: inset 3px 0 0 #d85b67;
 }
 
 .player-summary.is-out-of-lives:hover {
-  background: #2b2929;
+  background: #292526;
   border-color: #dc6974;
 }
 
