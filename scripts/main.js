@@ -23,7 +23,6 @@ import {
     isLiveGameSelected,
     isSelectedCurrentLiveGame,
     setLiveHandlers,
-    shouldFollowNewLiveGame,
 } from "./live.js";
 import { refreshLiveChartData } from "./timeline.js";
 import { clearTimeouts, playReplay, seekToTime, setPlaybackRate, updatePlayButtonsLabel, updateResumeLiveButtons, updateSpeedButtons } from "./replayHandler.js";

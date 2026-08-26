@@ -21,9 +21,11 @@ let replayStarted = false;
 let replayRequestedGameKey = null;
 let replayGameKey = null;
 let replayToSeqNo = null;
-let replayLastSeqNo = -1;
 let replayCanCompleteWithoutStart = true;
 let pendingReplayLiveMessages = [];
+let listedLiveGameKey = null;
+let liveListSeqNo = -1;
+let liveListSeenOnSocket = false;
 
 export function setFollowLiveGames(enabled) {
     state.followLiveGames = Boolean(enabled);
@@ -44,24 +46,6 @@ export function isLiveGameSelected() {
     if (isPastScheduledGameLiveDeadline(state.selectedGame)) return false;
     return state.livePlaybackLocked ||
         isSelectedCurrentLiveGame(state.selectedGame, state.liveGameKey);
-}
-
-export function shouldFollowNewLiveGame({
-    enabled,
-    fromPoll,
-    previousLatestId,
-    latestGame,
-    selectedGame,
-}) {
-    return Boolean(
-        enabled &&
-        fromPoll &&
-        previousLatestId &&
-        latestGame?.id &&
-        latestGame.id !== previousLatestId &&
-        isSelectedCurrentLiveGame(latestGame, null) &&
-        selectedGame?.id !== latestGame.id
-    );
 }
 
 state.followLiveGames = withLocalStorage(
@@ -102,7 +86,6 @@ function resetReplayTracking({ clearPending = true } = {}) {
     replayRequestedGameKey = null;
     replayGameKey = null;
     replayToSeqNo = null;
-    replayLastSeqNo = -1;
     replayCanCompleteWithoutStart = true;
     if (clearPending) pendingReplayLiveMessages = [];
 }
@@ -135,7 +118,6 @@ function beginReplay({ canCompleteWithoutStart = true } = {}) {
     replayRequestedGameKey = state.liveGameKey;
     replayGameKey = null;
     replayToSeqNo = null;
-    replayLastSeqNo = -1;
     replayCanCompleteWithoutStart = canCompleteWithoutStart;
     pendingReplayLiveMessages = [];
     armReplayWatchdog();
@@ -178,7 +160,10 @@ export function unsubscribeFromLiveGame() {
     resetLiveGameTracking();
 }
 
-export function clearLiveSubscriptionAfterFinalise() {
+export function clearLiveSubscriptionAfterFinalise(finalisedKey = null) {
+    if (finalisedKey && state.liveGameKey && state.liveGameKey !== finalisedKey) {
+        return;
+    }
     state.liveSubscribed = false;
     resetLiveGameTracking();
 }
@@ -198,21 +183,17 @@ function isOlderGameKey(candidate, current) {
     return Boolean(candidate && current && String(candidate) < String(current));
 }
 
-function resetTrackedGame(gameKey) {
+function acceptMessageGameKey(gameKey) {
+    if (!gameKey) return true;
+    const currentGameKey = state.liveGameKey || state.liveGameData?.gameKey || null;
+    if (gameKey === currentGameKey) return true;
+    if (isOlderGameKey(gameKey, currentGameKey)) return false;
     state.liveGameKey = gameKey;
     state.liveGameData = null;
     state.liveSeqNo = -1;
     liveSnapshotSeqNo = -1;
     currentGameSeqNo = -1;
     if (isOlderGameKey(finalisedGameKey, gameKey)) finalisedGameKey = null;
-}
-
-function acceptMessageGameKey(gameKey) {
-    if (!gameKey) return true;
-    const currentGameKey = state.liveGameKey || state.liveGameData?.gameKey || null;
-    if (gameKey === currentGameKey) return true;
-    if (isOlderGameKey(gameKey, currentGameKey)) return false;
-    resetTrackedGame(gameKey);
     return true;
 }
 
