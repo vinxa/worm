@@ -10,6 +10,6 @@ export const DESKTOP_TIMELINE_QUERY =
 export const KEYBOARD_SHORTCUT_HINTS_QUERY =
     `${TABLET_LAYOUT_QUERY}, ${DESKTOP_TIMELINE_QUERY}`;
 export const COARSE_POINTER_QUERY = "(any-pointer: coarse)";
-export const LIVE_PRESENTATION_DELAY_SECONDS = 5;
+export const LIVE_PRESENTATION_DELAY_SECONDS = 0;
 export const S3_BASE_URL = 'https://worm-game-data.s3.ap-southeast-2.amazonaws.com';
 export const WS_URL = "wss://1km1prnds5.execute-api.ap-southeast-2.amazonaws.com/production";
