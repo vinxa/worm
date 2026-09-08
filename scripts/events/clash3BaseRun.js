@@ -17,6 +17,7 @@ export function getClash3BaseRunPolicy({ gameData, selectedGame, events }) {
     if (!isClash3BaseRunGame(gameData, selectedGame)) return null;
     const gameStart = parseGameStart(selectedGame || gameData);
     const isClash3Game = gameStart && (events || []).some((event) =>
+        !event.managedEvent &&
         normaliseText(event?.name || event?.label || event?.id) === EVENT_NAME &&
         (event?.ranges || []).some((range) => {
             const start = new Date(range?.start);

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Event admin · WORM</title>
+  <link rel="shortcut icon" href="../static/images/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./calendar.css">
+</head>
+<body>
+  <div id="eventAdmin" class="event-admin">
+    <header class="app-header admin-header">
+      <div class="header-left">
+        <span class="admin-brand">
+          <img src="../static/images/worm.png" alt="" class="app-logo admin-brand-logo">
+          <span class="app-name">WORM</span>
+          <span class="admin-context">Event admin</span>
+        </span>
+      </div>
+      <div class="header-right">
+        <a href="../" class="button" data-action="open-worm">Open WORM</a>
+        <button type="button" class="button--ghost" data-action="lock" hidden>Exit</button>
+      </div>
+    </header>
+
+    <main class="admin-shell">
+      <p class="admin-status" data-status-message role="status" aria-live="polite" hidden></p>
+      <button type="button" data-action="reload-event" hidden>Reload saved event</button>
+
+      <article class="modal-surface admin-window" data-organiser-credential hidden>
+        <h2>New organiser password for <span data-organiser-event-name></span></h2>
+        <p class="admin-help">Copy this password now and share it privately. It is stored in Parameter Store and will not be shown here again.</p>
+        <label class="admin-field">
+          Organiser password
+          <input class="form-control" type="text" autocomplete="off" spellcheck="false" readonly data-field="organiser-password">
+        </label>
+        <div class="admin-actions">
+          <button type="button" class="button--primary" data-action="copy-organiser-password">Copy password</button>
+          <button type="button" class="button--ghost" data-action="hide-organiser-password">Hide password</button>
+        </div>
+      </article>
+
+      <section class="admin-auth" data-view="auth">
+        <article class="modal-surface admin-window admin-auth-card">
+          <div data-auth-setup hidden>
+            <h1>Setup is not finished</h1>
+            <p class="admin-help">The event editor has not been connected yet.</p>
+            <p class="admin-help">No API URL is configured. Copy the HTTP API invoke URL into <code>EVENT_ADMIN_API_URL</code> in <code>scripts/config.js</code>, then republish WORM.</p>
+          </div>
+          <form data-auth-form>
+            <h1 data-auth-title>Sign in</h1>
+            <label class="admin-field">
+              Organiser/Admin password
+              <input class="form-control" type="password" name="password" autocomplete="current-password" required data-field="password">
+            </label>
+            <button type="submit" class="button--primary" data-action="login">Sign in</button>
+          </form>
+        </article>
+      </section>
+
+      <section data-view="list" hidden>
+        <div class="admin-page-heading">
+          <div class="admin-heading-copy"><h1>Create / Edit Event</h1></div>
+          <button type="button" class="button--primary" data-action="create-event">+ Create event</button>
+        </div>
+        <div class="admin-event-list" data-event-list></div>
+        <article class="modal-surface admin-window admin-empty" data-event-empty hidden>
+          <h2>No events yet</h2>
+        </article>
+        <button type="button" class="button--ghost admin-refresh-events" data-action="refresh-events">Refresh events</button>
+      </section>
+
+      <section data-view="editor" hidden>
+        <div class="admin-page-heading">
+          <div class="admin-heading-copy">
+            <button type="button" class="button--ghost admin-breadcrumb" data-action="back"></button>
+            <h1 data-draft-title></h1>
+            <p class="admin-muted" data-draft-context hidden></p>
+          </div>
+          <div class="admin-save-tools">
+            <span class="admin-dirty" data-dirty></span>
+            <button type="button" class="button--primary" data-save data-action="save">Save event</button>
+          </div>
+        </div>
+
+        <div class="admin-editor-stack" data-editor-section="event">
+          <article class="modal-surface admin-window">
+            <h2>Event details</h2>
+            <div class="admin-field-row">
+              <label class="admin-field">
+                Event name
+                <input class="form-control" data-field="event-name" placeholder="e.g. Spring Championships">
+              </label>
+              <label class="admin-field">
+                Timezone
+                <select class="form-control" data-field="timezone"></select>
+              </label>
+            </div>
+            <label class="admin-checkbox">
+              <input class="checkbox-control" type="checkbox" data-field="use-teams">
+              Organise players into teams
+            </label>
+          </article>
+          <div class="admin-section-links">
+            <button type="button" class="admin-section-link" data-action="open-teams">
+              <span><strong data-teams-link-title></strong><span class="admin-muted" data-teams-link-copy></span></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button type="button" class="admin-section-link" data-action="open-subevents">
+              <span><strong>Sub-events</strong><span class="admin-muted" data-subevents-link-copy></span></span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+          <article class="modal-surface admin-window">
+            <h2>Schedule</h2>
+            <div class="admin-calendar-host" data-calendar></div>
+          </article>
+        </div>
+
+        <div class="admin-team-list" data-editor-section="teams" hidden>
+          <article class="modal-surface admin-window">
+            <div class="admin-section-heading">
+              <h2>Player registration</h2>
+              <div class="admin-actions">
+                <button type="button" data-action="use-teams" aria-pressed="false">Teams</button>
+                <button type="button" data-action="no-teams" aria-pressed="false">No teams</button>
+              </div>
+            </div>
+          </article>
+          <article class="modal-surface admin-window" data-individual-roster hidden>
+            <h2>Individual roster</h2>
+            <p class="admin-help">One row per player. Enter membership IDs exactly, including any leading zeros.</p>
+            <div data-individual-players></div>
+          </article>
+          <div class="admin-section-heading" data-team-list-heading>
+            <span class="admin-muted" data-team-count></span>
+            <button type="button" class="button--primary" data-action="add-team">+ Add team</button>
+          </div>
+          <div class="admin-team-grid" data-team-list></div>
+          <article class="modal-surface admin-window admin-empty" data-team-empty hidden>
+            <h2>No teams yet</h2>
+          </article>
+        </div>
+
+        <div class="admin-subevent-list" data-editor-section="subevents" hidden>
+          <div class="admin-section-heading admin-section-heading--actions">
+            <button type="button" class="button--primary" data-action="add-subevent">+ Add sub-event</button>
+          </div>
+          <div class="admin-subevent-list" data-subevent-list></div>
+          <article class="modal-surface admin-window admin-empty" data-subevent-empty hidden>
+            <h2>No sub-events yet</h2>
+          </article>
+        </div>
+      </section>
+
+    </main>
+
+    <template data-template="event-card">
+      <article class="modal-surface admin-window admin-event-card">
+        <div class="admin-event-summary">
+          <h2 data-event-name></h2>
+          <div class="admin-event-meta" data-event-meta></div>
+        </div>
+        <button type="button" data-action="edit-event">Edit event</button>
+      </article>
+    </template>
+
+    <template data-template="player-row">
+      <div class="admin-player-row">
+        <span class="admin-player-drag-handle" draggable="true" data-player-drag-handle title="Drag player to another team" aria-hidden="true">⋮⋮</span>
+        <label class="admin-field">
+          Player name
+          <input class="form-control" data-field="player-name" placeholder="Player name">
+        </label>
+        <label class="admin-field">
+          Membership ID
+          <input class="form-control" data-field="member-id" inputmode="text" placeholder="Keep leading zeros">
+        </label>
+        <button type="button" class="button--ghost button--danger" data-action="remove-player">Remove</button>
+      </div>
+    </template>
+
+    <template data-template="player-list">
+      <div class="admin-player-list">
+        <div data-player-rows></div>
+        <button type="button" data-action="add-player">+ Add player</button>
+      </div>
+    </template>
+
+    <template data-template="team-card">
+      <article class="modal-surface admin-window admin-team-card">
+        <div class="admin-section-heading">
+          <label class="admin-field admin-team-name">
+            Team name
+            <input class="form-control" data-field="team-name" placeholder="Team name">
+          </label>
+          <button type="button" class="button--ghost button--danger" data-action="remove-team">Remove team</button>
+        </div>
+        <div data-team-players></div>
+      </article>
+    </template>
+
+    <template data-template="subevent-card">
+      <article class="modal-surface admin-window admin-subevent-card">
+        <div class="admin-section-heading">
+          <span class="admin-sample-label">Sample matches</span>
+          <button type="button" class="button--ghost button--danger" data-action="remove-subevent">Remove sub-event</button>
+        </div>
+        <div class="admin-field-row">
+          <label class="admin-field">
+            Sub-event name
+            <input class="form-control" data-field="subevent-name">
+          </label>
+          <label class="admin-field">
+            Game format
+            <select class="form-control" data-field="subevent-type"></select>
+          </label>
+        </div>
+        <fieldset class="admin-team-allocation" data-subevent-team-allocation>
+          <legend>Teams in this sub-event</legend>
+          <div class="admin-team-allocation-options" data-subevent-team-options></div>
+          <p class="admin-help" data-subevent-team-empty hidden>Add teams to the event roster before allocating them here.</p>
+        </fieldset>
+        <p class="admin-help" data-subevent-periods></p>
+        <div class="admin-section-heading">
+          <span class="admin-muted">Examples only — this is not a playing schedule.</span>
+          <button type="button" data-action="regenerate">Regenerate examples</button>
+        </div>
+        <ol class="admin-sample-list" data-sample-list></ol>
+        <p class="admin-help" data-sample-empty hidden></p>
+      </article>
+    </template>
+
+    <template data-template="sample-game">
+      <li><span class="admin-sample-number" data-game-number></span><span data-game-names></span></li>
+    </template>
+  </div>
+  <noscript>Enable JavaScript to use the event editor.</noscript>
+  <script type="module">
+    import { mountEventAdmin } from "./app.js";
+    mountEventAdmin(document.getElementById("eventAdmin"));
+  </script>
+</body>
+</html>

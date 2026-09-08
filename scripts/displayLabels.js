@@ -3,8 +3,10 @@
 
 import { normaliseText, parseGameStart } from "./utils.js";
 import { summaryPlayerAlias, summaryPlayerAliases } from "./summaryPlayers.js";
+import { hasCatalogCoverage, resolveCatalogGame } from "./eventCatalog.js";
 
 function findMatchingEventForGame(game, events = []) {
+    if (hasCatalogCoverage(game, events)) return null;
     const gameTypeNorm = normaliseText(game?.title || "");
     if (!gameTypeNorm) return null;
     const gameStart = parseGameStart(game);
@@ -27,10 +29,12 @@ function findMatchingEventForGame(game, events = []) {
 }
 
 export function getMatchedEventTeamNames(game, events = [], fallbackPlayers = []) {
+    const managed = resolveCatalogGame(game, events, fallbackPlayers);
+    if (managed) return managed.teams.map((team) => team.name);
     const summaryPlayers = summaryPlayerAliases(game?.players);
     const players = summaryPlayers.length > 0
         ? summaryPlayers
-        : Array.isArray(fallbackPlayers) ? fallbackPlayers : [];
+        : Array.isArray(fallbackPlayers) ? fallbackPlayers : summaryPlayerAliases(fallbackPlayers);
     if (!players.length) return [];
 
     const event = findMatchingEventForGame(game, events);
@@ -55,6 +59,15 @@ export function getMatchedEventTeamNames(game, events = [], fallbackPlayers = []
 }
 
 export function getEventTeamColourMap(game, events = [], gamePlayersById = {}) {
+    const managed = resolveCatalogGame(game, events, gamePlayersById);
+    if (managed) {
+        const actualTeams = Array.isArray(game?.teams)
+            ? Object.fromEntries(game.teams.map((team) => [String(team.id), team])) : game?.teams || {};
+        return Object.fromEntries(Object.entries(managed.assignments).flatMap(([actualId, teamId]) => {
+            const name = managed.teams.find((team) => team.teamId === teamId)?.name;
+            return name && actualTeams[actualId]?.color ? [[name, actualTeams[actualId].color]] : [];
+        }));
+    }
     const event = findMatchingEventForGame(game, events);
     if (!event || !event.teams || typeof event.teams !== "object") return {};
 
@@ -105,6 +118,9 @@ export function getEventTeamColourMap(game, events = [], gamePlayersById = {}) {
 }
 
 export function getGameDisplayTitle(game, events = [], fallbackPlayers = []) {
+    const managed = resolveCatalogGame(game, events, fallbackPlayers);
+    if (managed) return managed.teams.length
+        ? `${managed.label}: ${managed.teams.map((team) => team.name).join(" v ")}` : managed.label;
     const originalTitle = game?.title || "";
     const event = findMatchingEventForGame(game, events);
     const matchedTeams = getMatchedEventTeamNames(game, events, fallbackPlayers);
@@ -116,6 +132,9 @@ export function getGameDisplayTitle(game, events = [], fallbackPlayers = []) {
 }
 
 export function getTeamLabelMapForGame(game, gamePlayersById = {}, events = []) {
+    const managed = resolveCatalogGame(game, events, gamePlayersById);
+    if (managed) return Object.fromEntries(Object.entries(managed.assignments).map(([actualId, teamId]) =>
+        [actualId, managed.teams.find((team) => team.teamId === teamId)?.name]));
     const event = findMatchingEventForGame(game, events);
     if (!event) return {};
 

@@ -5,6 +5,7 @@ import {
     buildGrid,
     initUI,
     renderGameData,
+    refreshEventLabels,
     showGamesIndexRetrying,
     updateNextGameButtonVisibility,
     wiggleLogos,
@@ -46,6 +47,8 @@ import {
 } from "./liveRenderBuffer.js";
 import { LIVE_PRESENTATION_DELAY_CHANGE_EVENT } from "./liveDelay.js";
 import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
+import { EVENT_ADMIN_API_URL } from "./config.js";
+import { catalogEventOptions, createEventCatalogLoader } from "./eventCatalog.js";
 import { setupGameHeaderTitle } from "./headerTitle.js";
 
 let uiReady = false;
@@ -66,6 +69,23 @@ let liveListReady = false;
 let initialViewPending = true;
 let nextIndexRequest = 0;
 let newestIndexResponse = 0;
+let legacyEvents = [];
+let managedEvents = [];
+
+function updateEventCatalog() {
+    state.events = catalogEventOptions(managedEvents, legacyEvents);
+    if (state.games.length) buildGrid(state.games);
+    if (state.gameData) refreshEventLabels();
+}
+
+const eventCatalogLoader = createEventCatalogLoader({
+    url: EVENT_ADMIN_API_URL,
+    onChange: (records) => {
+        managedEvents = records;
+        updateEventCatalog();
+    },
+    onError: (error) => console.warn("Event refresh failed; keeping current event definitions", error),
+});
 
 function isInternalParserPayload(data) {
     if (!data || typeof data !== "object") return false;
@@ -835,11 +855,19 @@ function hideLoadingIndicator() {
 }
 
 fetchConfig("static/events/events.json", "events config", (list) => {
-    state.events = Array.isArray(list) ? list : [];
+    legacyEvents = Array.isArray(list) ? list : [];
+    state.events = catalogEventOptions(managedEvents, legacyEvents);
     applyInitialEventFilter(state.events);
 }).then(() => {
-    if (state.games.length) buildGrid(state.games);
+    updateEventCatalog();
 });
+eventCatalogLoader.refresh();
+if (EVENT_ADMIN_API_URL) {
+    setInterval(() => eventCatalogLoader.refresh(), 60000);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) eventCatalogLoader.refresh();
+    });
+}
 fetchConfig("static/config/reload-amounts.json", "reload replenishment config", (config) => {
     state.reloadReplenishment = config?.gameTypes && typeof config.gameTypes === "object"
         ? config.gameTypes

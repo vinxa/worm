@@ -63,7 +63,7 @@ export function activeEventKey(events, now = new Date()) {
             const start = new Date(range?.start).getTime();
             const end = new Date(range?.end).getTime();
             return !Number.isNaN(start) && !Number.isNaN(end) &&
-                currentTime >= start && currentTime <= end;
+                currentTime >= start && (event.managedEvent ? currentTime < end : currentTime <= end);
         })
     );
     return eventKey(activeEvent);

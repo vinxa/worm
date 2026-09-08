@@ -1,6 +1,7 @@
 import { state } from "./state.js";
 import { addSwipeRightListener, parseGameStart, formatGameDatetime } from "./utils.js";
 import { gameHasFollowedPlayer } from "./favourites.js";
+import { hasCatalogCoverage, matchesCatalogEvent } from "./eventCatalog.js";
 import {
     clearFilterSession,
     eventKey,
@@ -29,6 +30,8 @@ function matchesEvent(game, eventId) {
     if (eventId === "none") return true;
     const event = state.events.find((e) => eventKey(e) === eventId);
     if (!event) return false;
+    if (event.managedEvent) return matchesCatalogEvent(game, event, state.events);
+    if (hasCatalogCoverage(game, state.events)) return false;
 
     const gameStart = parseGameStart(game);
     if (!gameStart) return false;
