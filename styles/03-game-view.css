@@ -96,6 +96,77 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.kill-streak-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08em;
+  margin-right: 0.3em;
+  padding: 0.08em 0.3em 0.12em;
+  border: 1px solid color-mix(in srgb, var(--kill-streak-color, #e2b12a) 65%, #777);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--kill-streak-color, #e2b12a) 16%, #202020);
+  color: #e4e4e4;
+  font-size: 0.72em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: middle;
+  transform: translateY(-0.08em);
+  text-shadow: none;
+  transition: background-color 180ms ease, border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.kill-streak-indicator[hidden] {
+  display: none;
+}
+
+.kill-streak-icon {
+  width: 0.82em;
+  height: 0.98em;
+  overflow: visible;
+  fill: currentColor;
+  color: var(--kill-streak-color, #e2b12a);
+  filter: drop-shadow(0 0 2px currentColor);
+  transition: filter 180ms ease;
+}
+
+.kill-streak-indicator.kill-streak-blazing {
+  border-color: color-mix(in srgb, var(--kill-streak-color, #e2b12a) 82%, #fff);
+  background: color-mix(in srgb, var(--kill-streak-color, #e2b12a) 24%, #202020);
+  box-shadow: 0 0 6px
+    color-mix(in srgb, var(--kill-streak-color, #e2b12a) 62%, transparent);
+}
+
+.kill-streak-indicator.kill-streak-blazing .kill-streak-icon {
+  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 2px currentColor);
+}
+
+.player-summary.kill-streak-final .kill-streak-indicator {
+  border-color: #616161;
+  background: #292929;
+  color: #929292;
+  box-shadow: none;
+}
+
+.player-summary.kill-streak-final .kill-streak-icon {
+  color: #777;
+  filter: none;
+}
+
+.player-summary.kill-streak-final.kill-streak-leader .kill-streak-indicator {
+  border-color: color-mix(in srgb, var(--kill-streak-color, #e2b12a) 75%, #aaa);
+  background: color-mix(in srgb, var(--kill-streak-color, #e2b12a) 18%, #202020);
+  color: #e4e4e4;
+  box-shadow: 0 0 5px
+    color-mix(in srgb, var(--kill-streak-color, #e2b12a) 48%, transparent);
+}
+
+.player-summary.kill-streak-final.kill-streak-leader .kill-streak-icon {
+  color: var(--kill-streak-color, #e2b12a);
+  filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 2px currentColor);
+}
+
 .player-summary-details {
   overflow: hidden;
   max-height: 0;

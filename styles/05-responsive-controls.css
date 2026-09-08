@@ -525,6 +525,12 @@ button:hover:not(:disabled) {
   .detail-denies-line {
     display: none;
   }
+
+  .kill-streak-indicator {
+    margin-right: 0.18em;
+    padding-inline: 0.22em;
+  }
+
 }
 
 @container player-tile (max-width: 95px) {
@@ -544,6 +550,11 @@ button:hover:not(:disabled) {
 
   .detail-bases {
     padding-right: 2px;
+  }
+
+  .kill-streak-icon {
+    width: 0.68em;
+    height: 0.86em;
   }
 }
 

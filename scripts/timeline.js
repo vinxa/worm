@@ -1,4 +1,4 @@
-import { buildPlayerLifeTimeline, hexToRGBA, formatTime, getGameDuration, getLivePresentationTime, getPlayerHighlightColor, normaliseText } from "./utils.js";
+import { buildPlayerLifeTimeline, computeKillStreak, hexToRGBA, formatTime, getGameDuration, getLivePresentationTime, getPlayerHighlightColor, KILL_STREAK_THRESHOLD, normaliseText } from "./utils.js";
 import { jumpTo } from "./replayHandler.js";
 import { state } from "./state.js";
 import { COMPACT_LAYOUT_QUERY, DESKTOP_TIMELINE_QUERY, SHORT_LANDSCAPE_QUERY, TABLET_LAYOUT_QUERY } from "./config.js";
@@ -24,6 +24,7 @@ const PLAYER_EVENT_MARKER_DESKTOP = {
     deniedOffset: 32,
     denySize: 14,
     deniedSize: 12,
+    killStreakSize: 11,
     tagSize: 8,
     headToHeadSize: 12,
     hoverGrowth: 4,
@@ -33,6 +34,7 @@ const PLAYER_EVENT_MARKER_SHORT_LANDSCAPE = {
     deniedOffset: 24,
     denySize: 12,
     deniedSize: 10,
+    killStreakSize: 9,
     tagSize: 7,
     headToHeadSize: 10,
     hoverGrowth: 3,
@@ -44,6 +46,13 @@ const PLAYER_EVENT_HALO_ANIMATION_MS = 90;
 const PLAYER_EVENT_MARKER_ANIMATION_MS = 60;
 const LEGACY_BASE_ATTEMPT_SECONDS = 5;
 const INCOMING_DENIED_EVENT_TYPES = new Set(["denied", "team-denied"]);
+const TEAM_TIMELINE_STATES = {
+    hover: {
+        animation: false,
+        lineWidthPlus: 0,
+    },
+    inactive: { enabled: false },
+};
 let splitWormMediaQuery = null;
 let mobileTimelineMediaQuery = null;
 let tabletTimelineMediaQuery = null;
@@ -299,6 +308,30 @@ export function setupDeniesToggle() {
             path.push(["Z"]);
             return path;
         };
+    }
+    if (symbols && !symbols.flame) {
+        symbols.flame = (x, y, width, height) => [
+            ["M", x + width * 0.52, y],
+            ["C", x + width * 0.5, y + height * 0.2,
+                x + width * 0.36, y + height * 0.3,
+                x + width * 0.3, y + height * 0.48],
+            ["C", x + width * 0.22, y + height * 0.4,
+                x + width * 0.12, y + height * 0.34,
+                x + width * 0.08, y + height * 0.3],
+            ["C", x + width * 0.12, y + height * 0.55,
+                x, y + height * 0.64,
+                x + width * 0.08, y + height * 0.8],
+            ["C", x + width * 0.2, y + height,
+                x + width * 0.4, y + height,
+                x + width * 0.52, y + height],
+            ["C", x + width * 0.78, y + height,
+                x + width * 0.94, y + height * 0.82,
+                x + width * 0.91, y + height * 0.6],
+            ["C", x + width * 0.88, y + height * 0.38,
+                x + width * 0.7, y + height * 0.2,
+                x + width * 0.52, y],
+            ["Z"],
+        ];
     }
 }
 
@@ -651,7 +684,13 @@ function updateSplitWormAxes(selectedPlayerIds) {
 function getSplitWormScorePadding(playerId, selectedPlayerCount) {
     const hasTaggedEvent = (state.playerEvents?.[playerId] || [])
         .some((event) => event.type === "tagged");
-    if (!hasTaggedEvent) return { softMin: 0, minPadding: 0.15 };
+    const hasKillStreakEvent = computeKillStreak(
+        playerId,
+        Number.POSITIVE_INFINITY
+    ).best >= KILL_STREAK_THRESHOLD;
+    if (!hasTaggedEvent && !hasKillStreakEvent) {
+        return { softMin: 0, minPadding: 0.15 };
+    }
 
     const timeline = state.playerTimelines[playerId] || [[0, 0]];
     const scores = timeline
@@ -666,12 +705,6 @@ function getSplitWormScorePadding(playerId, selectedPlayerCount) {
     const largestTaggedSize = isMobileTimeline()
         ? marker.tagSize
         : Math.max(marker.tagSize, marker.headToHeadSize);
-    const taggedHoverSize = largestTaggedSize + marker.hoverGrowth;
-    const taggedHitSize = Math.max(taggedHoverSize + 4, 14);
-    const taggedExtent = Math.max(10, taggedHoverSize / 2, taggedHitSize / 2);
-    const minimumTaggedSpace = largestTaggedSize / 2 + taggedExtent + 2;
-    const preferredTaggedSpace = Math.max(marker.offset, taggedExtent + 1) +
-        taggedExtent + 1;
     const axisHeight = Math.max(
         1,
         (Number(state.chart.plotHeight) || 1) / selectedPlayerCount
@@ -696,6 +729,11 @@ function getSplitWormScorePadding(playerId, selectedPlayerCount) {
         minPadding: hasTaggedEvent ? 0 : 0.15,
         maxPadding: hasKillStreakEvent ? 0 : 0.05,
     };
+    if (hasKillStreakEvent) {
+        options.softMax = dataMax + paddingForMarker(
+            marker.killStreakSize + largestTaggedSize + 2
+        );
+    }
     return options;
 }
 
@@ -748,6 +786,10 @@ function updateSelectedPlayerSeries(pid, {
     const hideUnselectedIncomingTags =
         !comparisonDetailsEnabled() && state.selectedPlayers.size > 0;
     const tagEventOccurrences = new Map();
+    const killStreakByEvent = new Map(
+        computeKillStreak(pid, Number.POSITIVE_INFINITY).streakPeaks
+            .map(({ event, streak }) => [event, streak])
+    );
     const playerTeam = state.gameData.teams?.find(
         (team) => String(team.id) === String(state.gameData.players?.[pid]?.team)
     );
@@ -769,6 +811,7 @@ function updateSelectedPlayerSeries(pid, {
             const isDenied = isIncomingDeniedEvent(ev);
             const isIncoming = ev.type === "tagged" || isDenied;
             const isDenyEvent = isDeny || isDenied;
+            const killStreak = killStreakByEvent.get(ev) || 0;
             const deniedPlayer = isDeny ? target : player;
             const denierPlayer = isDenied ? target : null;
             const deniedTeam = state.gameData.teams?.find(
@@ -823,6 +866,8 @@ function updateSelectedPlayerSeries(pid, {
                     )
                     : null,
                 eventType: ev.type,
+                killStreak,
+                teamColor: playerTeamColor,
                 playerBorderColor: color,
                 isSharedSelectedTag,
                 marker: (isDenyEvent || isIncoming)
@@ -1295,6 +1340,7 @@ function getPlayerEventOverlayKey(tagSeries, point, occurrence) {
         tagSeries.options.id || "",
         point.x,
         point.eventType || "",
+        point.killStreak || 0,
         point.targetName || "",
         point.targetBaseName || "",
         occurrence,
@@ -1491,7 +1537,8 @@ function renderLiveChartOverlays(chart) {
             });
             tagSeries.points
                 .filter((point) => point.eventType === "deny" ||
-                    point.eventType === "tagged" || isIncomingDeniedEvent(point))
+                    point.eventType === "tagged" || isIncomingDeniedEvent(point) ||
+                    Number(point.killStreak) >= KILL_STREAK_THRESHOLD)
                 .forEach((point) => {
                     if (!Number.isFinite(point.plotX) || !Number.isFinite(point.plotY)) return;
                     const x = chart.plotLeft + point.plotX;
@@ -1501,15 +1548,23 @@ function renderLiveChartOverlays(chart) {
                     const isTagged = point.eventType === "tagged";
                     const isDenied = isIncomingDeniedEvent(point);
                     const isDeny = point.eventType === "deny" || isDenied;
+                    const isKillStreak = Number(point.killStreak) >= KILL_STREAK_THRESHOLD;
                     const isSharedSelectedTag = isTagged && point.isSharedSelectedTag;
-                    const preferredOffset = isDenied
+                    const preferredOffset = isKillStreak
+                        ? -eventMarker.offset
+                        : isDenied
                         ? eventMarker.deniedOffset
                         : (isTagged ? eventMarker.offset : -eventMarker.offset);
-                    const baseMarkerSize = isDenied
+                    const baseMarkerSize = isKillStreak
+                        ? eventMarker.killStreakSize
+                        : isDenied
                         ? eventMarker.deniedSize
                         : (isTagged ? eventMarker.tagSize : eventMarker.denySize);
-                    const markerSize = isSharedSelectedTag && !mobileTimeline
+                    const regularTagMarkerSize = isSharedSelectedTag && !mobileTimeline
                         ? eventMarker.headToHeadSize
+                        : eventMarker.tagSize;
+                    const markerSize = !isKillStreak && isSharedSelectedTag && !mobileTimeline
+                        ? regularTagMarkerSize
                         : baseMarkerSize;
                     const hoverSize = markerSize + eventMarker.hoverGrowth;
                     const hitSize = Math.max(hoverSize + 4, 14);
@@ -1519,7 +1574,14 @@ function renderLiveChartOverlays(chart) {
                     const preferredMarkerY = y + preferredOffset;
                     const alternateMarkerY = y - preferredOffset;
                     const minimumTaggedY = y + markerSize / 2 + 1;
-                    const markerY = isTagged
+                    const maximumStreakY = y - regularTagMarkerSize / 2 -
+                        markerSize / 2 - 1;
+                    const markerY = isKillStreak
+                        ? Math.min(
+                            maximumStreakY,
+                            Math.max(minMarkerY, preferredMarkerY)
+                        )
+                        : isTagged
                         ? Math.max(
                             minimumTaggedY,
                             Math.min(maxMarkerY, preferredMarkerY)
@@ -1532,15 +1594,23 @@ function renderLiveChartOverlays(chart) {
                                     ? alternateMarkerY
                                     : Math.max(minMarkerY, Math.min(maxMarkerY, preferredMarkerY));
                     const markerPlotY = markerY - chart.plotTop;
-                    const markerSymbol = isDenied
+                    const markerSymbol = isKillStreak
+                        ? "flame"
+                        : isDenied
                         ? "triangle-down"
                         : (isTagged ? "circle" : "star");
-                    const markerStrokeWidth = markerSymbol === "star"
+                    const markerStrokeWidth = markerSymbol === "star" || isKillStreak
                         ? 1
                         : (isDeny || (isSharedSelectedTag && !mobileTimeline) ? 2 : 1);
-                    const color = point.color || tagSeries.color || "#ffffff";
-                    const borderColor = point.playerBorderColor || tagSeries.color || "#ffffff";
-                    const stemColor = tagSeries.color || "#ffffff";
+                    const color = isKillStreak
+                        ? point.teamColor || tagSeries.color || "#ffffff"
+                        : point.color || tagSeries.color || "#ffffff";
+                    const borderColor = isKillStreak
+                        ? "#181818"
+                        : point.playerBorderColor || tagSeries.color || "#ffffff";
+                    const stemColor = isKillStreak
+                        ? color
+                        : tagSeries.color || "#ffffff";
                     point.tooltipPos = [point.plotX, markerPlotY];
                     const keyBase = getPlayerEventOverlayKey(tagSeries, point, 0);
                     const occurrence = occurrenceCounts.get(keyBase) || 0;
@@ -1585,6 +1655,7 @@ function renderLiveChartOverlays(chart) {
                         "stroke-width": markerStrokeWidth,
                         "data-base-name": point.targetBaseName || "",
                         "data-event-type": point.eventType,
+                        "data-kill-streak": isKillStreak ? String(point.killStreak) : "",
                         "data-player-id": String(tagSeries.options.id || "").replace(/-tags$/, ""),
                         zIndex: 2,
                     });
@@ -1826,6 +1897,13 @@ function createLiveScoreChart(data) {
                         return (
                             `<span style="color:${this.point.color}">\u25CF</span> ` +
                             `${formatTime(this.x)} — <b>${playerName}</b> was tagged by ` +
+                            `<b>${this.point.targetName}</b>`
+                        );
+                    }
+                    if (Number(this.point.killStreak) >= KILL_STREAK_THRESHOLD) {
+                        return (
+                            `${formatTime(this.x)} — <b>${playerName}</b> reached a ` +
+                            `<b>${this.point.killStreak}-tag streak</b> by tagging ` +
                             `<b>${this.point.targetName}</b>`
                         );
                     }

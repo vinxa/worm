@@ -4,6 +4,7 @@ import { getLivePresentationDelaySeconds } from "./liveDelay.js";
 
 export const normaliseText = (value) => String(value ?? "").trim().toLowerCase();
 export const LIVE_END_GRACE_SECONDS = 30;
+export const KILL_STREAK_THRESHOLD = 3;
 
 const gameValue = (value) => String(value ?? "").trim();
 
@@ -345,6 +346,47 @@ export function computePlayerStats(pid, t) {
         ? Math.round((stats.tagsFor / stats.tagsAgainst) * 100) + "%"
         : "∞";
     return { ...stats, ratioText };
+}
+
+export function computeKillStreak(pid, t) {
+    const player = state.gameData?.players?.[pid];
+    const events = state.playerEvents?.[pid] || [];
+    let current = 0;
+    let best = 0;
+    const qualifyingTags = [];
+    const streakPeaks = [];
+    let segmentPeak = null;
+
+    const finishSegment = () => {
+        if (segmentPeak) streakPeaks.push(segmentPeak);
+        segmentPeak = null;
+    };
+
+    for (const event of events) {
+        const eventTime = Number(event?.time);
+        if (!Number.isFinite(eventTime) || eventTime > t) continue;
+
+        if (event.type === "tag") {
+            const target = state.gameData?.players?.[event.target];
+            const isTeamKill = player && target &&
+                String(player.team) === String(target.team);
+            if (!isTeamKill) {
+                current++;
+                best = Math.max(best, current);
+                if (current >= KILL_STREAK_THRESHOLD) {
+                    const qualifyingTag = { event, streak: current };
+                    qualifyingTags.push(qualifyingTag);
+                    segmentPeak = qualifyingTag;
+                }
+            }
+        } else if (["tagged", "team-killed", "team-denied"].includes(event.type)) {
+            finishSegment();
+            current = 0;
+        }
+    }
+    finishSegment();
+
+    return { current, best, qualifyingTags, streakPeaks };
 }
 
 export function computePlayerUptime(pid, t) {
