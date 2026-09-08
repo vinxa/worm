@@ -203,6 +203,33 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
   color: #a02a2a;
 }
 
+.detail-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  gap: 0 2px;
+}
+
+.detail-tags-by-colour {
+  display: inline-flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: 2px;
+  font-size: 0.78em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-summary.tag-breakdown-hide-team-kills .detail-tags-teamKills,
+.player-summary.tag-breakdown-hide-bases .detail-bases {
+  display: none;
+}
+
 .player-name {
   font-size: 1rem;
   font-weight: bold;
@@ -483,9 +510,50 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
 }
 
 .team-scores .team-tags {
-	font-size: 0.7em;
-	text-align: right;
-	color: #a2a2a2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+  font-size: 0.7em;
+  line-height: 1.05;
+  text-align: right;
+  color: #a2a2a2;
+}
+
+.team-tags-total {
+  white-space: nowrap;
+}
+
+.team-tags-by-colour {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 6px;
+  margin-top: 1px;
+  max-width: 100%;
+  font-size: 1em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.team-tags-opponent,
+.detail-tags-opponent {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #888;
+  white-space: nowrap;
+}
+
+.team-tags-opponent::before,
+.detail-tags-opponent::before {
+  flex: none;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--tag-team-colour, #a2a2a2);
+  content: "";
 }
 
 .scores-sidebar.base-run-score-sidebar {

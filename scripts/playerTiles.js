@@ -1,4 +1,4 @@
-import { buildPlayerLifeTimeline, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, normaliseText } from "./utils.js";
+import { buildPlayerLifeTimeline, computePlayerStats, computeBaseStats, computeTeamTotal, computeHeadToHeadTags, computeKillStreak, computePlayerUptime, computePlayerLives, getGameDuration, getPlayerHighlightColor, KILL_STREAK_THRESHOLD, normaliseText } from "./utils.js";
 import { baseMatchesTargetKey, getBaseRunLayoutPlan, shouldUseCompactTeamTiles, shouldUseTeamColumns } from "./baseRun.js";
 import { getClash3BaseRunPolicy } from "./events/clash3BaseRun.js";
 import { isLiveGameSelected } from "./live.js";
@@ -20,6 +20,7 @@ const DENY_LABEL_MS = 750;
 const PENALTY_LABEL_MS = 2200;
 const SHOT_ANIMATION_MS = 260;
 const LIFE_STATE_ANIMATION_MS = 900;
+const LIVE_KILL_STREAK_GLOW_THRESHOLD = 5;
 const SHOT_EVENT_TYPES = new Set([
     "miss",
     "miss-base",
@@ -98,6 +99,9 @@ function getPlayerColor(pid) {
 function getDenyEventPresentation(event) {
     if (event?.type === "deny") return { incoming: false, label: "DENY" };
     if (event?.type === "denied") return { incoming: true, label: "DENIED" };
+    if (event?.type === "time-denied") {
+        return { incoming: true, label: "TIME DENIED" };
+    }
     if (event?.type === "team-denied") {
         return { incoming: true, label: "TEAM DENIED" };
     }
@@ -309,8 +313,22 @@ export function updatePlayerTiles(currentTime) {
     const duration = getGameDuration(state.gameData);
     const liveGameSelected = isLiveGameSelected();
     const showAllPlayersActive = duration > 0 &&
-        !isLiveGameSelected() &&
+        !liveGameSelected &&
         currentTime >= duration - 0.01;
+    const killStreaks = new Map(
+        Object.keys(state.gameData?.players || {}).map((playerId) => [
+            playerId,
+            computeKillStreak(playerId, currentTime),
+        ])
+    );
+    const gameBestKillStreak = showAllPlayersActive
+        ? Math.max(0, ...[...killStreaks.values()].map((streak) => streak.best))
+        : 0;
+    const gameBestKillStreakCount = showAllPlayersActive && gameBestKillStreak > 0
+        ? [...killStreaks.values()].filter(
+            (streak) => streak.best === gameBestKillStreak
+        ).length
+        : 0;
 
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
@@ -357,8 +375,16 @@ export function updatePlayerTiles(currentTime) {
         tile.classList.toggle("_negative", score < 0);
         tile.classList.toggle("is-deactivated", !isActive && !showAllPlayersActive);
 
-        const { tagsFor, tagsAgainst, ratioText, deniesCount, teamKillsFor, teamKillsAgainst } =
-        computePlayerStats(pid, currentTime);
+        const {
+            tagsFor,
+            tagsAgainst,
+            tagsByTeam,
+            ratioText,
+            deniesCount,
+            teamKillsFor,
+            teamKillsAgainst,
+        } = computePlayerStats(pid, currentTime);
+        const killStreak = killStreaks.get(pid) || { current: 0, best: 0 };
 
         const tagsEl = tile.querySelector(".detail-tags");
         const tagsLabelEl = tile.querySelector(".detail-tags-label");
@@ -367,6 +393,38 @@ export function updatePlayerTiles(currentTime) {
         const ratioEl = tile.querySelector(".detail-ratio");
         const deniesEl = tile.querySelector(".detail-denies");
         const uptimeEl = tile.querySelector(".detail-uptime");
+        const killStreakEl = tile.querySelector(".kill-streak-indicator");
+
+        if (killStreakEl) {
+            const displayedStreak = showAllPlayersActive
+                ? killStreak.best
+                : killStreak.current;
+            const showStreak = showAllPlayersActive ||
+                displayedStreak >= KILL_STREAK_THRESHOLD;
+            const isGameLeader = showAllPlayersActive && gameBestKillStreak > 0 &&
+                killStreak.best === gameBestKillStreak;
+            killStreakEl.hidden = !showStreak;
+            killStreakEl.querySelector(".kill-streak-count").textContent =
+                displayedStreak.toLocaleString();
+            const streakLabel = showAllPlayersActive
+                ? `Best kill streak: ${killStreak.best}${
+                    isGameLeader
+                        ? gameBestKillStreakCount > 1
+                            ? "; tied for #1 this game"
+                            : "; #1 this game"
+                        : ""
+                }`
+                : `Current kill streak: ${killStreak.current}; ` +
+                    `best so far: ${killStreak.best}`;
+            killStreakEl.setAttribute("aria-label", streakLabel);
+            killStreakEl.title = streakLabel;
+            killStreakEl.classList.toggle(
+                "kill-streak-blazing",
+                liveGameSelected && killStreak.current >= LIVE_KILL_STREAK_GLOW_THRESHOLD
+            );
+            tile.classList.toggle("kill-streak-final", showAllPlayersActive);
+            tile.classList.toggle("kill-streak-leader", isGameLeader);
+        }
 
         if (livesEl) {
             const lifeTimeline = buildPlayerLifeTimeline(pid);
@@ -426,6 +484,9 @@ export function updatePlayerTiles(currentTime) {
             tagsEl.innerHTML =
             `${tagsFor} – ${tagsAgainst} ` +
             `<span class="detail-tags-teamKills">(${teamKillsFor} – ${teamKillsAgainst})</span>`;
+            if (state.selectedPlayers?.has(pid)) {
+                appendPlayerTagColourBreakdown(tagsEl, pid, tagsByTeam);
+            }
         }
         }
         if (ratioEl) ratioEl.textContent = ratioText;
@@ -529,6 +590,37 @@ export function updatePlayerTiles(currentTime) {
     lastTileUpdateTime = currentTime;
 }
 
+function appendPlayerTagColourBreakdown(tagsEl, pid, tagsByTeam) {
+    const playerTeamId = String(state.gameData?.players?.[pid]?.team ?? "");
+    const opponents = (state.gameData?.teams || []).filter(
+        (team) => String(team.id) !== playerTeamId
+    );
+    if (!opponents.length) return;
+
+    const breakdownEl = document.createElement("span");
+    breakdownEl.className = "detail-tags-by-colour";
+    const accessibleBreakdown = [];
+    opponents.forEach((team) => {
+        const opponentId = String(team.id);
+        const opponentStats = tagsByTeam?.[opponentId] || {};
+        const tagsFor = Number(opponentStats.tagsFor) || 0;
+        const opponentName = team.name || team.colorName || opponentId;
+        const opponentEl = document.createElement("span");
+        opponentEl.className = "detail-tags-opponent";
+        opponentEl.dataset.teamId = opponentId;
+        opponentEl.style.setProperty("--tag-team-colour", team.color || "#a2a2a2");
+        opponentEl.textContent = String(tagsFor);
+        opponentEl.title = `${opponentName}: ${tagsFor} tag${tagsFor === 1 ? "" : "s"} for`;
+        breakdownEl.append(opponentEl);
+        accessibleBreakdown.push(`${opponentName}: ${tagsFor}`);
+    });
+    breakdownEl.setAttribute(
+        "aria-label",
+        `Tags for by opponent colour: ${accessibleBreakdown.join("; ")}`
+    );
+    tagsEl.append(breakdownEl);
+}
+
 export function generatePlayerTiles() {
     const grid = document.getElementById("playerGrid");
     grid.innerHTML = "";
@@ -542,13 +634,14 @@ export function generatePlayerTiles() {
         tile.classList.add("expanded");
         tile.dataset.playerId = pid;
         tile.innerHTML = `
+        <span class="player-lives-meter" aria-hidden="true"></span>
         <span class="player-event-label base-event-label base-hit-label" aria-hidden="true">BASE HIT</span>
         <span class="player-event-label base-event-label base-destroy-label" aria-hidden="true">BASE DESTROY</span>
         <span class="player-event-label deny-event-label denies-label" aria-hidden="true">DENY</span>
         <span class="player-event-label deny-event-label denied-label" aria-hidden="true">DENIED</span>
         <span class="player-event-label penalty-event-label" aria-hidden="true">⚠️ TERM</span>
         <div class="player-summary-header">
-            <div class="player-name">${stats.name || "–"}</div>
+            <div class="player-name"><span class="kill-streak-indicator" hidden><svg class="kill-streak-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.3 1.5c.4 4.1 4.9 5.8 5.5 10.1.3 2.2-.4 4.5-2 6.2a5.4 5.4 0 0 0-2.6-5.1c.2 2.1-.4 3.5-1.5 4.7-.8-1.5-1-3.1-.4-5-2.4 1.8-3.6 3.8-3.3 5.9A7.5 7.5 0 0 1 6 8.2c1.2-1.5 2.7-2.7 4.4-4.5.2 2 .7 3.4 1.7 4.5.8-2 .8-4.2.2-6.7Z"/></svg><span class="kill-streak-count">0</span></span><span class="player-name-text">${stats.name || "–"}</span></div>
             <div class="player-score">${stats.score ?? "0"}</div>
         </div>
         <div class="player-summary-details">
@@ -569,9 +662,12 @@ export function generatePlayerTiles() {
 
         const player = state.gameData.players[pid];
         if (player) {
-            const color = state.gameData.teams.find((team) => team.id === player.team)?.color || "";
+            const color = getPlayerColor(pid);
             tile.querySelector(".player-name").style.color = color;
-            if (color) tile.style.setProperty("--shot-color", color);
+            if (color) {
+                tile.style.setProperty("--shot-color", color);
+                tile.style.setProperty("--kill-streak-color", color);
+            }
         }
 
         grid.appendChild(tile);
@@ -580,15 +676,18 @@ export function generatePlayerTiles() {
     updatePlayerTiles(state.currentTime);
     stopTileOrderChecks();
     updateTileOrder();
+    observeTileSizes(updatePlayerTileOrder);
     tileOrderCheckIntervalId = setInterval(updateTileOrder, TILE_ORDER_CHECK_INTERVAL_MS);
 }
 
 export function stopTileOrderChecks() {
+    stopObservingTileSizes();
     if (tileOrderCheckIntervalId !== null) {
         clearInterval(tileOrderCheckIntervalId);
         tileOrderCheckIntervalId = null;
     }
     lastPlayerTileOrderSignature = "";
+    lastPlayerLayoutSignature = "";
     lastTeamTileOrderSignature = "";
 }
 
@@ -658,11 +757,68 @@ export function updateTeamScoresUI() {
         if (!name || !scoreSpan) return;
 
         scoreSpan.textContent = stats.score.toLocaleString();
-        tagsSpan.textContent = `${stats.tagsFor} - ${stats.tagsAgainst}`;
+        if (tagsSpan) updateTeamTags(tagsSpan, teamId, stats);
         const team = state.gameData.teams.find(t => t.id === teamId);
         const color = team ? team.color : "";
         name.style.color = color;
     });
+}
+
+function updateTeamTags(tagsEl, teamId, stats) {
+    let totalEl = tagsEl.querySelector(".team-tags-total");
+    let breakdownEl = tagsEl.querySelector(".team-tags-by-colour");
+    if (!totalEl || !breakdownEl) {
+        totalEl = document.createElement("span");
+        totalEl.className = "team-tags-total";
+        breakdownEl = document.createElement("span");
+        breakdownEl.className = "team-tags-by-colour";
+        tagsEl.replaceChildren(totalEl, breakdownEl);
+    }
+
+    const tagsFor = Number(stats.tagsFor) || 0;
+    const tagsAgainst = Number(stats.tagsAgainst) || 0;
+    totalEl.textContent = `${tagsFor}\u2009–\u2009${tagsAgainst}`;
+    totalEl.title = `Total tags: ${tagsFor} for, ${tagsAgainst} against`;
+
+    const opponents = (state.gameData?.teams || []).filter(
+        (team) => String(team.id) !== String(teamId)
+    );
+    const signature = opponents.map((team) => String(team.id)).join("|");
+    if (breakdownEl.dataset.teams !== signature) {
+        breakdownEl.dataset.teams = signature;
+        breakdownEl.replaceChildren(...opponents.map((team) => {
+            const opponentEl = document.createElement("span");
+            opponentEl.className = "team-tags-opponent";
+            opponentEl.dataset.teamId = String(team.id);
+            opponentEl.style.setProperty("--tag-team-colour", team.color || "#a2a2a2");
+            return opponentEl;
+        }));
+    }
+
+    const accessibleBreakdown = [];
+    opponents.forEach((team) => {
+        const opponentId = String(team.id);
+        const opponentStats = stats.tagsByTeam?.[opponentId] || {};
+        const opponentTagsFor = Number(opponentStats.tagsFor) || 0;
+        const opponentName = team.name || team.colorName || opponentId;
+        const opponentEl = Array.from(breakdownEl.children).find(
+            (candidate) => candidate.dataset.teamId === opponentId
+        );
+        if (!opponentEl) return;
+        opponentEl.textContent = String(opponentTagsFor);
+        opponentEl.title = `${opponentName}: ${opponentTagsFor} tag${
+            opponentTagsFor === 1 ? "" : "s"
+        } for`;
+        accessibleBreakdown.push(`${opponentName}: ${opponentTagsFor}`);
+    });
+    tagsEl.setAttribute(
+        "aria-label",
+        `Total tags: ${tagsFor} for, ${tagsAgainst} against${
+            accessibleBreakdown.length
+                ? `; tags for by opponent colour: ${accessibleBreakdown.join("; ")}`
+                : ""
+        }`
+    );
 }
 
 function updateTileOrder() {

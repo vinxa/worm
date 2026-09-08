@@ -284,9 +284,22 @@ export function computeTeamTotal(teamId, t) {
 }
 
 export function initTeamScores(teams) {
-    return Object.fromEntries((teams || []).map(({ id }) => [
+    const teamIds = (teams || []).map(({ id }) => String(id));
+    return Object.fromEntries(teamIds.map((id) => [
         id,
-        { score: 0, tagsFor: 0, tagsAgainst: 0 },
+        {
+            score: 0,
+            tagsFor: 0,
+            tagsAgainst: 0,
+            tagsByTeam: Object.fromEntries(
+                teamIds
+                    .filter((opponentId) => opponentId !== id)
+                    .map((opponentId) => [
+                        opponentId,
+                        { tagsFor: 0, tagsAgainst: 0 },
+                    ])
+            ),
+        },
     ]));
 }
 
@@ -322,9 +335,20 @@ export function computePlayerStats(pid, t) {
     const stats = {
         tagsFor: 0,
         tagsAgainst: 0,
+        tagsByTeam: {},
         deniesCount: 0,
         teamKillsFor: 0,
         teamKillsAgainst: 0,
+    };
+    const recordOpponentTag = (targetId, key) => {
+        const targetTeam = state.gameData.players[targetId]?.team;
+        if (targetTeam === undefined || targetTeam === null || targetTeam === "") return;
+        const teamId = String(targetTeam);
+        const teamStats = stats.tagsByTeam[teamId] ||= {
+            tagsFor: 0,
+            tagsAgainst: 0,
+        };
+        teamStats[key]++;
     };
     state.gameData.events
         .filter((ev) => ev.entity === pid && ev.time <= t)
@@ -334,9 +358,19 @@ export function computePlayerStats(pid, t) {
             } else if (ev.type === "team-killed" || ev.type === "team-denied") {
                 stats.teamKillsAgainst++;
             } else if (ev.type === "tag") {
-                stats[sameTeam(ev.target) ? "teamKillsFor" : "tagsFor"]++;
+                if (sameTeam(ev.target)) {
+                    stats.teamKillsFor++;
+                } else {
+                    stats.tagsFor++;
+                    recordOpponentTag(ev.target, "tagsFor");
+                }
             } else if (ev.type === "tagged") {
-                stats[sameTeam(ev.target) ? "teamKillsAgainst" : "tagsAgainst"]++;
+                if (sameTeam(ev.target)) {
+                    stats.teamKillsAgainst++;
+                } else {
+                    stats.tagsAgainst++;
+                    recordOpponentTag(ev.target, "tagsAgainst");
+                }
             } else if (ev.type === "deny") {
                 stats.deniesCount += ev.delta == 500 ? 2 : 1;
             }
