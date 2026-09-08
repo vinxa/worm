@@ -1,4 +1,5 @@
 import { getGameKey } from "./utils.js";
+import { parseGameLayout, serialiseGameLayout } from "./layoutSharing.js";
 
 const GAME_QUERY_PARAM = "game";
 const TIME_QUERY_PARAM = "t";
@@ -9,6 +10,7 @@ const TEAM_QUERY_PARAM = "team";
 const SPLIT_WORM_QUERY_PARAM = "split";
 const COMPARISON_DETAILS_QUERY_PARAM = "details";
 const DENIES_QUERY_PARAM = "denies";
+const LAYOUT_QUERY_PARAM = "layout";
 const PLAYBACK_RATES = new Set([0.5, 1, 1.5, 2, 4]);
 const VIEW_QUERY_PARAMS = [
     TIME_QUERY_PARAM,
@@ -19,6 +21,7 @@ const VIEW_QUERY_PARAMS = [
     SPLIT_WORM_QUERY_PARAM,
     COMPARISON_DETAILS_QUERY_PARAM,
     DENIES_QUERY_PARAM,
+    LAYOUT_QUERY_PARAM,
 ];
 
 function currentUrl() {
@@ -58,6 +61,7 @@ export function getViewStateFromUrl() {
         splitWorm: ["1", "true"].includes(params.get(SPLIT_WORM_QUERY_PARAM)?.toLowerCase()),
         comparisonDetails: !["0", "false"].includes(comparisonDetails),
         deniesVisible: !["0", "false"].includes(deniesVisible),
+        gameLayout: parseGameLayout(params.get(LAYOUT_QUERY_PARAM)),
     };
 }
 
@@ -70,6 +74,7 @@ export function getShareHref({
     splitWorm = false,
     comparisonDetails = true,
     deniesVisible = true,
+    gameLayout = null,
 } = {}) {
     const url = clearViewQueryParams(currentUrl());
     const parsedTime = parseNonNegativeNumber(time);
@@ -89,6 +94,8 @@ export function getShareHref({
     if (splitWorm) url.searchParams.set(SPLIT_WORM_QUERY_PARAM, "1");
     if (!comparisonDetails) url.searchParams.set(COMPARISON_DETAILS_QUERY_PARAM, "0");
     if (!deniesVisible) url.searchParams.set(DENIES_QUERY_PARAM, "0");
+    const layout = serialiseGameLayout(gameLayout);
+    if (layout) url.searchParams.set(LAYOUT_QUERY_PARAM, layout);
     return url.toString();
 }
 

@@ -5,6 +5,7 @@ import { isLiveGameSelected } from "./live.js";
 import { state } from "./state.js";
 import { updatePlayerSeriesDisplay, toggleTeamVisibility, setHiddenTeams } from "./timeline.js";
 import { SHORT_LANDSCAPE_QUERY } from "./config.js";
+import { fitBaseHitCounts, fitPlayerTagBreakdowns, fitTileContents, observeTileSizes, stopObservingTileSizes } from "./tileSizing.js";
 
 const TILE_ORDER_CHECK_INTERVAL_MS = 300;
 const TILE_REORDER_TRANSITION_MS = 240;
@@ -12,6 +13,7 @@ const TILE_REORDER_TRANSITION_MS = 240;
 const STANDARD_MINIMUM_TILE_WIDTH = 150;
 const STANDARD_MINIMUM_TILE_HEIGHT = 25;
 const STANDARD_FULL_TILE_HEIGHT = 110;
+const BASE_RUN_FULL_TILE_HEIGHT = 112;
 const BASE_HIT_FLASH_MS = 500;
 const BASE_DESTROY_FLASH_MS = BASE_HIT_FLASH_MS * 2;
 const DENY_LABEL_MS = 750;
@@ -38,6 +40,7 @@ const lifeStateAnimationTimeouts = new Map();
 let lastTileUpdateTime = -Infinity;
 let tileOrderCheckIntervalId = null;
 let lastPlayerTileOrderSignature = "";
+let lastPlayerLayoutSignature = "";
 let lastTeamTileOrderSignature = "";
 
 function animateTileEffect(pid, tile, {
@@ -304,12 +307,17 @@ export function updatePlayerTiles(currentTime) {
         currentTime
     );
     const duration = getGameDuration(state.gameData);
+    const liveGameSelected = isLiveGameSelected();
     const showAllPlayersActive = duration > 0 &&
         !isLiveGameSelected() &&
         currentTime >= duration - 0.01;
 
     document.querySelectorAll(".player-summary").forEach((tile) => {
         const pid = tile.dataset.playerId;
+        tile.classList.remove(
+            "tag-breakdown-hide-team-kills",
+            "tag-breakdown-hide-bases"
+        );
         const events = state.playerEvents[pid] || [];
         let score = events.length ? 0 : Number(state.gameData.players[pid]?.score) || 0;
         let isActive = true;
@@ -465,7 +473,7 @@ export function updatePlayerTiles(currentTime) {
                 border-color: ${baseColor};
                 ${stat.destroyed ? `background:${baseColor}; color:#ffffff;` : ""}
             ">
-            ${stat.count > 0 ? stat.count : ""}
+            <span class="base-hit-count">${stat.count > 0 ? stat.count : ""}</span>
             ${destroyBadge}
         </div>
         `;
@@ -516,6 +524,8 @@ export function updatePlayerTiles(currentTime) {
         }
     });
 
+    fitPlayerTagBreakdowns();
+    fitBaseHitCounts();
     lastTileUpdateTime = currentTime;
 }
 
@@ -675,10 +685,12 @@ function updateTeamTileOrder() {
             .join(";")}`
         : `standard:${sortedTeamIds.map(String).join("|")}`;
     if (signature === lastTeamTileOrderSignature) return;
+    const animate = lastTeamTileOrderSignature && !subgames &&
+        !document.body.classList.contains("game-layout-resizing");
     lastTeamTileOrderSignature = signature;
     const sidebar = scores.closest(".scores-sidebar");
 
-    animateReorder(items, TILE_REORDER_TRANSITION_MS, () => {
+    animateReorder(items, animate ? TILE_REORDER_TRANSITION_MS : 0, () => {
         if (subgames) {
             scores.classList.add("base-run-score-subgames");
             sidebar?.classList.add("base-run-score-sidebar");
@@ -707,6 +719,7 @@ function updateTeamTileOrder() {
             .filter(Boolean)
         );
     });
+    fitTileContents();
 }
 
 function animateReorder(elements, transitionMs, reorder) {
@@ -716,6 +729,7 @@ function animateReorder(elements, transitionMs, reorder) {
         element.style.transform = "";
     });
     reorder();
+    if (!transitionMs) return;
     elements.forEach((element) => {
         const oldRect = oldRects.get(element);
         const newRect = element.getBoundingClientRect();
@@ -751,6 +765,11 @@ function parseScoreText(text) {
     return Number.isFinite(score) ? score : 0;
 }
 
+export function getPlayerTileHeightBudget(grid, fallbackHeight = 0) {
+    return Number(grid?.parentElement?.clientHeight) ||
+        Number(grid?.clientHeight) || Number(fallbackHeight) || 0;
+}
+
 function getCurrentBaseRunLayoutPlan(teamIds, currentTime = state.currentTime) {
     return getBaseRunLayoutPlan({
         gameData: state.gameData,
@@ -769,7 +788,7 @@ function getCurrentBaseRunLayoutPlan(teamIds, currentTime = state.currentTime) {
     });
 }
 
-function updatePlayerTileOrder() {
+export function updatePlayerTileOrder() {
     const grid = document.getElementById("playerGrid");
     if (!grid || !state.gameData) return;
     const tiles = Array.from(grid.querySelectorAll(".player-summary"));
@@ -823,7 +842,7 @@ function updatePlayerTileOrder() {
     const standardGridColumnGap = Number.parseFloat(getComputedStyle(grid).columnGap) || 0;
     // Include the grid container's scrollbar in the measured box so a reflow
     // that removes overflow cannot immediately reverse the width decision.
-    const standardLayoutWidth = grid.parentElement?.getBoundingClientRect().width ||
+    const standardLayoutWidth = grid.parentElement?.offsetWidth ||
         grid.clientWidth;
     const standardUsableWidth = Math.max(
         0,
@@ -833,12 +852,24 @@ function updatePlayerTileOrder() {
     // changing orientation cannot immediately reverse its own layout decision.
     const standardLayoutHeight = grid.closest(".top-section")?.clientHeight ||
         grid.parentElement?.clientHeight || grid.clientHeight;
+    // The outer pane includes top/results padding that is not available to
+    // player cards. Its fixed grid container is the stable height budget for
+    // compact-mode decisions; measuring the content-driven grid itself could
+    // make the decision oscillate after a layout change.
+    const playerGridHeight = getPlayerTileHeightBudget(grid, standardLayoutHeight);
     const standardUsableHeight = Math.max(
         0,
-        standardLayoutHeight - standardGridRowGap * (standardMaxTeamSize - 1)
+        playerGridHeight - standardGridRowGap * (standardMaxTeamSize - 1)
     );
-    const standardTeamsAsColumns = !subgames && shouldUseTeamColumns({
-        allowResponsiveColumns: allowResponsiveBaseRunColumns,
+    // Many small teams (for example doubles) must not become a column of
+    // unreadable slivers each. Use team rows when those rows have enough room.
+    const useNarrowTeamRows = standardTeamCount > standardMaxTeamSize &&
+        (standardLayoutWidth - standardGridColumnGap * (standardTeamCount - 1)) /
+            standardTeamCount < 96 &&
+        (playerGridHeight - standardGridRowGap * (standardTeamCount - 1)) /
+            standardTeamCount >= 26;
+    const standardTeamsAsColumns = !subgames && !useNarrowTeamRows && shouldUseTeamColumns({
+        allowResponsiveColumns: true,
         teamCount: standardTeamCount,
         maxTeamSize: standardMaxTeamSize,
         subgameWidth: standardUsableWidth,
@@ -846,11 +877,8 @@ function updatePlayerTileOrder() {
         minimumTileWidth: STANDARD_MINIMUM_TILE_WIDTH,
         minimumTileHeight: STANDARD_MINIMUM_TILE_HEIGHT,
     });
-    // The roomy tablet shell can grow with its content, which masks an
-    // overfull player grid. Cap the measurement at the desktop game's 55vh
-    // player-area budget so every dense orientation switches to compact tiles
-    // before rows overlap or push the chart below the viewport.
-    const standardHeightBudget = window.innerHeight * 0.55;
+    // Both the default and saved split use the space actually inside the pane.
+    const standardHeightBudget = playerGridHeight;
     const standardRowCount = standardTeamsAsColumns
         ? standardMaxTeamSize
         : standardTeamCount;
@@ -861,7 +889,35 @@ function updatePlayerTileOrder() {
             rowGap: standardGridRowGap,
             minimumFullTileHeight: STANDARD_FULL_TILE_HEIGHT,
         });
-    const signature = `${baseRunPlan?.id || "standard"}:${subgames
+    const baseRunRowCount = subgames
+        ? Math.max(...subgameLayouts.map(({ maxTeamSize, teamsAsColumns }, index) =>
+            teamsAsColumns ? maxTeamSize : subgames[index].length
+        ))
+        : 0;
+    // Test the space required by full cards in both directions. Measuring
+    // compact padding/gaps here makes density toggle on every observer frame
+    // around the threshold, because compact mode creates extra usable space.
+    const wasBaseRunCompact = grid.classList.contains("pane-compact-tiles");
+    if (wasBaseRunCompact) grid.classList.remove("pane-compact-tiles");
+    const renderedGroups = [...grid.querySelectorAll(".base-run-subgame")];
+    const baseRunHeightBudget = renderedGroups.length
+        ? Math.min(...renderedGroups.map((group) => {
+            const style = getComputedStyle(group);
+            return group.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        }))
+        : playerGridHeight;
+    const baseRunRowGap = renderedGroups.length
+        ? Math.max(...renderedGroups.map((group) => parseFloat(getComputedStyle(group).rowGap) || 0))
+        : standardGridRowGap;
+    if (wasBaseRunCompact) grid.classList.add("pane-compact-tiles");
+    const baseRunCompactTiles = !!subgames &&
+        shouldUseCompactTeamTiles({
+            maxTeamSize: baseRunRowCount,
+            availableHeight: baseRunHeightBudget,
+            rowGap: baseRunRowGap,
+            minimumFullTileHeight: BASE_RUN_FULL_TILE_HEIGHT,
+        });
+    const layoutSignature = `${baseRunPlan?.id || "standard"}:${subgames
         ? subgames.map((group) => group.map(String).join(",")).join(";")
         : ""}:${subgames
             ? subgameLayouts.map(({ teamsAsColumns }) =>
@@ -869,17 +925,37 @@ function updatePlayerTileOrder() {
             ).join(",")
             : standardTeamsAsColumns ? "team-columns" : "player-columns"}:${
                 standardCompactTiles ? "compact" : "full"
-            }|${orderedTiles
+            }:${baseRunCompactTiles ? "pane-compact" : "pane-full"}`;
+    const signature = `${layoutSignature}|${orderedTiles
         .map((tile) => `${state.gameData.players[tile.dataset.playerId].team}:${tile.dataset.playerId}`)
         .join("|")}`;
-    if (signature === lastPlayerTileOrderSignature) return;
+    // Scaled layouts keep a readable minimum card size and scroll within the
+    // player pane when the requested scale exceeds the available space.
+    const stackedSubgames = subgames && window.matchMedia("(orientation: portrait)").matches;
+    const layoutColumns = subgames
+        ? (stackedSubgames ? 1 : subgames.length) * Math.max(...subgameLayouts.map(({ maxTeamSize, teamsAsColumns }, index) =>
+            teamsAsColumns ? subgames[index].length : maxTeamSize))
+        : standardTeamsAsColumns ? standardTeamCount : standardMaxTeamSize;
+    const layoutRows = subgames
+        ? (stackedSubgames ? subgames.length : 1) * Math.max(...subgameLayouts.map(({ maxTeamSize, teamsAsColumns }, index) =>
+            teamsAsColumns ? maxTeamSize : subgames[index].length))
+        : standardRowCount;
+    grid.style.setProperty("--player-layout-columns", layoutColumns);
+    grid.style.setProperty("--player-layout-rows", layoutRows);
+    if (signature === lastPlayerTileOrderSignature) {
+        fitTileContents();
+        return;
+    }
     lastPlayerTileOrderSignature = signature;
+    const layoutChanged = layoutSignature !== lastPlayerLayoutSignature;
+    lastPlayerLayoutSignature = layoutSignature;
 
-    animateReorder(tiles, TILE_REORDER_TRANSITION_MS, () => {
+    const applyLayout = () => {
         if (subgames) {
             grid.classList.add("base-run-subgames");
             grid.classList.remove("standard-team-columns");
             grid.classList.remove("standard-compact-tiles");
+            grid.classList.toggle("pane-compact-tiles", baseRunCompactTiles);
             grid.style.gridTemplateColumns = `repeat(${subgames.length}, minmax(0, 1fr))`;
             grid.style.gridTemplateRows = "auto";
 
@@ -911,6 +987,7 @@ function updatePlayerTileOrder() {
         }
 
         grid.classList.remove("base-run-subgames");
+        grid.classList.remove("pane-compact-tiles");
         grid.classList.toggle("standard-team-columns", standardTeamsAsColumns);
         grid.classList.toggle("standard-compact-tiles", standardCompactTiles);
         const columnCount = standardTeamsAsColumns
@@ -921,9 +998,7 @@ function updatePlayerTileOrder() {
             : standardTeamCount;
 
         grid.style.gridTemplateColumns = `repeat(${columnCount}, minmax(0, 1fr))`;
-        grid.style.gridTemplateRows = standardTeamsAsColumns
-            ? `repeat(${rowCount}, minmax(0, 1fr))`
-            : `repeat(${rowCount}, auto)`;
+        grid.style.gridTemplateRows = `repeat(${rowCount}, minmax(0, 1fr))`;
         sortedTeamIds.forEach((teamId, outerIndex) => {
             (byTeam[teamId] || []).forEach((tile, innerIndex) => {
                 tile.style.gridColumn = (standardTeamsAsColumns ? outerIndex : innerIndex) + 1;
@@ -932,7 +1007,19 @@ function updatePlayerTileOrder() {
         });
 
         orderedTiles.forEach((tile) => grid.appendChild(tile));
-    });
+    };
+    // Responsive row/column changes must take effect before paint. A FLIP
+    // animation from the old pane geometry can cross a newly moved divider.
+    if (layoutChanged || document.body.classList.contains("game-layout-resizing")) {
+        tiles.forEach((tile) => {
+            tile.style.transition = "";
+            tile.style.transform = "";
+        });
+        applyLayout();
+    } else {
+        animateReorder(tiles, TILE_REORDER_TRANSITION_MS, applyLayout);
+    }
+    fitTileContents();
 }
 
 export function setupPlayerSeriesToggles() {
@@ -962,16 +1049,15 @@ export function setupPlayerSeriesToggles() {
                 );
             });
 
-            updatePlayerSeriesDisplay();
-            updatePlayerTiles(state.currentTime);
-            clickedTile.classList.toggle("selected");
-
-            const isSelected = clickedTile.classList.contains("selected");
+            const isSelected = state.selectedPlayers.has(pid);
+            clickedTile.classList.toggle("selected", isSelected);
             if (isSelected) {
                 clickedTile.style.borderColor = getPlayerHighlightColor(pid);
             } else {
                 clickedTile.style.borderColor = "";
             }
+            updatePlayerSeriesDisplay();
+            updatePlayerTiles(state.currentTime);
         });
     });
 }

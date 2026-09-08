@@ -1,9 +1,4 @@
 @media screen and (min-width: 1201px) and (min-height: 601px) {
-  body.game-view-active:has(.players-grid.standard-compact-tiles) > .timeline-section {
-    flex-basis: clamp(200px, 27.8dvh, 300px);
-    min-height: clamp(200px, 27.8dvh, 300px);
-  }
-
   body > .top-section .players-grid.standard-compact-tiles .player-summary {
     align-self: stretch;
     align-content: center;

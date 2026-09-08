@@ -34,6 +34,7 @@ import { isBaseRunGame, normaliseBaseForOwningTeam } from "./baseRun.js";
 import { isClash3BaseRunGame } from "./events/clash3BaseRun.js";
 import { animateLiveBaseEvents, animateLiveLifeEvents, animateLivePenaltyEvents, animateLiveShotEvents, updatePlayerTiles } from "./playerTiles.js";
 import { closeYouTubeModal, loadYouTubeUrl } from "./video.js";
+import { applyGameLayoutPreferences } from "./gameLayout.js";
 import { normaliseGamePlayerIdentity } from "./playerIdentity.js";
 import { applyInitialEventFilter } from "./filterSession.js";
 import {
@@ -45,6 +46,7 @@ import {
 } from "./liveRenderBuffer.js";
 import { LIVE_PRESENTATION_DELAY_CHANGE_EVENT } from "./liveDelay.js";
 import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
+import { setupGameHeaderTitle } from "./headerTitle.js";
 
 let uiReady = false;
 let pendingLiveRenders = [];
@@ -808,6 +810,7 @@ export async function loadGameData(dataPath, options = {}) {
                 if (urlInput) urlInput.value = "";
                 closeYouTubeModal();
             }
+            applyGameLayoutPreferences();
         }
         if (state.livePlayheadFollowing) startPlayback({ keepLive: true });
         else if (state.isPlaying) startPlayback();
@@ -854,6 +857,7 @@ setTimeout(() => {
 }, LIVE_GAME_LIST_TIMEOUT_MS);
 
 document.addEventListener("DOMContentLoaded", () => {
+    setupGameHeaderTitle();
     initUI(loadGameData);
     uiReady = true;
     showHome({ unsubscribe: false, updateHistory: false, disableLiveFollow: false });

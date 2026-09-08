@@ -1,0 +1,577 @@
+/* The workspace supplies the available rectangle; panes retain their original
+   DOM ancestry while the docking layout positions them within that rectangle. */
+#gameWorkspace,
+.game-layout-toolbar {
+  display: none;
+}
+
+body.game-view-active.game-layout-board {
+  --layout-chrome-height: 24px;
+  height: 100dvh;
+  min-height: 0;
+  min-width: 0;
+}
+
+body.game-view-active.game-layout-board > .top-section,
+body.game-view-active.game-layout-board > .top-section .results-section,
+body.game-view-active.game-layout-board > .top-section .results-content {
+  display: contents !important;
+}
+
+body.game-view-active.game-layout-board > #gameWorkspace {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  margin: 4px 8px 8px;
+}
+
+body.game-view-active.game-layout-board.layout-mode > .app-header > .game-layout-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  color: #b3b3b3;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.layout-tray {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.game-layout-toolbar button {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+#gameLayoutButton {
+  flex: 0 0 var(--button-control-width);
+  width: var(--button-control-width);
+  height: var(--button-control-height);
+  padding: 0;
+}
+
+#gameLayoutButton svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+#gameLayoutButton[aria-pressed="true"] {
+  border-color: var(--button-accent);
+  background: var(--button-accent);
+  color: #191919;
+}
+
+.game-layout-toolbar[hidden],
+.dock-splitter[hidden],
+.layout-add[hidden],
+.layout-tray[hidden],
+#dockDropPreview[hidden],
+#dockDragGhost[hidden] {
+  display: none !important;
+}
+
+body.game-view-active.game-layout-board #gameLayoutResizer {
+  display: none !important;
+}
+
+/* Inline coordinates and dimensions belong to the docking layout. Reset the
+   responsive pane constraints without overriding those inline rectangles. */
+body.game-view-active.game-layout-board .dock-panel {
+  position: fixed !important;
+  box-sizing: border-box;
+  flex: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #454545;
+  border-radius: 6px;
+  background: #1d1d1d;
+}
+
+body.game-view-active.game-layout-board .dock-panel {
+  display: flex !important;
+  flex-direction: column;
+}
+
+body.game-view-active.game-layout-board:not(.layout-mode) :is(.panel-chrome, .dock-splitter, .panel-resize-handle) {
+  display: none !important;
+}
+
+body.game-view-active.game-layout-board:not(.layout-mode) .dock-panel {
+  border: 0;
+}
+
+body.game-view-active.game-layout-board [data-layout-panel][hidden],
+.panel-resize-handle[hidden],
+#gameLayoutEmpty[hidden] {
+  display: none !important;
+}
+
+.layout-announcement {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.game-layout-empty {
+  margin: 24px;
+  color: #aaa;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.layout-add {
+  touch-action: none;
+  cursor: grab;
+}
+
+body.layout-resizing iframe {
+  pointer-events: none;
+}
+
+.panel-chrome {
+  display: flex;
+  flex: 0 0 var(--layout-chrome-height, 24px);
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--layout-chrome-height, 24px);
+  min-width: 0;
+  gap: 2px;
+  padding: 0 3px;
+  border-bottom: 1px solid #393939;
+  background: #262626;
+  user-select: none;
+}
+
+.panel-chrome .panel-drag-handle {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: calc(var(--layout-chrome-height, 24px) - 2px);
+  padding: 2px 5px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #d8d8d8;
+  font-size: 0.6875rem;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: grab;
+  touch-action: none;
+}
+
+.panel-grip {
+  flex: 0 0 auto;
+  color: #969696;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.panel-chrome .panel-hide {
+  flex: 0 0 24px;
+  width: 24px;
+  height: calc(var(--layout-chrome-height, 24px) - 2px);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #aaa;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.panel-chrome button:hover,
+.panel-chrome button:focus-visible {
+  background: #333;
+  color: var(--button-accent);
+}
+
+body.game-view-active.game-layout-board .dock-panel > .panel-content {
+  position: relative;
+  display: block;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none;
+  max-height: none;
+  padding: 3px;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+}
+
+.panel-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.panel-content::-webkit-scrollbar-track,
+.panel-content::-webkit-scrollbar-corner {
+  background: var(--app-canvas);
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  border: 2px solid var(--app-canvas);
+  border-radius: 999px;
+  background: #666;
+}
+
+/* Keep compact cards readable when a panel becomes very narrow or short.
+   Extra content scrolls inside the panel instead of shrinking to tiny text. */
+body.game-view-active.game-layout-board > .top-section .panel-content .players-grid {
+  min-width: calc(var(--player-layout-columns, 1) * 72px) !important;
+  min-height: calc(var(--player-layout-rows, 1) * 32px) !important;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body.game-view-active.game-layout-board > .top-section .panel-content .team-scores {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0;
+  gap: 4px;
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores > li {
+  flex: 1 1 0;
+  min-height: 0 !important;
+  margin: 0;
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores > .team-score-subgame {
+  flex: 1 1 0;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 3px;
+  gap: 3px;
+}
+
+body.game-view-active.game-layout-board > .top-section .scores-sidebar {
+  container: docked-teams / inline-size;
+}
+
+/* Stack paired teams in narrow sidebars before their names become illegible. */
+@container docked-teams (max-width: 160px) {
+  body.game-view-active.game-layout-board > .top-section .team-scores > .team-score-subgame {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    min-height: 80px !important;
+  }
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores li {
+  min-width: 0;
+  white-space: normal;
+}
+
+body.game-view-active.game-layout-board > .top-section .scores-sidebar .team-scores .team-name {
+  font-size: calc(clamp(10px, min(17cqw, 43cqh), 14px) * var(--tile-content-scale, 1));
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body.game-view-active.game-layout-board > .top-section .scores-sidebar .team-tile-inline .team-name {
+  font-size: calc(clamp(10px, min(10cqw, 70cqh), 14px) * var(--tile-content-scale, 1));
+  white-space: nowrap;
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores
+  :is(.team-score, .team-tags-total, .team-tags-opponent) {
+  white-space: nowrap;
+}
+
+body.game-view-active.game-layout-board > .timeline-section {
+  container: docked-timeline / inline-size;
+}
+
+body.game-view-active.game-layout-board > .timeline-section #scoreChart {
+  flex: 1 1 0;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0 !important;
+  max-height: none;
+  overflow: hidden;
+}
+
+body.game-view-active.game-layout-board > .timeline-section .chart-controls {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 3px;
+  gap: 4px;
+}
+
+@container docked-timeline (max-width: 600px) {
+  body.game-view-active.game-layout-board > .timeline-section .chart-controls {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    justify-content: safe center;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    padding: 3px 28px 3px 3px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+
+  body.game-view-active.game-layout-board > .timeline-section .chart-controls > * {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    animation: none;
+    transform: none;
+  }
+}
+
+body.game-view-active.game-layout-board:has(> .timeline-section[hidden]) #headerSpeedButton {
+  display: inline-flex;
+}
+
+.dock-splitter {
+  position: fixed;
+  z-index: 15;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  touch-action: none;
+}
+
+.dock-splitter-x {
+  cursor: col-resize;
+}
+
+.dock-splitter-y {
+  cursor: row-resize;
+}
+
+.dock-splitter:hover,
+.dock-splitter:focus-visible {
+  background: rgb(226 177 42 / 45%);
+  outline: none;
+}
+
+.panel-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 5px;
+  background: linear-gradient(135deg, transparent 53%, #888 54%, transparent 59%, transparent 68%, #888 69%, transparent 74%);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.panel-resize-handle:focus-visible {
+  outline: 2px solid var(--button-accent);
+  outline-offset: -3px;
+}
+
+#dockDropPreview {
+  position: fixed;
+  z-index: 2000;
+  box-sizing: border-box;
+  border: 2px solid var(--button-accent);
+  border-radius: 6px;
+  background: rgb(226 177 42 / 18%);
+  pointer-events: none;
+}
+
+#dockDragGhost {
+  position: fixed;
+  z-index: 2001;
+  padding: 7px 12px;
+  border: 1px solid var(--button-accent);
+  border-radius: 5px;
+  background: #29251b;
+  color: #f3d176;
+  font-size: 0.85rem;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 30%);
+  pointer-events: none;
+}
+
+body.layout-dragging,
+body.layout-dragging .panel-drag-handle {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.layout-dragging iframe {
+  pointer-events: none;
+}
+
+.dock-panel.is-dragging {
+  opacity: 0.7;
+}
+
+/* Keep the right controls anchored while the title switches between its
+   available flex space and the measured center of the header. */
+body.game-view-active > .app-header > .header-right {
+  margin-left: auto;
+}
+
+body.game-view-active > .app-header > .title {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  margin-inline: 8px;
+  overflow: hidden;
+  transform: none;
+}
+
+body.game-view-active > .app-header > .title.header-title-centered {
+  position: absolute;
+  left: 50%;
+  width: max-content;
+  margin-inline: 0;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 600px) {
+  body.game-view-active > .app-header {
+    flex-wrap: nowrap;
+  }
+
+  body.game-view-active > .app-header .app-name {
+    display: none;
+  }
+
+  body.game-view-active > .app-header > .title {
+    margin-inline: 2px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  body.game-view-active > .app-header > .header-right {
+    flex: 0 0 auto;
+    gap: 4px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active.game-layout-board {
+    --layout-chrome-height: 16px;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .dock-panel .panel-chrome {
+    flex-basis: var(--layout-chrome-height);
+    height: var(--layout-chrome-height);
+    padding: 0 2px;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .panel-chrome .panel-drag-handle,
+  body.game-view-active.game-layout-board.layout-mode .panel-chrome .panel-hide {
+    height: 14px;
+    min-height: 0;
+    padding: 0 2px;
+    font-size: 9px;
+    line-height: 1;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .panel-chrome .panel-hide {
+    flex-basis: 16px;
+    width: 16px;
+    font-size: 12px;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .panel-grip {
+    font-size: 10px;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .game-layout-toolbar button {
+    height: 24px;
+    min-height: 0;
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  #gameLayoutButton {
+    flex-basis: var(--button-control-width-compact);
+    width: var(--button-control-width-compact);
+    height: var(--button-control-height-compact);
+  }
+}
+
+/* Editing actions take priority over playback/title controls on small screens. */
+@media (max-width: 1200px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active.game-layout-board.layout-mode > .app-header > :is(.title, .header-right),
+  body.game-view-active.game-layout-board.layout-mode > .app-header > .header-left > :not(.nav-button):not(#gameLayoutButton) {
+    display: none !important;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode > .app-header > .game-layout-toolbar {
+    flex: 1 1 0;
+    justify-content: flex-end;
+    margin-left: 4px;
+    padding: 0;
+  }
+
+  body.game-view-active.game-layout-board.layout-mode .layout-tray {
+    flex: 0 1 auto;
+  }
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores {
+  gap: 1px;
+}
+
+body.game-view-active.game-layout-board > .top-section .team-scores li.team-tile-inline {
+  padding-block: 0;
+}

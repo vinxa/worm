@@ -1,0 +1,790 @@
+/* Reserve a separate corner for the destroy count as base-hit numbers grow. */
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-bases {
+  display: flex;
+  padding-right: 7px;
+  padding-bottom: 7px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .base-destroy-count {
+  right: -7px;
+  bottom: -7px;
+  height: 10px;
+  font-size: 8px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .base-box {
+  flex-shrink: 0;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+/* Keep the header and stat rows together, but centre the group when an
+   equal-height desktop row is taller than its content. */
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) {
+  display: grid;
+  grid-template-rows: max-content max-content;
+  align-content: center;
+  padding: 2px 4px;
+  gap: 2px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .player-summary-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  text-align: center;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  :is(.player-name, .player-score) {
+  width: 100%;
+  text-align: center;
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .player-name {
+  font-size: 16px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .player-score {
+  font-size: 18px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .player-summary-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, auto);
+  align-content: start;
+  align-items: center;
+  justify-items: start;
+  justify-self: center;
+  width: 100%;
+  max-width: 24em;
+  height: auto;
+  padding: 0;
+  line-height: 1.3;
+  gap: 2px 6px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  :is(.detail-left, .detail-right, .detail-combat-line) {
+  display: contents;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .player-summary-details p {
+  display: flex;
+  justify-self: start;
+  justify-content: flex-start;
+  align-items: baseline;
+  margin: 0;
+  gap: 3px;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  :is(.detail-lives-label, .detail-denies-label, .detail-uptime) {
+  font-size: inherit;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  :is(.detail-lives-label, .detail-denies-label)::after,
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  .detail-uptime-line::before {
+  content: none;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-tags-label {
+  display: inline;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-lives-line {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-ratio-line {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-denies-line {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-uptime-line {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-tags-line {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density])
+  :is(.detail-tags, .detail-tags-by-colour) {
+  flex-wrap: nowrap;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary:not([data-player-density]) .detail-bases {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  justify-self: start;
+  align-self: start;
+}
+
+/* Wide cards use the horizontal room the same way as the original desktop
+   layout: player stats fill two stable columns beneath a centred header. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) {
+  align-content: center;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .player-summary-details {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: max-content;
+  align-items: start;
+  max-width: none;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density])
+  :is(.detail-left, .detail-right) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  justify-self: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-left {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-right {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-combat-line {
+  display: contents;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-ratio-line {
+  order: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-denies-line {
+  order: 2;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"]:not([data-player-density]) .detail-uptime-line {
+  order: 3;
+}
+
+/* A landscape card just below the normal full-height boundary can still show
+   every stat by putting its primary values on one line. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"][data-player-header="inline"]:not([data-player-density])
+  .player-summary-header {
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"][data-player-header="inline"]:not([data-player-density])
+  :is(.player-name, .player-score) {
+  width: auto;
+  min-width: 0;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"][data-player-header="inline"]:not([data-player-density])
+  .player-name {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide"][data-player-header="inline"]:not([data-player-density])
+  .player-score {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+/* Small cards have one layout contract across games, viewports, and docking
+   arrangements. tileSizing chooses how many rows fit; these rows never zoom. */
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  align-content: start;
+  min-height: 0;
+  height: 100%;
+  padding: 2px 3px;
+  gap: 2px;
+  text-align: left;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  .player-summary-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  justify-content: start;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  gap: 1px 5px;
+  line-height: 1.1;
+  text-align: left;
+  zoom: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-header="stacked"]
+  .player-summary-header {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  :is(.player-name, .player-score) {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .player-name {
+  font-size: 11px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .player-score {
+  font-size: 13px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .player-name-text {
+  display: block;
+  max-height: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: unset;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  :is(.kill-streak-indicator, .detail-lives-line, .detail-uptime-line, .detail-tags-label) {
+  display: none !important;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  .player-summary-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  justify-content: start;
+  justify-items: start;
+  align-items: center;
+  align-content: start;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  gap: 2px 4px;
+  font-size: 10px;
+  line-height: 1.1;
+  text-align: left;
+  zoom: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  :is(.detail-left, .detail-right, .detail-combat-line) {
+  display: contents;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  .player-summary-details p {
+  display: flex;
+  justify-content: flex-start;
+  justify-self: start;
+  align-items: baseline;
+  align-self: center;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  gap: 2px;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-denies-line {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-ratio-line {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-denies-label {
+  font-size: 0;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-denies-label::after {
+  content: "D:";
+  font-size: 10px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-tags-line {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  overflow: hidden;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .detail-bases {
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  justify-self: start;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0 6px 7px 0;
+  gap: 4px;
+}
+
+/* A short landscape card can keep both secondary stats without adding another
+   row. The four values share the first row, leaving tags and bases below. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .player-summary-details {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  :is(.detail-lives-line, .detail-uptime-line):not([hidden]) {
+  display: flex !important;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-lives-line {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-ratio-line {
+  grid-column: 2;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-denies-line {
+  grid-column: 3;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-uptime-line {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-tags-line {
+  grid-column: 1 / 3;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-layout="wide-compact"][data-player-density="compact"]
+  .detail-bases {
+  grid-column: 3 / 5;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .base-box {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density] .base-destroy-count {
+  right: -6px;
+  bottom: -7px;
+  min-width: 10px;
+  height: 10px;
+  font-size: 8px;
+  line-height: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-stats="stacked"] .detail-tags-line {
+  grid-column: 1 / -1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-stats="stacked"] .detail-bases {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary:is([data-player-density="brief"], [data-player-density="strip"], [data-player-density="summary"])
+  :is(.detail-denies-line, .detail-ratio-line) {
+  display: none !important;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary:is([data-player-density="brief"], [data-player-density="strip"], [data-player-density="summary"])
+  :is(.detail-tags-line, .detail-bases) {
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="brief"][data-player-stats="stacked"] .detail-bases {
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="strip"] {
+  padding-block: 1px;
+  gap: 1px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary:is([data-player-density="strip"], [data-player-density="summary"]) .base-box {
+  width: 12px;
+  height: 12px;
+  border-width: 1px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="strip"]
+  :is(.base-destroy-count, .detail-tags-h2h, .detail-tags-teamKills, .detail-tags-by-colour),
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="summary"]
+  :is(.base-destroy-count, .detail-tags-h2h, .detail-tags-teamKills, .detail-tags-by-colour) {
+  display: none;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary:is([data-player-density="strip"], [data-player-density="summary"]) .detail-bases {
+  padding: 0;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="summary"] {
+  padding-block: 0;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="summary"]
+  :is(.player-summary-header, .player-name, .player-score) {
+  line-height: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="summary"] .player-summary-details {
+  display: none !important;
+}
+
+/* When a shortest-height card is wide enough, keep its compact tags and bases
+   beside the header instead of discarding the detail row. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="summary"][data-player-summary="details"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "header details";
+  align-items: center;
+  column-gap: 4px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="summary"][data-player-summary="details"] .player-summary-header {
+  grid-area: header;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="summary"][data-player-summary="details"] .player-summary-details {
+  display: grid !important;
+  grid-area: details;
+  grid-template-columns: auto auto;
+  grid-template-rows: minmax(0, 1fr);
+  align-content: center;
+  width: auto;
+  gap: 4px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="summary"][data-player-summary="details"] .detail-tags-line {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="summary"][data-player-summary="details"] .detail-bases {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* Medium cards have room for the complete stat rows without returning to the
+   larger desktop header or scaling down the text. */
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .player-name {
+  font-size: 14px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .player-score {
+  font-size: 16px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .player-summary-details {
+  flex: 0 0 auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, auto);
+  align-content: start;
+  gap: 1px 6px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"]
+  :is(.detail-lives-line, .detail-uptime-line):not([hidden]) {
+  display: flex !important;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-lives-line {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-denies-line {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-uptime-line {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"]
+  :is(.detail-lives-label, .detail-denies-label, .detail-uptime) {
+  font-size: inherit;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] :is(.detail-lives-label, .detail-denies-label)::after,
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-uptime-line::before {
+  content: none;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-tags-label {
+  display: inline !important;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-tags-line {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density]
+  :is(.detail-tags, .detail-tags-by-colour) {
+  flex-wrap: nowrap;
+}
+
+/* Narrow compact cards already put bases on a separate row, leaving space
+   for complete opponent groups to wrap within the tag row. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="compact"][data-player-stats="stacked"]
+  :is(.detail-tags, .detail-tags-by-colour) {
+  flex-wrap: wrap;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary[data-player-density="detailed"] .detail-bases {
+  grid-column: 1 / -1;
+  grid-row: 4;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"]:is([data-player-stats="tight"], [data-player-stats="stacked"])
+  .player-summary-details {
+  font-size: 11px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="tight"] .detail-uptime-line {
+  font-size: 0;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="tight"] .detail-uptime-line::before {
+  content: "U:";
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="tight"] .detail-uptime-line::before,
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="tight"] .detail-uptime {
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .player-summary-details {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(6, auto);
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .detail-ratio-line {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .detail-denies-line {
+  grid-row: 3;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .detail-uptime-line {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .detail-tags-line {
+  grid-row: 5;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-density="detailed"][data-player-stats="stacked"] .detail-bases {
+  grid-row: 6;
+}
+
+/* Header size follows its own available space. Short, wide cards can retain
+   a centred name and score while showing fewer detail rows. */
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-primary="large"] .player-name {
+  font-size: 14px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-primary="large"] .player-score {
+  font-size: 16px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-header="centered"] .player-summary-header {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-header="centered"] :is(.player-name, .player-score) {
+  text-align: center;
+  width: 100%;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-header="centered"] .player-name {
+  font-size: 16px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-header="centered"] .player-score {
+  font-size: 18px;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary[data-player-header="centered"] .player-summary-details {
+  align-self: center;
+  max-width: 24em;
+  font-size: 11px;
+}
+
+body.game-view-active > .top-section .players-grid .player-summary
+  :is(.detail-lives-line, .detail-uptime-line)[hidden] {
+  display: none !important;
+}
+
+/* Games without lives should not leave a vacant cell above their denials. */
+body.game-view-active > .top-section .players-grid
+  .player-summary:is(:not([data-player-density]), [data-player-density="detailed"]):not([data-player-stats="stacked"]):has(.detail-lives-line[hidden])
+  .detail-denies-line {
+  grid-row: 1;
+}
+
+body.game-view-active > .top-section .players-grid
+  .player-summary:is(:not([data-player-density]), [data-player-density="detailed"]):not([data-player-stats="stacked"]):has(.detail-lives-line[hidden])
+  .detail-uptime-line {
+  grid-column: 1 / -1;
+}
+
+/* Align tags with the base box itself, leaving the destroy badge below it. */
+body.game-view-active > .top-section .players-grid
+  .player-summary:is([data-player-density="brief"], [data-player-density="compact"]):not([data-player-stats="stacked"])
+  .detail-tags-line {
+  align-self: start;
+  align-items: center;
+  min-height: 20px;
+}
+
+/* Desktop type stays readable without scaling into display-size headings on
+   large monitors. Card height may grow; its type does not grow with it. */
+@media screen and (min-width: 1201px) and (min-height: 601px) {
+  body.game-view-active > .top-section .players-grid
+    .player-summary:not([data-player-density]) .player-name {
+    font-size: clamp(16px, min(6cqw, 7cqh), 18px);
+  }
+
+  body.game-view-active > .top-section .players-grid
+    .player-summary:not([data-player-density]) .player-score {
+    font-size: clamp(18px, min(7cqw, 8cqh), 20px);
+  }
+
+  body.game-view-active > .top-section .players-grid
+    .player-summary:not([data-player-density]) .player-summary-details {
+    font-size: clamp(13px, min(4.5cqw, 5cqh), 14px);
+    line-height: 1.1;
+    row-gap: 1px;
+  }
+
+  body.game-view-active > .top-section .players-grid
+    .player-summary:not([data-player-density]) .detail-tags-line {
+    min-height: 1lh;
+  }
+}

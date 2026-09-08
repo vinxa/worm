@@ -130,7 +130,8 @@
   border-color: #e2b12a;
   border-left: 1px solid #e2b12a;
 }
-button {
+button,
+.button {
   appearance: none;
   -webkit-appearance: none;
   box-sizing: border-box;
@@ -147,12 +148,20 @@ button {
   transition: var(--button-transition);
 }
 
-button:focus-visible {
+button:focus-visible,
+.button:focus-visible {
   outline: 2px solid var(--button-accent);
   outline-offset: 2px;
 }
 
-button:active:not(:disabled) {
+button:hover:not(:disabled),
+.button:hover {
+  border-color: var(--button-accent);
+  background: var(--button-bg-hover);
+}
+
+button:active:not(:disabled),
+.button:active {
   background: var(--button-bg-active);
   transform: translateY(1px);
 }
@@ -160,6 +169,97 @@ button:active:not(:disabled) {
 button:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--button-control-height);
+  text-decoration: none;
+}
+
+.button--ghost {
+  padding: 5px 8px;
+  background: transparent;
+  color: #aaa;
+  font-size: 0.7rem;
+}
+
+.button--ghost:hover,
+.button--ghost:focus-visible {
+  border-color: var(--button-accent);
+  color: var(--button-text);
+}
+
+.button--danger {
+  color: #ffa8a3;
+}
+
+.form-control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--button-border);
+  border-radius: 4px;
+  outline: none;
+  background: #303030;
+  color: var(--button-text);
+  font: inherit;
+  font-weight: 400;
+}
+
+.form-control::placeholder {
+  color: #888;
+}
+
+.form-control:focus {
+  border-color: var(--button-accent);
+}
+
+.form-control:focus-visible {
+  outline: 2px solid var(--button-accent);
+  outline-offset: 2px;
+}
+
+.checkbox-control {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  display: grid;
+  flex: 0 0 17px;
+  place-content: center;
+  border: 1px solid #777;
+  border-radius: 3px;
+  background: #242424;
+  cursor: pointer;
+}
+
+.checkbox-control::before {
+  content: "";
+  width: 8px;
+  height: 4px;
+  border: solid #1e1e1e;
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg) scale(0);
+  transition: transform 120ms ease;
+}
+
+.checkbox-control:checked {
+  border-color: var(--button-accent);
+  background: var(--button-accent);
+}
+
+.checkbox-control:checked::before {
+  transform: rotate(-45deg) scale(1);
+}
+
+.checkbox-control:focus-visible {
+  outline: 2px solid var(--button-accent);
+  outline-offset: 2px;
 }
 
 .button--icon {
@@ -198,7 +298,7 @@ button:disabled {
   padding: 0;
 }
 
-.button--primary::before {
+.button--play::before {
   content: "";
   width: 0;
   height: 0;
@@ -208,7 +308,7 @@ button:disabled {
   transform: translateX(1px);
 }
 
-.button--primary.is-playing::before {
+.button--play.is-playing::before {
   width: 9px;
   height: 10px;
   border: 0;

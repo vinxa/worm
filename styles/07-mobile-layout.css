@@ -382,8 +382,8 @@
 
   body.game-view-active > .top-section .team-score-subgame li {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
     align-content: center;
     align-items: center;
     gap: 0 3px;
@@ -396,8 +396,8 @@
   }
 
   body.game-view-active > .top-section .team-score-subgame .team-tags {
-    grid-column: 2;
-    grid-row: 1;
+    grid-column: 1;
+    grid-row: 3;
     font-size: 0.65rem;
     line-height: 1;
   }
@@ -428,6 +428,11 @@
 }
 
 @media (max-width: 600px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active > .top-section .team-scores .team-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .global-live-settings {
     display: none;
   }

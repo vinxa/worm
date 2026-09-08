@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { updatePlayerTiles, updateTeamScoresUI } from "./playerTiles.js";
 import { updateLiveSeries, updateCursorPosition } from "./timeline.js";
 import { getGameDuration, getLivePresentationTime, initTeamScores } from "./utils.js";
-import { closeYouTubeModal } from "./video.js";
+import { closeYouTubeModal, syncVideoPlaybackRate, syncVideoToGame } from "./video.js";
 import { isLiveGameSelected } from "./live.js";
 import { isAtLiveEdge, resolveLivePlayheadTime } from "./livePlayhead.js";
 import { setShortcutTooltip } from "./shortcutTooltips.js";
@@ -68,9 +68,7 @@ export function setPlaybackRate(rate, { force = false, restart = true } = {}) {
         return state.playbackRate;
     }
     state.playbackRate = rate;
-    if (state.player && typeof state.player.setPlaybackRate === "function") {
-        state.player.setPlaybackRate(rate);
-    }
+    syncVideoPlaybackRate();
     updateSpeedButtons();
     if (restart && state.isPlaying) {
         clearTimeouts();
@@ -149,7 +147,7 @@ export function jumpTo(time) {
     }
 }
 
-function applyTeamScoreEvent(teamScores, ev, players) {
+export function applyTeamScoreEvent(teamScores, ev, players) {
     const teamId = players?.[ev.entity]?.team;
     if (!teamId || !teamScores[teamId]) return;
 
@@ -157,8 +155,12 @@ function applyTeamScoreEvent(teamScores, ev, players) {
     const targetTeam = players?.[ev.target]?.team;
     if (ev.type === "tag" && targetTeam !== teamId) {
         teamScores[teamId].tagsFor++;
+        const opponentTags = teamScores[teamId].tagsByTeam?.[targetTeam];
+        if (opponentTags) opponentTags.tagsFor++;
     } else if (ev.type === "tagged" && targetTeam !== teamId) {
         teamScores[teamId].tagsAgainst++;
+        const opponentTags = teamScores[teamId].tagsByTeam?.[targetTeam];
+        if (opponentTags) opponentTags.tagsAgainst++;
     }
 }
 
@@ -170,6 +172,7 @@ export function playReplay(
   startSec = 0,
   { skipInitialLiveSeriesUpdate = false, followLiveClock = false } = {}
 ) {
+  syncVideoToGame({ syncPlayback: true });
   if (followLiveClock && isLiveGameSelected() && state.livePlayheadFollowing) {
     if (!skipInitialLiveSeriesUpdate) updateLiveSeries(startSec);
 
@@ -188,6 +191,7 @@ export function playReplay(
         following: true,
       });
       updateCursorPosition(state.currentTime);
+      syncVideoToGame();
 
       if (state.currentTime < duration) {
         state.replayAnimationFrame = requestAnimationFrame(drawLiveClock);
@@ -233,6 +237,7 @@ export function playReplay(
       if (!state.isPlaying || state.chart !== chart || state.gameData !== data) return;
 
       state.currentTime = t;
+      syncVideoToGame();
 
       while (
         eventIdx < sortedEvents.length &&
@@ -281,7 +286,6 @@ export function resumeLivePlayback() {
     state.currentTime,
     { followLiveClock: true },
   );
-  if (typeof state.player?.playVideo === "function") state.player.playVideo();
   return true;
 }
 
@@ -298,10 +302,7 @@ export function seekToTime(
   }
   state.currentTime = sec;
 
-  if (!skipVideoSeek && typeof state.player?.seekTo === "function") {
-    const offset = parseFloat(document.getElementById("videoOffset")?.value) || 0;
-    state.player.seekTo(sec + offset, true);
-  }
+  if (!skipVideoSeek) syncVideoToGame({ seek: true });
   updatePlayerTiles(sec);
   state.teamScores = initTeamScores(state.gameData.teams);
   state.gameData.events.forEach((ev) => {

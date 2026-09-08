@@ -10,10 +10,120 @@ import {
 let syncInterval = null;
 let isAdjustingOffset = false;
 let lastProgrammaticSeekAt = 0;
-let modalSetup = false;
+let panelSetup = false;
 let pendingVideoId = null;
 let youtubeReadyPoll = null;
 let youtubeReadyPollAttempts = 0;
+let videoVisible = false;
+
+const VIDEO_RATIO = 16 / 9;
+
+function announceVideoLayout(change) {
+    document.dispatchEvent(new CustomEvent("worm:video-layout-change", { detail: change }));
+}
+
+export function fitVideoToPanel() {
+    const modal = document.getElementById("videoModal");
+    if (!modal || !modal.clientWidth || !modal.clientHeight) return;
+    const header = modal.querySelector(".modal-header");
+    const availableHeight = Math.max(0, modal.clientHeight - (header?.getBoundingClientRect().height || 0));
+    const width = Math.min(modal.clientWidth, availableHeight * VIDEO_RATIO);
+    const height = width / VIDEO_RATIO;
+    modal.style.setProperty("--video-player-height", `${availableHeight}px`);
+    const playerElement = document.getElementById("modalPlayer");
+    if (playerElement) {
+        playerElement.style.width = `${width}px`;
+        playerElement.style.height = `${height}px`;
+    }
+    state.player?.setSize?.(width, height);
+}
+
+function ensureVideoPlaceholder() {
+    const modal = document.getElementById("videoModal");
+    const body = modal?.querySelector(".modal-body");
+    if (!body) return;
+    if (!document.getElementById("modalPlayer")) {
+        const player = document.createElement("div");
+        player.id = "modalPlayer";
+        body.prepend(player);
+    }
+    if (modal.querySelector(".video-placeholder")) return;
+    const placeholder = document.createElement("form");
+    placeholder.className = "video-placeholder";
+    const label = document.createElement("label");
+    label.htmlFor = "modalVideoUrl";
+    label.textContent = "Load a YouTube video";
+    const controls = document.createElement("div");
+    controls.className = "video-placeholder-controls";
+    const input = document.createElement("input");
+    input.id = "modalVideoUrl";
+    input.type = "url";
+    input.placeholder = "YouTube URL";
+    input.setAttribute("aria-label", "YouTube video URL");
+    input.value = document.getElementById("youtubeUrl")?.value || "";
+    const button = document.createElement("button");
+    button.type = "submit";
+    button.textContent = "Load";
+    controls.append(input, button);
+    placeholder.append(label, controls);
+    placeholder.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!loadYouTubeUrl(input.value, { show: true })) {
+            input.setCustomValidity("Enter a YouTube video URL.");
+            input.reportValidity();
+        }
+    });
+    input.addEventListener("input", () => input.setCustomValidity(""));
+    body.appendChild(placeholder);
+}
+
+export function applyVideoLayout({ visible = videoVisible } = {}) {
+    videoVisible = Boolean(visible);
+    const modal = document.getElementById("videoModal");
+    if (!modal) return;
+    ensureVideoPlaceholder();
+    modal.classList.add("video-docked");
+    modal.style.display = videoVisible ? "block" : "none";
+    fitVideoToPanel();
+}
+
+function showVideoModal() {
+    applyVideoLayout({ visible: true });
+    announceVideoLayout({ visible: true });
+}
+
+function hideVideoModal() {
+    applyVideoLayout({ visible: false });
+    announceVideoLayout({ visible: false });
+}
+let waitingForVideoStart = false;
+
+function getVideoOffset() {
+    return parseFloat(document.getElementById("videoOffset")?.value) || 0;
+}
+
+export function syncVideoToGame({ seek = false, syncPlayback = false } = {}) {
+    const player = state.player;
+    if (typeof player?.seekTo !== "function") return false;
+
+    const videoTime = state.currentTime + getVideoOffset();
+    const wasWaiting = waitingForVideoStart;
+    waitingForVideoStart = videoTime < 0;
+
+    // Negative video times have no footage. Let the game clock advance through
+    // that opening instead of mapping the clamped video zero back into the game.
+    if (seek || wasWaiting !== waitingForVideoStart) {
+        lastProgrammaticSeekAt = Date.now();
+        player.seekTo(Math.max(0, videoTime), true);
+    }
+    if (waitingForVideoStart) {
+        if (seek || !wasWaiting || syncPlayback) player.pauseVideo?.();
+    } else if (wasWaiting || syncPlayback) {
+        if (state.isPlaying) player.playVideo?.();
+        else player.pauseVideo?.();
+    }
+    return waitingForVideoStart;
+}
 
 export function parseYouTubeId(url) {
     return String(url || "").match(/(?:v=|\.be\/)([\w-]{11})/)?.[1] || null;
@@ -28,11 +138,31 @@ function isYouTubeApiReady() {
     return typeof window.YT?.Player === "function";
 }
 
-export function loadYouTubeUrl(url) {
+export function syncVideoPlaybackRate(actualRate = state.player?.getPlaybackRate?.()) {
+    if (typeof state.player?.setPlaybackRate !== "function") return;
+    const requestedRate = state.playbackRate;
+    const availableRates = state.player.getAvailablePlaybackRates?.();
+    // YouTube rounds unsupported rates toward 1x. Choose that native rate
+    // explicitly so its rate-change event cannot start a retry loop.
+    const videoRate = availableRates?.length
+        ? availableRates
+            .filter((rate) => rate >= Math.min(1, requestedRate) &&
+                rate <= Math.max(1, requestedRate))
+            .reduce((closest, rate) =>
+                Math.abs(rate - requestedRate) < Math.abs(closest - requestedRate)
+                    ? rate : closest, 1)
+        : requestedRate;
+    if (actualRate !== videoRate) state.player.setPlaybackRate(videoRate);
+}
+
+export function loadYouTubeUrl(url, { show = false } = {}) {
     const value = getShareableYouTubeUrl(url);
     const urlInput = document.getElementById("youtubeUrl");
     if (urlInput) urlInput.value = value || String(url || "").trim();
     if (!value) return false;
+    if (show) showVideoModal();
+    const modalUrlInput = document.getElementById("modalVideoUrl");
+    if (modalUrlInput) modalUrlInput.value = value;
     const videoId = parseYouTubeId(value);
     if (isYouTubeApiReady()) {
         pendingVideoId = null;
@@ -67,14 +197,14 @@ function loadVideo(v) {
         updatePlayButtonsLabel("▶");
         clearTimeouts();
     }
-    const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
     const modal = document.getElementById("videoModal");
-    modal.style.display = "block";
-    modal.style.width = "560px";
-    modal.style.height = "355px";
+    ensureVideoPlaceholder();
+    modal.classList.add("has-video");
+    applyVideoLayout();
     if (state.player) {
         state.player.loadVideoById(v);
-        state.player.seekTo(state.currentTime + offset, true);
+        syncVideoPlaybackRate();
+        syncVideoToGame({ seek: true });
     } else {
         state.player = new YT.Player("modalPlayer", {
             height: "315",
@@ -84,43 +214,60 @@ function loadVideo(v) {
             events: {
                 onReady: () => {
                     console.log("YT Player ready");
-                    const playerWidth = modal.clientWidth;
-                    const playerHeight = modal.clientHeight -
-                        modal.querySelector(".modal-header").offsetHeight;
-                    const playerElement = document.getElementById("modalPlayer");
-                    if (playerElement) {
-                        playerElement.style.width = `${playerWidth}px`;
-                        playerElement.style.height = `${playerHeight}px`;
-                    }
+                    fitVideoToPanel();
                     if (state.player) {
-                        state.player.setSize(playerWidth, playerHeight);
-                        if (typeof state.player.setPlaybackRate === "function") {
-                            state.player.setPlaybackRate(state.playbackRate);
-                        }
-                        const originalSeekTo = state.player.seekTo.bind(state.player);
-                        state.player.seekTo = function (seconds, allowSeekAhead) {
-                            lastProgrammaticSeekAt = Date.now();
-                            return originalSeekTo(Math.max(0, seconds), allowSeekAhead);
-                        };
-                        state.player.seekTo(Math.max(0, state.currentTime + offset), true);
+                        syncVideoPlaybackRate();
+                        syncVideoToGame({ seek: true });
                         syncInterval = setInterval(() => {
                             if (state.player && !isAdjustingOffset) {
+                                const waiting = syncVideoToGame();
                                 const recentGameSeek = Date.now() - lastProgrammaticSeekAt < 1000;
                                 if (recentGameSeek) return;
                                 
                                 const currentVideoTime = state.player.getCurrentTime();
-                                const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
-                                const expectedGameTime = currentVideoTime - offset;
+                                // Zero cannot identify a game time during the
+                                // unrecorded opening, but an iframe seek into
+                                // actual footage should still move the game.
+                                if (waiting && currentVideoTime <= 0.5) return;
+                                const expectedGameTime = currentVideoTime - getVideoOffset();
                                 if (Math.abs(expectedGameTime - state.currentTime) > 0.5) {
+                                    const videoRate = state.player.getPlaybackRate?.();
+                                    if (state.isPlaying && videoRate != null &&
+                                        videoRate !== state.playbackRate) {
+                                        // Keep the worm's clock authoritative while a rate
+                                        // change is pending or unavailable (for example 4x).
+                                        syncVideoToGame({ seek: true });
+                                        return;
+                                    }
+                                    if (state.isPlaying) clearTimeouts();
                                     seekToTime(Math.max(0, expectedGameTime), true, {
                                         userInitiated: true,
                                     });
+                                    syncVideoToGame();
+                                    if (state.isPlaying) {
+                                        playReplay(
+                                            state.chart,
+                                            state.gameData,
+                                            state.playbackRate,
+                                            state.replayTimeouts,
+                                            state.currentTime,
+                                            { followLiveClock: state.livePlayheadFollowing },
+                                        );
+                                    }
                                 }
                             }
                         }, 500);
                     }
                 },
+                onPlaybackRateChange: (e) => {
+                    syncVideoPlaybackRate(e.data);
+                },
                 onStateChange: (e) => {
+                    if (e.data === YT.PlayerState.PLAYING || e.data === YT.PlayerState.CUED) {
+                        // Loading/cueing a video resets YouTube to 1x, including
+                        // when reusing an existing player without another onReady.
+                        syncVideoPlaybackRate();
+                    }
                     if (e.data === YT.PlayerState.PLAYING) {
                         if (!state.isPlaying) {
                             state.isPlaying = true;
@@ -134,17 +281,21 @@ function loadVideo(v) {
                                 state.currentTime
                             );
                         }
+                        // The iframe's own Play control can fire while its
+                        // footage is still ahead of the game playhead.
+                        if (state.currentTime + getVideoOffset() < 0) {
+                            syncVideoToGame({ syncPlayback: true });
+                        }
                     }
                     else if (e.data === YT.PlayerState.PAUSED) {
                         const currentVideoTime = state.player?.getCurrentTime();
-                        const offset = parseFloat(document.getElementById("videoOffset").value) || 0;
-                        const expectedVideoTime = state.currentTime + offset;
+                        const expectedVideoTime = Math.max(0, state.currentTime + getVideoOffset());
                         const isLikelySeek =
                             currentVideoTime != null &&
                             Math.abs(currentVideoTime - expectedVideoTime) > 0.5;
                         const recentProgrammaticSeek = Date.now() - lastProgrammaticSeekAt < 500;
 
-                        if (isAdjustingOffset || recentProgrammaticSeek || isLikelySeek) return;
+                        if (waitingForVideoStart || isAdjustingOffset || recentProgrammaticSeek || isLikelySeek) return;
                         if (state.isPlaying) {
                             detachLivePlayback();
                             state.isPlaying = false;
@@ -158,9 +309,9 @@ function loadVideo(v) {
     }
 }
 
-export function setupDraggableModal() {
-    if (modalSetup) return;
-    modalSetup = true;
+export function setupVideoPanel() {
+    if (panelSetup) return;
+    panelSetup = true;
 
     if (!document.querySelector('script[data-youtube-iframe-api="true"]')) {
         const ytTag = document.createElement("script");
@@ -177,14 +328,14 @@ export function setupDraggableModal() {
     const urlInput = document.getElementById("youtubeUrl");
     const offsetInput = document.getElementById("videoOffset");
 
-    modal.style.display = "none";
-    let dragging = false,
-        offsetX = 0,
-        offsetY = 0;
+    modal.setAttribute("role", "region");
+    modal.setAttribute("aria-label", "YouTube player");
+    offsetInput.setAttribute("aria-label", "Video start offset in seconds");
+    applyVideoLayout();
     let offsetAdjustTimeout;
 
     loadBtn.addEventListener("click", () => {
-        loadYouTubeUrl(urlInput.value);
+        loadYouTubeUrl(urlInput.value, { show: true });
     });
 
     offsetInput.addEventListener("input", () => {
@@ -209,77 +360,22 @@ export function setupDraggableModal() {
     });
 
     closeBtn.addEventListener("click", () => {
-        closeYouTubeModal();
+        if (!document.body.classList.contains("game-view-active") ||
+            !document.body.classList.contains("layout-mode")) return;
+        hideVideoModal();
     });
 
-    header.addEventListener("mousedown", (e) => {
-        dragging = true;
-        const bounds = modal.getBoundingClientRect();
-        offsetX = e.clientX - bounds.left;
-        offsetY = e.clientY - bounds.top;
-        document.body.style.userSelect = "none";
-    });
-    window.addEventListener("mousemove", (e) => {
-        if (!dragging) return;
-        modal.style.left = `${e.clientX - offsetX}px`;
-        modal.style.top = `${e.clientY - offsetY}px`;
-    });
-    window.addEventListener("mouseup", () => {
-        dragging = false;
-        document.body.style.userSelect = "";
-    });
-
-    const resizeHandle = document.createElement("div");
-    resizeHandle.className = "modal-resize-handle";
-    modal.appendChild(resizeHandle);
-
-    let resizing = false;
-    let resizeStartX, resizeStartY, resizeStartWidth, resizeStartHeight;
-
-    resizeHandle.addEventListener("mousedown", (e) => {
-        resizing = true;
-        resizeStartX = e.clientX;
-        resizeStartY = e.clientY;
-        resizeStartWidth = modal.offsetWidth;
-        resizeStartHeight = modal.offsetHeight;
-        document.body.style.userSelect = "none";
-        e.preventDefault();
-    });
-
-    window.addEventListener("mousemove", (e) => {
-        if (!resizing) return;
-        const dx = e.clientX - resizeStartX;
-        const dy = e.clientY - resizeStartY;
-        const ratio = 16 / 9;
-        let newWidth, newHeight;
-        if (Math.abs(dx) > Math.abs(dy)) {
-            newWidth = resizeStartWidth + dx;
-            newHeight = newWidth / ratio;
-        } else {
-            newHeight = resizeStartHeight + dy;
-            newWidth = newHeight * ratio;
-        }
-        newWidth = Math.max(newWidth, 300);
-        newHeight = Math.max(newHeight, 300 / ratio);
-        modal.style.width = `${newWidth}px`;
-        modal.style.height = `${newHeight}px`;
-        const playerElement = document.getElementById("modalPlayer");
-        if (playerElement) {
-            const playerWidth = modal.clientWidth;
-            const playerHeight = modal.clientHeight - header.offsetHeight;
-            playerElement.style.width = `${playerWidth}px`;
-            playerElement.style.height = `${playerHeight}px`;
-            if (state.player) {
-                state.player.setSize(playerWidth, playerHeight);
-            }
-        }
-    });
-
-    window.addEventListener("mouseup", () => {
-        resizing = false;
-        document.body.style.userSelect = "";
-    });
+    window.addEventListener("resize", fitVideoToPanel);
+    window.visualViewport?.addEventListener("resize", fitVideoToPanel);
+    if (typeof ResizeObserver === "function") {
+        const observer = new ResizeObserver(fitVideoToPanel);
+        observer.observe(modal);
+        if (header) observer.observe(header);
+    }
 }
+
+// Compatibility for existing integrations that initialise the video controls.
+export const setupDraggableModal = setupVideoPanel;
 
 export function closeYouTubeModal(fullyClose = true) {
     const modal = document.getElementById("videoModal");
@@ -293,6 +389,11 @@ export function closeYouTubeModal(fullyClose = true) {
         state.player = null;
     }
     if (fullyClose) {
+        modal?.classList.remove("has-video");
+        ensureVideoPlaceholder();
+        waitingForVideoStart = false;
+        isAdjustingOffset = false;
+        lastProgrammaticSeekAt = 0;
         pendingVideoId = null;
         if (youtubeReadyPoll !== null) {
             window.clearInterval(youtubeReadyPoll);
@@ -306,13 +407,13 @@ export function toggleYouTubeModal() {
     const modal = document.getElementById("videoModal");
     if (!modal) return;
     if (modal.style.display === "block") {
-        closeYouTubeModal(true);
+        hideVideoModal();
         return;
     }
-    const urlInput = document.getElementById("youtubeUrl");
-    if (!urlInput?.value.trim()) {
-        urlInput?.focus();
-        return;
+    showVideoModal();
+    if (!state.player) {
+        const urlInput = document.getElementById("youtubeUrl");
+        if (urlInput?.value.trim()) loadYouTubeUrl(urlInput.value);
+        else document.getElementById("modalVideoUrl")?.focus();
     }
-    loadYouTubeUrl(urlInput.value);
 }

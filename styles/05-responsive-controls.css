@@ -507,14 +507,13 @@ button:hover:not(:disabled) {
 
 @media (max-width: 480px) {
   .games-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 8px;
   }
   .game-tile {
     font-size: 0.8rem;
     padding: 8px;
-    width:90%;
     margin: 2% 0;
   }
   #scoreChart {

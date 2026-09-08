@@ -25,6 +25,7 @@ import {
 import {
     applySelectedTileState,
     generatePlayerTiles,
+    updatePlayerTileOrder,
     setupPlayerSeriesToggles,
     setupTeamSeriesFilter,
     stopTileOrderChecks,
@@ -46,20 +47,35 @@ import {
 } from "./live.js";
 import { clearGameUrl, getGameHref, getShareHref, setGameUrl } from "./routing.js";
 import { summaryPlayerAliasMap, summaryPlayerRecordMap } from "./summaryPlayers.js";
-import { closeYouTubeModal, getShareableYouTubeUrl, setupDraggableModal } from "./video.js";
+import { applyVideoLayout, closeYouTubeModal, getShareableYouTubeUrl, setupVideoPanel } from "./video.js";
 import {
     getLivePresentationDelaySeconds,
     setLivePresentationDelaySeconds,
 } from "./liveDelay.js";
 import { setShortcutTooltip, setupShortcutTooltips } from "./shortcutTooltips.js";
+import {
+    applyGameLayoutPreferences,
+    getGameLayoutPreferences,
+    restoreGameLayoutForView,
+    setupGameLayoutSettings,
+    setGameLayoutMode,
+} from "./gameLayout.js";
+import {
+    setupLogoDance,
+    wiggleLogos,
+    wiggleMatchingLogos,
+} from "./logoDance.js";
+
+export { wiggleLogos } from "./logoDance.js";
 
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2, 4];
 const GAME_BATCH_SIZE = 60;
 const gameHeader = document.querySelector("body > .app-header");
 const gameSections = [
     document.querySelector(".top-section"),
+    document.getElementById("gameLayoutResizer"),
     document.querySelector(".timeline-section"),
-];
+].filter(Boolean);
 const homeView = document.getElementById("home-view");
 const leftNavigationButton = document.querySelector(".nav-button.left");
 const nextGameBtn = document.querySelector(".next-game-button");
@@ -70,15 +86,6 @@ const liveDelayInput = document.getElementById("liveDelayInput");
 const liveDelaySaved = document.getElementById("liveDelaySaved");
 const liveSettings = document.querySelector(".global-live-settings");
 const LIVE_SETTINGS_ANIMATION_MS = 180;
-const logoDances = [
-    { name: "worm-spin", duration: "1.1s", easing: "ease-in-out" },
-    { name: "worm-corkscrew", duration: "1s", easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
-    { name: "worm-burrow-boing", duration: "1.15s", easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" },
-    { name: "dance1", duration: "0.8s", easing: "ease-in-out" },
-    { name: "dance2", duration: "0.8s", easing: "ease-in-out" },
-    { name: "dance3", duration: "0.8s", easing: "ease-in-out" },
-];
-const previousDanceIndexes = new WeakMap();
 let loadGameData;
 let visibleGameLimit = GAME_BATCH_SIZE;
 
@@ -100,31 +107,6 @@ function updateLiveCountdown() {
         const time = `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
         liveCountdown.textContent = hours ? `${hours}:${time}` : time;
     }
-}
-
-function playRandomLogoDance(logo) {
-    const previousDanceIndex = previousDanceIndexes.get(logo) ?? -1;
-    const dances = logoDances.filter((_, index) => index !== previousDanceIndex);
-    const dance = dances[Math.floor(Math.random() * dances.length)];
-
-    previousDanceIndexes.set(logo, logoDances.indexOf(dance));
-    logo.classList.remove("wiggle-on-load");
-    logo.style.animation = "";
-    void logo.offsetWidth;
-    logo.style.animation = `${dance.name} ${dance.duration} ${dance.easing}`;
-}
-
-function wiggleMatchingLogos(selector) {
-    document.querySelectorAll(selector).forEach((logo) => {
-        playRandomLogoDance(logo);
-        logo.addEventListener("animationend", () => {
-            logo.style.animation = "";
-        }, { once: true });
-    });
-}
-
-export function wiggleLogos() {
-    wiggleMatchingLogos(".app-logo");
 }
 
 export function buildGrid(games, highlightIds = [], { resetLimit = false } = {}) {
@@ -242,6 +224,7 @@ export function showHome({
     stopTileOrderChecks();
     if (updateHistory) clearGameUrl({ replace: replaceHistory });
     document.body.classList.remove("game-view-active");
+    setGameLayoutMode(false);
     homeView.style.display = "block";
     leftNavigationButton.style.display = "none";
     gameHeader.style.display = "none";
@@ -306,6 +289,7 @@ export function showGame(game, {
     gameHeader.style.display = "flex";
     updateLiveCountdown();
     gameSections.forEach((section) => (section.style.display = ""));
+    restoreGameLayoutForView(viewState?.gameLayout);
 
     const hasTemporaryGameData = Boolean(game.gameKey && !game.dataPath);
     if (isLiveGame || hasTemporaryGameData) {
@@ -412,28 +396,41 @@ export function renderGameData() {
     setupPlayerSeriesToggles();
     setupTeamSeriesFilter();
     applySelectedTileState();
-    setupDraggableModal();
+    setupVideoPanel();
+    applyGameLayoutPreferences();
     seekToTime(state.currentTime);
 
+    refreshEventLabels();
+}
+
+/** Refresh configuration labels without rebuilding gameplay or moving the playhead. */
+export function refreshEventLabels() {
     if (!state.selectedGame) return;
-    const fallbackPlayers = Object.values(state.gameData?.players || {})
-        .map((player) => player?.name)
-        .filter(Boolean);
+    const fallbackPlayers = state.gameData?.players || {};
+    const labelGame = { ...state.selectedGame, teams: state.selectedGame.teams || state.gameData?.teams };
+    const teamLabelMap = getTeamLabelMapForGame(labelGame, fallbackPlayers, state.events);
+    document.querySelectorAll(".team-scores li").forEach((item) => {
+        const name = item.querySelector(".team-name");
+        const team = state.gameData?.teams?.find((entry) => String(entry.id) === item.dataset.teamId);
+        if (!name || !team) return;
+        name.textContent = teamLabelMap[item.dataset.teamId] || team.name || team.id;
+        name.title = name.textContent;
+    });
     const displayTitle = getGameDisplayTitle(
-        state.selectedGame,
+        labelGame,
         state.events,
         fallbackPlayers
-    ) || state.gameData.gameType || "Game";
+    ) || state.gameData?.gameType || "Game";
     const title = document.querySelector(".title");
     if (!title) return;
 
     const matchedTeams = getMatchedEventTeamNames(
-        state.selectedGame,
+        labelGame,
         state.events,
         fallbackPlayers
     );
     const teamColourMap = getEventTeamColourMap(
-        state.selectedGame,
+        labelGame,
         state.events,
         state.gameData?.players || {}
     );
@@ -468,8 +465,6 @@ function clickPlayButton() {
     const isPlaying = togglePlayback();
     if (isPlaying === null) return;
     updatePlayButtonsLabel(isPlaying ? "❚❚" : "▶");
-    const action = isPlaying ? "playVideo" : "pauseVideo";
-    if (typeof state.player?.[action] === "function") state.player[action]();
 }
 
 async function shareCurrentPage(button) {
@@ -486,6 +481,7 @@ async function shareCurrentPage(button) {
         splitWorm: state.splitWorm,
         comparisonDetails: state.comparisonDetails,
         deniesVisible: state.deniesVisible,
+        gameLayout: getGameLayoutPreferences(),
     });
 
     try {
@@ -545,6 +541,10 @@ function loadAdjacentGame(offset) {
 
 export function initUI(gameLoader) {
     loadGameData = gameLoader;
+    setupGameLayoutSettings({
+        onLayoutChange: updatePlayerTileOrder,
+        onVideoLayoutChange: applyVideoLayout,
+    });
     setupShortcutTooltips();
     updateLiveCountdown();
     setupComparisonDetailsToggle();
@@ -627,18 +627,7 @@ export function initUI(gameLoader) {
 
     window.addEventListener("orientationchange", wiggleLogos);
     document.querySelectorAll(".app-logo").forEach((logo) => {
-        logo.addEventListener("mouseenter", () => playRandomLogoDance(logo));
-        logo.addEventListener("animationend", () => {
-            logo.style.animation = "";
-        });
-    });
-    document.querySelectorAll(".portrait-orientation-logo").forEach((logo) => {
-        logo.addEventListener("pointerdown", () => {
-            logo.classList.remove("wiggle-on-tap");
-            void logo.offsetWidth;
-            logo.classList.add("wiggle-on-tap");
-        });
-        logo.addEventListener("animationend", () => logo.classList.remove("wiggle-on-tap"));
+        if (logo instanceof HTMLElement) setupLogoDance(logo);
     });
 
     const patchNotesModal = document.getElementById("patchNotesModal");

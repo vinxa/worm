@@ -1,0 +1,461 @@
+.game-layout-resizer {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex: 0 0 12px;
+  width: 100%;
+  height: 12px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.game-layout-resizer::before {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  height: 1px;
+  background: #444;
+  content: "";
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 190ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 80ms linear, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.game-layout-resizer-grip {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 6px;
+  border: 1px solid #5b5b5b;
+  border-radius: 999px;
+  background:
+    linear-gradient(#8a8a8a, #8a8a8a) center calc(50% - 1.5px) / 18px 1px no-repeat,
+    linear-gradient(#8a8a8a, #8a8a8a) center calc(50% + 1.5px) / 18px 1px no-repeat,
+    #292929;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 45%);
+  cursor: row-resize;
+  touch-action: none;
+  transition: border-color 120ms ease, background-color 120ms ease,
+    box-shadow 120ms ease, transform 120ms ease;
+}
+
+.game-layout-resizer-grip::after {
+  position: absolute;
+  inset: -3px -8px;
+  content: "";
+}
+
+.game-layout-resizer:has(.game-layout-resizer-grip:hover)::before,
+.game-layout-resizer:focus-visible::before,
+.game-layout-resizer.is-resizing::before {
+  background: #c29624;
+  box-shadow: 0 0 6px rgb(226 177 42 / 35%);
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.game-layout-resizer .game-layout-resizer-grip:hover,
+.game-layout-resizer:focus-visible .game-layout-resizer-grip,
+.game-layout-resizer.is-resizing .game-layout-resizer-grip {
+  border-color: var(--button-accent);
+  background-color: #343434;
+  box-shadow: 0 0 0 2px rgb(226 177 42 / 18%);
+  transform: scaleX(1.08);
+}
+
+.game-layout-resizer:focus-visible {
+  outline: none;
+}
+
+body.game-layout-resizing,
+body.game-layout-resizing * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+body.game-view-active.game-layout-custom {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.game-view-active.game-layout-custom > .top-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: clip;
+}
+
+body.game-view-active.game-layout-custom > .top-section .results-section {
+  min-height: 0;
+}
+
+/* Match the short-device card layout when a custom split makes Base Run rows
+   shorter than their full presentation. Standard games use the existing
+   .standard-compact-tiles rules selected from the same measured pane height. */
+body.game-view-active > .top-section
+  .players-grid.base-run-subgames.pane-compact-tiles {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: none !important;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  gap: 3px;
+}
+
+body.game-view-active > .top-section
+  .players-grid.base-run-subgames.pane-compact-tiles .base-run-subgame {
+  align-self: stretch;
+  align-content: stretch;
+  min-height: 0;
+  padding: 3px;
+  gap: 3px;
+  grid-template-rows: none !important;
+  grid-auto-rows: minmax(0, 1fr);
+}
+
+/* Use the resized card's dimensions for type and spacing. Size containment is
+   safe here because every card has a definite grid row. */
+@media screen and (min-width: 1201px) and (min-height: 601px) {
+  body.game-view-active > .top-section .players-grid .player-summary {
+    container: resized-player-tile / size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-areas: "header" "details";
+    align-self: stretch;
+    align-content: stretch;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-summary-header {
+    grid-area: header;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    min-height: 0;
+    line-height: 1.1;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-name {
+    flex: 0 0 auto;
+    width: 100%;
+    font-size: clamp(0.9rem, min(12cqw, 13cqh), 2rem);
+    text-align: center;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-score {
+    width: 100%;
+    font-size: clamp(1rem, min(13cqw, 15cqh), 2.25rem);
+    text-align: center;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-summary-details {
+    grid-area: details;
+    min-height: 0;
+    max-height: none;
+    height: 100%;
+    box-sizing: border-box;
+    align-content: space-evenly;
+    font-size: clamp(0.66rem, min(6.5cqw, 7cqh), 1.4rem);
+    line-height: 1.15;
+  }
+
+  body.game-view-active > .top-section .players-grid :is(.detail-left, .detail-right) {
+    justify-content: space-evenly;
+  }
+
+  body.game-view-active > .top-section .players-grid .base-box {
+    width: clamp(20px, min(6cqw, 9cqh), 32px);
+    height: clamp(20px, min(6cqw, 9cqh), 32px);
+    font-size: clamp(14px, min(8cqw, 10cqh), 20px);
+  }
+
+  body.game-view-active > .top-section
+    .players-grid.base-run-subgames :is(.detail-lives-line, .detail-denies-line, .detail-ratio-line) {
+    font-size: inherit;
+  }
+
+  body.game-view-active > .top-section
+    .players-grid.base-run-subgames :is(.detail-lives-label, .detail-denies-label)::after {
+    font-size: clamp(0.66rem, min(6.5cqw, 7cqh), 1.4rem);
+  }
+
+
+}
+
+body.game-view-active.game-layout-custom > .timeline-section,
+body.game-view-active.game-layout-custom:has(.players-grid.standard-compact-tiles)
+  > .timeline-section {
+  flex: 0 0 var(--game-timeline-size);
+  width: 100%;
+  height: var(--game-timeline-size);
+  min-height: 0;
+  max-height: none;
+}
+
+body.game-view-active.game-layout-custom > .timeline-section #scoreChart {
+  min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-layout-resizer::before,
+  .game-layout-resizer-grip {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* The divider owns the results boundary at every viewport and saved split.
+   Content must never determine a grid's height or introduce a second scroller. */
+body.game-view-active {
+  height: 100dvh;
+  min-height: 0;
+}
+
+body.game-view-active > .top-section {
+  flex: 1 1 55dvh;
+  min-height: 0;
+  max-height: none;
+  overflow: clip;
+}
+
+body.game-view-active > .top-section :is(
+  .results-section, .results-content, .grid-container, .scores-sidebar
+) {
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+
+body.game-view-active > .top-section .results-content {
+  flex: 1 1 0;
+}
+
+body.game-view-active > .top-section :is(.players-grid, .base-run-subgame) {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: none !important;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+  align-items: stretch;
+}
+
+@media (orientation: portrait) {
+  body.game-view-active > .top-section .players-grid.base-run-subgames {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+body.game-view-active > .top-section .scores-sidebar {
+  flex: 0 0 clamp(64px, 13vw, 120px);
+  align-self: stretch;
+  margin-top: 0;
+}
+
+body.game-view-active > .top-section .scores-sidebar.base-run-score-sidebar {
+  flex-basis: clamp(100px, 24vw, 250px);
+}
+
+body.game-view-active > .top-section .team-scores {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+body.game-view-active > .top-section .team-scores > :is(li, .team-score-subgame) {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+}
+
+body.game-view-active > .top-section .team-score-subgame {
+  box-sizing: border-box;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+body.game-view-active > .top-section :is(.players-grid .player-summary, .team-scores li) {
+  container-type: size;
+  align-self: stretch;
+  min-height: 0;
+  height: auto;
+  margin-block: 0;
+  overflow: clip;
+}
+
+/* Preserve the existing full/compact typography, shrinking its contents only
+   when a card's measured row cannot accommodate it. Borders stay on the grid. */
+body.game-view-active > .top-section :is(.player-summary, .team-scores li) > :is(
+  .player-summary-header, .player-summary-details, .team-name, .team-tags, .team-score
+) {
+  flex-shrink: 0;
+  min-height: min-content;
+  zoom: var(--tile-content-scale, 1);
+}
+
+/* Fit names and scores in one flow so wrapped names cannot overlap scores. */
+body.game-view-active > .top-section .team-scores li {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px 6px;
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .team-scores .team-name {
+  order: 0;
+  font-size: calc(clamp(12px, min(21cqw, 43cqh), 24px) * var(--tile-content-scale, 1));
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body.game-view-active > .top-section .team-scores .team-score {
+  order: 1;
+  font-size: calc(clamp(13px, 43cqh, 26px) * var(--tile-content-scale, 1) * var(--team-score-width-scale, 1));
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .team-scores .team-tags {
+  order: 2;
+  font-size: calc(10px * var(--tile-content-scale, 1));
+  line-height: 1.1;
+}
+
+body.game-view-active > .top-section .team-tile-compact .team-tags-by-colour,
+body.game-view-active > .top-section :is(.team-tile-minimal, .team-tile-inline) .team-tags {
+  display: none;
+}
+
+body.game-view-active > .top-section .team-scores li.team-tile-minimal {
+  gap: 0;
+}
+
+body.game-view-active > .top-section .team-scores li.team-tile-inline {
+  flex-direction: row;
+  align-items: center;
+  column-gap: 3px;
+  padding-block: 1px;
+}
+
+body.game-view-active > .top-section .team-tile-inline .team-name {
+  flex: 1 1 0;
+  width: auto;
+  white-space: nowrap;
+  font-size: calc(clamp(12px, min(10cqw, 70cqh), 24px) * var(--tile-content-scale, 1));
+}
+
+body.game-view-active > .top-section .team-tile-inline .team-score {
+  font-size: calc(clamp(13px, 75cqh, 26px) * var(--tile-content-scale, 1) * var(--team-score-width-scale, 1));
+}
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active > .top-section .team-tags-by-colour,
+  body.game-view-active > .top-section .players-grid .kill-streak-indicator,
+  body.game-view-active > .top-section .players-grid .detail-lives-line {
+    display: none !important;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-summary-details {
+    font-size: 10px;
+    gap: 1px 3px;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-name {
+    font-size: 11px;
+  }
+
+  body.game-view-active > .top-section .players-grid .player-score {
+    font-size: 13px;
+  }
+
+  body.game-view-active > .top-section
+    :is(.players-grid.standard-team-columns, .players-grid.base-run-subgames) .player-summary-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+  }
+
+  body.game-view-active > .top-section
+    :is(.players-grid.standard-team-columns, .players-grid.base-run-subgames) .player-name {
+    flex: 0 0 auto;
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body.game-view-active > .top-section
+    :is(.players-grid.standard-team-columns, .players-grid.base-run-subgames) .player-score {
+    width: 100%;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active > .top-section .scores-sidebar:not(.base-run-score-sidebar) {
+    flex-basis: clamp(112px, 19vw, 160px);
+  }
+}
+
+/* Team fonts are fitted directly rather than zooming their layout boxes. */
+body.game-view-active > .top-section .team-scores li > :is(.team-name, .team-tags, .team-score) {
+  zoom: 1;
+}
+
+/* Responsive team rows must fit the sidebar even when the docking defaults
+   give other panels a scrollable minimum size. */
+body.game-view-active.game-layout-board > .top-section .scores-sidebar .team-scores {
+  min-width: 0 !important;
+}
+
+@media (max-width: 1200px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active.game-layout-board > .top-section .grid-container .players-grid {
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 600px) {
+  body.game-view-active.game-layout-board .dock-panel .panel-chrome {
+    flex-basis: 20px;
+    height: 20px;
+  }
+
+  body.game-view-active.game-layout-board .panel-chrome .panel-drag-handle,
+  body.game-view-active.game-layout-board .panel-chrome .panel-hide {
+    height: 18px;
+    min-height: 0;
+  }
+
+  body.game-view-active.game-layout-board .game-layout-toolbar {
+    padding-block: 2px;
+  }
+
+  body.game-view-active.game-layout-board .game-layout-toolbar button {
+    min-height: 22px;
+    height: 22px;
+    padding-block: 2px;
+  }
+}
+
+body.game-view-active > .top-section .scores-sidebar .team-tile-inline {
+  padding-inline: 1px;
+}
+
+body.game-view-active > .top-section .scores-sidebar .team-tile-inline .team-name {
+  white-space: nowrap;
+  font-size: calc(clamp(11px, min(10cqw, 70cqh), 24px) * var(--tile-content-scale, 1));
+}
+
+body.game-view-active > .top-section .scores-sidebar .team-tile-inline .team-score {
+  font-size: calc(clamp(12px, 75cqh, 26px) * var(--tile-content-scale, 1) * var(--team-score-width-scale, 1));
+}

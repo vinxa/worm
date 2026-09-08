@@ -71,16 +71,19 @@
   transition: background-color 220ms ease, border-color 220ms ease,
     box-shadow 220ms ease, filter 220ms ease, opacity 220ms ease;
 }
+.players-grid:not(.base-run-subgames) .player-summary {
+  align-self: stretch;
+}
 .player-summary.is-deactivated {
   background: var(--player-tile-bg-muted);
-  border-color: #555;
-  filter: grayscale(0.6);
+  border-color: #333;
+  filter: grayscale(0.55);
 }
-.player-summary.is-deactivated .player-name {
-  color: var(--player-name-color, #b0b0b0);
+.player-summary.is-deactivated:hover {
+  background: var(--player-tile-bg-muted);
 }
 .player-summary.is-deactivated .player-score {
-  color: #b0b0b0;
+  color: #929292;
 }
 
 .player-summary-header .player-score {
@@ -454,6 +457,7 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
 /* weird chromium scrollbar */
 .results-section::-webkit-scrollbar,
 .grid-container::-webkit-scrollbar,
+.scores-sidebar::-webkit-scrollbar,
 .top-section::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -461,12 +465,14 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
 
 .results-section::-webkit-scrollbar-track,
 .grid-container::-webkit-scrollbar-track,
+.scores-sidebar::-webkit-scrollbar-track,
 .top-section::-webkit-scrollbar-track {
   background: var(--app-canvas);
 }
 
 .results-section::-webkit-scrollbar-thumb,
 .grid-container::-webkit-scrollbar-thumb,
+.scores-sidebar::-webkit-scrollbar-thumb,
 .top-section::-webkit-scrollbar-thumb {
   background: #555;
   border: 2px solid var(--app-canvas);
@@ -475,12 +481,14 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
 
 .results-section::-webkit-scrollbar-thumb:hover,
 .grid-container::-webkit-scrollbar-thumb:hover,
+.scores-sidebar::-webkit-scrollbar-thumb:hover,
 .top-section::-webkit-scrollbar-thumb:hover {
   background: #777;
 }
 
 .results-section::-webkit-scrollbar-corner,
 .grid-container::-webkit-scrollbar-corner,
+.scores-sidebar::-webkit-scrollbar-corner,
 .top-section::-webkit-scrollbar-corner {
   background: var(--app-canvas);
 }
@@ -539,6 +547,18 @@ body.game-view-active .player-summary.is-deactivated.expanded .player-summary-de
   background: transparent;
   border-radius: 6px;
   font-weight: 500;
+}
+
+.base-hit-count {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  font-size: calc(1em * var(--base-hit-scale, 1));
+  line-height: 1;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .penalty-card {

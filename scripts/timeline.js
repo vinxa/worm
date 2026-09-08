@@ -676,19 +676,27 @@ function getSplitWormScorePadding(playerId, selectedPlayerCount) {
         1,
         (Number(state.chart.plotHeight) || 1) / selectedPlayerCount
     );
-    const taggedSpace = Math.min(
-        preferredTaggedSpace,
-        Math.max(minimumTaggedSpace, axisHeight * 0.24)
-    );
-    const lowerSpaceFraction = Math.min(0.8, taggedSpace / axisHeight);
-    const maxPadding = 0.05;
-    const lowerPadding = dataRange * lowerSpaceFraction *
-        (1 + maxPadding) / (1 - lowerSpaceFraction);
-    return {
-        softMin: dataMin - lowerPadding,
-        minPadding: 0,
-        maxPadding,
+    const paddingForMarker = (markerSize) => {
+        const hoverSize = markerSize + marker.hoverGrowth;
+        const hitSize = Math.max(hoverSize + 4, 14);
+        const extent = Math.max(10, hoverSize / 2, hitSize / 2);
+        const minimumSpace = markerSize / 2 + extent + 2;
+        const preferredSpace = Math.max(marker.offset, extent + 1) + extent + 1;
+        const space = Math.min(
+            preferredSpace,
+            Math.max(minimumSpace, axisHeight * 0.24)
+        );
+        const spaceFraction = Math.min(0.8, space / axisHeight);
+        return dataRange * spaceFraction * 1.05 / (1 - spaceFraction);
     };
+    const options = {
+        softMin: hasTaggedEvent
+            ? dataMin - paddingForMarker(largestTaggedSize)
+            : 0,
+        minPadding: hasTaggedEvent ? 0 : 0.15,
+        maxPadding: hasKillStreakEvent ? 0 : 0.05,
+    };
+    return options;
 }
 
 function getPlayerEventPointId(seriesKind, playerId, event, occurrences) {
@@ -740,6 +748,10 @@ function updateSelectedPlayerSeries(pid, {
     const hideUnselectedIncomingTags =
         !comparisonDetailsEnabled() && state.selectedPlayers.size > 0;
     const tagEventOccurrences = new Map();
+    const playerTeam = state.gameData.teams?.find(
+        (team) => String(team.id) === String(state.gameData.players?.[pid]?.team)
+    );
+    const playerTeamColor = playerTeam?.color || color;
     const tagPoints = (state.playerEvents?.[pid] || [])
         .filter((ev) => ["tag", "deny", "tagged"].includes(ev.type) || isIncomingDeniedEvent(ev))
         .filter((ev) => state.deniesVisible || (ev.type !== "deny" && !isIncomingDeniedEvent(ev)))
@@ -1468,10 +1480,10 @@ function renderLiveChartOverlays(chart) {
     chart.series
         .filter((tagSeries) => String(tagSeries.options.id || "").endsWith("-tags"))
         .forEach((tagSeries) => {
-            // Incoming/custom events are rendered by the stable overlay below.
+            // Incoming/deny events are rendered by the stable overlay below.
             // Highcharts can retain a native scatter graphic while reconciling
-            // point IDs, so remove it explicitly to guarantee that an incoming
-            // tagged dot never appears directly on the player worm.
+            // point IDs, so remove it explicitly. Kill-streak overlays deliberately
+            // retain their native outgoing tag graphic underneath the flame.
             tagSeries.points.forEach((point) => {
                 if (point.eventType !== "deny" && point.eventType !== "tagged" &&
                     !isIncomingDeniedEvent(point)) return;
@@ -1602,21 +1614,25 @@ function createLiveScoreChart(data) {
     const fullTimeline = buildTeamTimeline(data);
     const baseDestroyPoints = buildBaseDestroyPoints(data);
     const teamDeniedPoints = buildTeamDeniedPoints(data);
+    const teamMouseTracking = !state.livePlaybackLocked;
     const liveSeries = data.teams.map((t) => ({
         name: t.name,
         id: t.id + "-live",
         data: [[0, 0]],
         color: t.color,
+        enableMouseTracking: teamMouseTracking,
         zIndex: 5,
+        states: TEAM_TIMELINE_STATES,
     }));
     const ghostSeries = data.teams.map((t) => ({
         id: t.id + "-ghost",
         name: t.name,
         data: fullTimeline[t.id],
         color: hexToRGBA(t.color, 0.4),
-        enableMouseTracking: true,
+        enableMouseTracking: teamMouseTracking,
         showInLegend: false,
         zIndex: 1,
+        states: TEAM_TIMELINE_STATES,
     }));
     const baseDestroySeries = {
         id: "base-destroys",
@@ -1748,6 +1764,7 @@ function createLiveScoreChart(data) {
             tooltip: { snap: 5 },
         },
         tooltip: {
+            animation: false,
             headerFormat: "",
             hideDelay: 0,
             snap: 5,

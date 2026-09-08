@@ -2,6 +2,7 @@ import { state } from "./state.js";
 import { handleSkip } from "./replayHandler.js";
 import { isTypingField } from "./utils.js";
 import { toggleYouTubeModal } from "./video.js";
+import { resetGameLayout } from "./gameLayout.js";
 
 export function setupKeyboardShortcutsModal() {
     const modal = document.getElementById("keyboardShortcutsModal");
@@ -59,10 +60,12 @@ export function setupKeyboardControls({
     onToggleComparisonDetails,
     onToggleDeniedEvents,
     onToggleSplitTimelines,
+    onResetLayout = resetGameLayout,
     onShowHome,
 }) {
     document.addEventListener("keydown", (e) => {
         if (document.querySelector("dialog[open]")) return;
+        if (e.code !== "KeyE" && e.code !== "KeyR" && e.target.closest?.("[role='separator'], .panel-chrome, .panel-drag-handle, .panel-resize-handle, #gameLayoutToolbar, #gameLayoutButton")) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (isTypingField(e.target) && e.code !== "Escape") return;
 
@@ -94,6 +97,14 @@ export function setupKeyboardControls({
 
         if (!state.gameData) return;
         switch (e.code) {
+            case "KeyE":
+                e.preventDefault();
+                if (!e.repeat) document.getElementById("gameLayoutButton")?.click();
+                break;
+            case "KeyR":
+                e.preventDefault();
+                if (!e.repeat) onResetLayout();
+                break;
             case "Space":
                 e.preventDefault();
                 onTogglePlay();

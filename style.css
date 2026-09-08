@@ -11,3 +11,8 @@
 @import url("styles/07-mobile-layout.css");
 @import url("styles/08-tablet-layout.css");
 @import url("styles/09-desktop-layout.css");
+@import url("styles/10-layout-resizer.css");
+@import url("styles/11-game-layout.css");
+@import url("styles/12-video-layout.css");
+
+@import url("styles/13-player-tiles.css");

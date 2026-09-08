@@ -16,16 +16,6 @@
     Copied to clipboard
   </div>
 
-  <div class="portrait-orientation-warning" role="status" aria-live="polite">
-    <img
-      class="portrait-orientation-logo"
-      src="static/images/worm.png"
-      alt="WORM logo"
-    />
-    <div class="portrait-orientation-icon" aria-hidden="true">↔</div>
-    <p>Rotate your device to landscape to use WORM.</p>
-  </div>
-
   <!-- Home View -->
 <section id="home-view" class="home-section">
   <button id="installButton" type="button" style="display:none" aria-label="Download app">
@@ -91,7 +81,7 @@
             <button id="clearFiltersButton" class="button--ghost" type="button" title="Clear all filters" data-keyboard-shortcut="Esc">Clear all filters</button>
           </div>
           <label class="filter-favourites-toggle">
-            <input id="favouritesOnlyFilter" type="checkbox" />
+            <input id="favouritesOnlyFilter" class="checkbox-control" type="checkbox" />
             Only games with favourite players
           </label>
         </div>
@@ -186,6 +176,13 @@
           <path d="m14.5 6-6 6 6 6" />
         </svg>
       </button>
+      <button id="gameLayoutButton" class="button--icon" type="button" title="Edit layout" aria-label="Layout mode" aria-pressed="false" aria-controls="gameLayoutToolbar gameWorkspace" data-keyboard-shortcut="E">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="10" height="10" rx="1.5" />
+          <rect x="16" y="3" width="5" height="10" rx="1.5" />
+          <rect x="3" y="16" width="18" height="5" rx="1.5" />
+        </svg>
+      </button>
       <button id="keyboardShortcutsButton" class="button--icon keyboard-shortcuts-button" type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts" aria-haspopup="dialog" aria-controls="keyboardShortcutsModal">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="2.5" y="5" width="19" height="14" rx="2" />
@@ -238,6 +235,10 @@
       
     <img src="static/images/worm.png" alt="WORM logo" class="app-logo" />
     </div>
+    <div id="gameLayoutToolbar" class="game-layout-toolbar" role="group" aria-label="Arrange game panels" hidden>
+      <div id="gameLayoutTray" class="layout-tray" aria-label="Hidden panels"></div>
+      <button id="gameLayoutReset" class="button--icon" type="button" title="Reset layout" aria-label="Reset layout" aria-keyshortcuts="R" data-keyboard-shortcut="R">↺</button>
+    </div>
     <div class="title">GAME LOADING</div>
     <div class="header-right">
       <span id="liveCountdown" class="live-countdown" hidden>00:00</span>
@@ -259,7 +260,7 @@
         </span>
       </label>
       <div class="youtube-input-container">
-      <button id="headerPlayButton" class="button--icon button--primary header-play-button" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
+      <button id="headerPlayButton" class="button--icon button--primary button--play header-play-button" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
       <button id="headerSpeedButton" class="button--secondary header-speed-button" title="Change playback speed" data-keyboard-shortcut="+ / −">1x</button>
       <input id="youtubeUrl" type="text" placeholder="YouTube URL (https://www.youtube.com/watch?v=pjf1uhUrc4M)"/>
       <button id="loadButton" class="button--icon youtube-load-button" type="button" title="Load YouTube video" aria-label="Load YouTube video" data-keyboard-shortcut="V">
@@ -279,6 +280,13 @@
       </button>
     </div>
   </header>
+
+  <main id="gameWorkspace" class="game-workspace" aria-label="Game panels">
+    <p id="gameLayoutEmpty" class="game-layout-empty" hidden>All panels are hidden. Turn on Layout mode to add one.</p>
+  </main>
+  <div id="dockDropPreview" class="dock-drop-preview" hidden></div>
+  <div id="dockDragGhost" class="dock-drag-ghost" hidden></div>
+  <p id="gameLayoutAnnouncement" class="layout-announcement" role="status" aria-live="polite"></p>
 
   <dialog id="keyboardShortcutsModal" class="modal-surface patch-notes-modal keyboard-shortcuts-modal" aria-labelledby="keyboardShortcutsTitle">
     <header class="modal__header patch-notes-header">
@@ -324,6 +332,8 @@
         <section class="keyboard-shortcuts-subsection" aria-labelledby="extraShortcutsTitle">
           <h3 id="extraShortcutsTitle">Extras</h3>
           <dl>
+            <div><dt><kbd>E</kbd></dt><dd>Toggle layout edit mode</dd></div>
+            <div><dt><kbd>R</kbd></dt><dd>Reset layout</dd></div>
             <div><dt><kbd>V</kbd></dt><dd>Show/hide YouTube player</dd></div>
             <div><dt><kbd>W</kbd></dt><dd>Wiggle worm</dd></div>
             <div><dt><kbd>C</kbd></dt><dd>Share game</dd></div>
@@ -333,17 +343,17 @@
     </div>
   </dialog>
 
-    <!-- Draggable Video Modal (hidden by default) -->
-  <div id="videoModal" class="modal-surface video-modal">
-    <div class="modal__header modal-header">
-      <span class="modal-title">YouTube Player</span>
-      <input id="videoOffset" type="number" placeholder="Offset (sec)" min="0" title="Video start offset in seconds"/>
-      <button id="modalClose" class="button--icon modal__close modal-close" type="button" title="Close YouTube player" aria-label="Close YouTube player" data-keyboard-shortcut="V">✕</button>
+  <!-- Inline video panel; geometry is managed by the page layout. -->
+  <section id="videoModal" class="video-panel video-modal video-docked" aria-label="YouTube player" hidden>
+    <div class="panel-chrome modal-header">
+      <span class="modal-title">Video</span>
+      <input id="videoOffset" type="number" placeholder="Offset (sec)" title="Video start offset in seconds"/>
+      <button id="modalClose" class="button--icon modal-close panel-hide" type="button" title="Hide video" aria-label="Hide video" data-keyboard-shortcut="V">×</button>
     </div>
 <div class="modal-body">
   <div id="modalPlayer" style="width:560px; height:315px;"></div>
 </div>
-  </div>
+  </section>
 
   <div id="loading-indicator" style="display: none;">
     <div class="spinner-outer">
@@ -399,6 +409,22 @@
     </div>
   </div>
 
+  <div
+    id="gameLayoutResizer"
+    class="game-layout-resizer"
+    role="separator"
+    aria-label="Resize player results and timeline"
+    aria-orientation="horizontal"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    aria-valuenow="50"
+    tabindex="0"
+    title="Drag or use arrow keys to resize. Double-click to reset."
+    style="display: none;"
+  >
+    <span class="game-layout-resizer-grip" aria-hidden="true"></span>
+  </div>
+
   <section class="timeline-section" style="display: none;">
     <!-- <h2>TIMELINE</h2> -->
     <div id="scoreChart"></div>
@@ -413,7 +439,7 @@
           <path d="M5 5v14M18 6l-8 6 8 6V6Z" />
         </svg>
       </button>
-      <button id="playButton" class="button--icon button--primary" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
+      <button id="playButton" class="button--icon button--primary button--play" type="button" title="Play" aria-label="Play" data-keyboard-shortcut="Space"></button>
       <button id="forwardButton" class="button--icon transport-button" type="button" title="Skip forward 15s" aria-label="Skip forward 15 seconds" data-keyboard-shortcut="→">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M19 5v14M6 6l8 6-8 6V6Z" />
