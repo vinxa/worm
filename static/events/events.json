@@ -66,7 +66,7 @@
         "game-type": "Zltac Settings - Wapl"
     },
         {
-        "name": "WAPL 3",
+        "name": "WAPL 2026 Season 1",
         "ranges": [
             {
                 "start": "2026-05-24T17:00:00+08:00",
@@ -99,7 +99,7 @@
         "game-type": "Zltac Settings - Wapl"
     },
         {
-        "name": "WAPL 4",
+        "name": "WAPL 2026 Season 2",
         "ranges": [
             {
                 "start": "2026-09-13T17:00:00+08:00",
@@ -123,12 +123,12 @@
             }
         ],
         "teams": {
-            "Cheddar Than the Rest": ["Artemissed You","Basilisk","CaptainEmmerica","Gaza","Gripsy","Method"],
-            "Swiss-ly Taking Your Base": ["Arbel","Banksy","Brodihzzle","DeanLogan1","Jette","Muffin"],
-            "Halou-mi Take Your Base Now": ["Commander-Snake","Cowie","Jacko","Sawdust","TechDeck205"],
-            "Brie really need a base": ["Aqua","Fluffo","Gooby","Best5InTheState","Serenity","Webe"],
-            "Cheese Fun-due": ["Dorky","Drayke","John Wick","Keirlos3","Shaniarenee7","Stinky"]
+            "Team 1": ["Arbel","DeanLogan1","Dorky","Jette","plank"],
+            "Team 2": ["Deathstalker","Jacko","Sawdust","Method","Noobz316"],
+            "Team 3": ["Banksy","John Wick","Serenity","TechDeck205","Watson"],
+            "Season's Beatings": ["Artemissed You","Commander-Snake","Gooby","Cohen","Shaniarenee7"]
         },
         "game-type": "Zltac Settings - Wapl"
     }
 ]
+
