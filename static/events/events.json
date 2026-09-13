@@ -123,9 +123,9 @@
             }
         ],
         "teams": {
-            "Team 1": ["Arbel","DeanLogan1","Dorky","Jette","plank"],
-            "Team 2": ["Deathstalker","Jacko","Sawdust","Method","Noobz316"],
-            "Team 3": ["Banksy","John Wick","Serenity","TechDeck205","Watson"],
+            "'Tis the Season to Get Denied": ["Arbel","DeanLogan1","Dorky","Jette","plank"],
+            "Stocking Stuffers": ["Deathstalker","Jacko","Sawdust","Method","Noobz316"],
+            "Deck the Halls": ["Banksy","John Wick","Serenity","TechDeck205","Watson"],
             "Season's Beatings": ["Artemissed You","Commander-Snake","Gooby","Cohen","Shaniarenee7"]
         },
         "game-type": "Zltac Settings - Wapl"
